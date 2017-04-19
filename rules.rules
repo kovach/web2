@@ -1,0 +1,9 @@
+# r a b, .r b c => r a c
+# r a b => Q a b
+
+archer x, .sum p x, op p op => dmg op
+hp x 0 => lose x
+
+---
+
+[ p | dmg p ] n => hp p (10 - n)
