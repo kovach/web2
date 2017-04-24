@@ -5,7 +5,7 @@ import Control.Arrow (first)
 import Data.List (foldl')
 
 data ParseEither str e a =
-  ParseEither { runParser :: str -> Either e (a, str) }
+  ParseEither { runParser :: str -> Either (e, str) (a, str) }
 
 type Error = String
 type Parser a = ParseEither String Error a
@@ -34,7 +34,7 @@ a <|> b = ParseEither $ \s ->
     Right v -> return v
 
 failure :: String -> Parser a
-failure str = ParseEither (\_ -> Left str)
+failure str = ParseEither (\s -> Left (str, s))
 
 assert :: Bool -> String -> Parser ()
 assert bool str =
@@ -57,9 +57,9 @@ anyChar str = foldr (<|>) (failure $ "expected one of: " ++ str) (map char str)
 char :: Char -> Parser Char
 char c = ParseEither (char' c)
   where
-    char' :: Char -> String -> Either Error (Char, String)
+    char' :: Char -> String -> Either (Error, String) (Char, String)
     char' c (c' : cs) | c == c' = Right (c, cs)
-    char' c _ = Left $ "expected char: " ++ [c]
+    char' c s = Left ("expected char: " ++ [c], s)
 
 string :: String -> Parser String
 string = mapM char
@@ -81,10 +81,11 @@ identifier :: Parser String
 identifier = (:) <$> alpha <*> many (digit <|> alpha <|> anyChar "_")
 
 int_ :: Parser Int
-int_ = ParseEither (safeFirst "expected integer" . reads)
+int_ = ParseEither step
   where
-    safeFirst :: e -> [a] -> Either e a
-    safeFirst e [] = Left e
+    step s = safeFirst s $ reads s
+    msg = "expected integer" 
+    safeFirst s [] = Left (msg, s)
     safeFirst _ (x : _) = Right x
 
 token :: Parser a -> Parser a

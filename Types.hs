@@ -10,11 +10,16 @@ import qualified Data.Map as M
 data Time = Time [Int]
   deriving (Eq, Show, Ord)
 appT (Time a) (Time b) = Time (reverse b ++ a) -- TODO
-type Label = String
+newtype Label = L String
+  deriving (Eq, Ord)
+
+instance IsString Label where
+  fromString = L
+instance Show Label where
+  show (L s) = s
 
 data Tuple = T
-  { src :: Node
-  , tgt :: Node
+  { nodes :: [Node]
   , label :: Label
   , ts :: Time }
   deriving (Eq, Show, Ord)
@@ -48,6 +53,9 @@ data DBUpdate = DBU
   , new_id_counter :: Count
   }
 
+initDB g = DB { tuples = g, time_counter = 0, id_counter = 0 }
+emptyDB = initDB []
+
 type Name = String
 --type Edge = (Label, (Node, Node))
 type Edge = Tuple
@@ -74,7 +82,9 @@ instance Num E where
   (*) = EBinOp Mul
   (-) = EBinOp Sub
 
-data EP = EP Label Q Q
+data EP =
+  EP Label [Q]
+  -- | Tuple Label [Q]
   deriving (Eq, Show, Ord)
 
 data Op = QEq | QDisEq | QLess | QMore
@@ -95,7 +105,7 @@ data Query =
 
 -- Right-hand side of rule
 data RQuery =
-  Assert Label E E
+  Assert Label [E]
   deriving (Eq, Show, Ord)
 
 type Pattern = Set Query
@@ -123,5 +133,5 @@ unfold f x =
     Nothing -> [x] -- unfoldr returns []
     Just x' -> x : unfold f x'
 
-rootNode = (NTNamed ".")
-rootExpr = ENamed "."
+--rootNode = (NTNamed ".")
+--rootExpr = ENamed "."

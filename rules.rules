@@ -1,9 +1,17 @@
+# transitive closure
 # r a b, .r b c => r a c
-# r a b => Q a b
 
-archer x, .sum p x, op p op => dmg op
-hp x 0 => lose x
+# an event
+# archer x, .sum p x, op p op => dmg op
+# hp x 0 => lose x
 
----
+# todo: counting/reactive rules
+# [ p | dmg p ] n => hp p (10 - n)
 
-[ p | dmg p ] n => hp p (10 - n)
+# factorial
+acc base acc, arg base 1 => val base acc, done base
+acc base acc, arg base n, n /= 1 => acc y (acc*n), arg y (n-1)
+
+# natural numbers
+sum r a 'z n => val r n, done
+sum r a m n, s m l => s y n, sum r b l y

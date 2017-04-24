@@ -1,13 +1,7 @@
-# r A B
-# r B C
-# r C D
-# r D E
+# acc x 1
+# arg x 4
+# lol
 
-op p1 p2
-op p2 p1
-
-hp p1 1
-hp p2 1
-
-archer a
-sum p1 a
+s one 'z
+s a one
+sum x y a a
