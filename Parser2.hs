@@ -14,18 +14,18 @@ ineq_ =
   (token (string "<") *> return QLess) <|>
   (token (string ">") *> return QMore)
 qbin_ = token $ flip QBinOp <$> token q_ <*> ineq_ <*> token q_
-ep_ = token $
-  ((EP <$> rel_ <*> sepBy flex q_)
-   )
-query_ = token $ Query <$> ep_
-dotquery_ = token $ char '.' *> (DotQuery <$> ep_)
-hashquery_ = token $ char '@' *> (HashQuery <$> ep_)
+ep_ lin = token $ EP lin <$> rel_ <*> sepBy flex q_
+
+query_ = token $ Query Low <$> ep_ Normal
+dotquery_ = token $ string "." *> (Query High <$> ep_ Normal)
+linearquery_ = token $ string ".." *> (Query Low <$> ep_ Linear)
+dotlinearquery_ = token $ string "..." *> (Query High <$> ep_ Linear)
 countquery_ = token . bracket_ $ Counter <$> names_ <* sep <*> lhs_
   where
     sep = token (char '|')
     names_ = token $ sepBy1 flex identifier
 
-clause_ = qbin_ <|> dotquery_ <|> hashquery_ <|> query_ <|> countquery_
+clause_ = qbin_ <|> dotquery_ <|> linearquery_ <|> dotlinearquery_ <|> query_ <|> countquery_
 lhs_ = sepBy1 comma_ clause_
 
 arrow_ = token $ string "=>"
@@ -44,7 +44,8 @@ expr_ =
 
 rquery_ = Assert <$> rel_ <*> sepBy flex expr_
 rclause_ = rquery_
-rhs_ = sepBy1 comma_ rclause_
+-- nullRHS_ = token $ char '.'
+rhs_ = (sepBy comma_ rclause_)
 
 
 rule_ = Rule <$> (token lhs_) <*> (arrow_ *> rhs_)

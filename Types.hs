@@ -18,10 +18,13 @@ instance IsString Label where
 instance Show Label where
   show (L s) = s
 
+type Id = Int
+
 data Tuple = T
   { nodes :: [Node]
   , label :: Label
-  , ts :: Time }
+  , ts :: Time -- TODO replace with provenance (a rule application instance)
+  , tid :: Id }
   deriving (Eq, Show, Ord)
 
 -- for now, objects (indexed by int) or literal ints
@@ -43,17 +46,21 @@ type Count = Int
 
 data DB = DB
   { tuples :: [Tuple]
+  , removed_tuples :: [Tuple]
   , time_counter :: Int
   , id_counter :: Count
+  , tuple_counter :: Count
   }
   deriving (Eq, Show, Ord)
 
 data DBUpdate = DBU
   { new_tuples :: [Tuple]
   , new_id_counter :: Count
+  , new_tuple_counter :: Count
+  , new_removed :: [Tuple]
   }
 
-initDB g = DB { tuples = g, time_counter = 0, id_counter = 0 }
+initDB g = DB { tuples = g, removed_tuples = [], time_counter = 0, id_counter = 0, tuple_counter = 0}
 emptyDB = initDB []
 
 type Name = String
@@ -83,19 +90,21 @@ instance Num E where
   (-) = EBinOp Sub
 
 data EP =
-  EP Label [Q]
-  -- | Tuple Label [Q]
+  EP Linear Label [Q]
   deriving (Eq, Show, Ord)
 
 data Op = QEq | QDisEq | QLess | QMore
   deriving (Eq, Show, Ord)
 
+data Dot = High | Low
+  deriving (Eq, Show, Ord)
+data Linear = Linear | Normal
+  deriving (Eq, Show, Ord)
+
 -- Left-hand side of rule
 data Query =
-  Query EP
-  | DotQuery EP
-  | HashQuery EP
-  | Counter [String] [Query]
+  Query Dot EP
+  | Counter [Name] [Query]
   | QBinOp Op Q Q
   -- TODO forall/unique/some/empty
   -- rand/single
@@ -120,8 +129,10 @@ data Rule = Rule LHS RHS
 type Graph = [Tuple]
 
 type Context = [(Name, Node)]
+type Bindings = (Context, [Tuple])
+emptyBindings = ([], [])
 
-type Match = (Context, RHS)
+type Match = (Bindings, RHS)
 
 -- Utilities
 

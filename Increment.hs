@@ -6,6 +6,7 @@ import Data.Maybe
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Map (Map)
+import Data.List (sort)
 import qualified Data.Map as M
 
 import Data.Char
@@ -24,25 +25,17 @@ emptyIndex = M.empty
 dotClauses :: LHS -> LHS
 dotClauses = mapMaybe isdot
   where
-    isdot (DotQuery e) = Just (Query e)
+    isdot q@(Query High _) = Just q
     isdot _ = Nothing
-
-fixClauses = map fix
-  where
-    fix (DotQuery e) = Query e
-    fix t = t
 
 insertRule :: Rule -> Index -> Index
 insertRule rule@(Rule lhs rhs) ind =
   case dotClauses lhs of
-    [] -> foldr step ind lhs'
+    [] -> foldr step ind lhs
     cs -> foldr step ind cs
   where
-    lhs' = fixClauses lhs
-    pattern = S.fromList lhs'
-    step q@(Query ep@(EP l _)) ind = 
-      M.insertWith (++) l [(rule, ep, S.delete q pattern)] ind
-    step q@(HashQuery ep@(EP l _)) ind =
+    pattern = S.fromList lhs
+    step q@(Query _ ep@(EP _ l _)) ind =
       M.insertWith (++) l [(rule, ep, S.delete q pattern)] ind
     step _ ind = ind
 
@@ -54,11 +47,12 @@ increment :: Tuple -> Index -> Graph -> [Match]
 increment tuple ind g = concatMap step ts
   where
     ts = indLookup (label tuple) ind
-    step (Rule _ rhs, p@(EP _ _), pattern) = 
-      let --initialContext = bindEdge v1 v2 [] tuple
-          --initialContext = solveStep [
-          cs = do
-            c <- solveStep [tuple] [] (Query p)
+    step (Rule _ rhs, p@(EP linear _ _), pattern) =
+      let cs = do
+            -- bind new tuple to identified clause
+            let b0 = ([], if linear == Linear then [tuple] else [])
+            c <- solveStep [tuple] b0 (Query Low p)
+            -- match remaining clauses
             foldM (solveStep g) c (S.toList pattern)
       in zip cs (repeat rhs)
 
@@ -73,6 +67,11 @@ stepLimit = 100
 emptySchedule = (0, [], emptyDB)
 cons = (:)
 
+-- Main function responsible for updating program state
+--   - pops edge from stack
+--   - selects rules it may trigger
+--   - computes results of rules
+--   - mutates db
 stepS :: Index -> Schedule -> Maybe Schedule
 stepS _ p@(c, _, _) | c > stepLimit = Nothing
 stepS _ p@(_, q, _) | null q = Nothing
@@ -81,21 +80,22 @@ stepS index (c, q, db) = Just (c+1, q', db')
     next = head q
     fixt t = t { ts = ts next `appT` ts t }
     dbu = applyAll db (increment next index (tuples db))
-    q' = foldr (cons) (tail q) (map fixt $ new_tuples dbu)
-    db' = DB { tuples = next : tuples db
+    q' = (map fixt $ new_tuples dbu) ++ (tail q)
+    newly_removed = new_removed dbu
+    db' = DB { tuples = filter (not . (`elem` newly_removed)) $ next : tuples db
+             , removed_tuples = newly_removed ++ removed_tuples db
              , time_counter = time_counter db + 1
-             , id_counter = new_id_counter dbu }
+             , id_counter = new_id_counter dbu
+             , tuple_counter = new_tuple_counter dbu
+             }
 
--- step1 :: Index -> DB -> Match -> DB
--- step1 ind db (c, rhs) =
---   let schedule = (0
-
+-- Main function
 trans1 = do
     edges <- readG edgeFile
-    let (ctxt, dbu) = applyMatch initdbu ([], edges)
+    let (ctxt, dbu) = applyMatch initdbu (emptyBindings, edges)
         --queue = foldl (flip Q.snoc) Q.empty (new_tuples dbu)
         stack = new_tuples dbu
-        schedule = (0, stack, emptyDB { id_counter = new_id_counter dbu })
+        schedule = (0, stack, emptyDB { tuple_counter = new_tuple_counter dbu, id_counter = new_id_counter dbu })
 
     rules <- readRules ruleFile
 
@@ -107,10 +107,17 @@ trans1 = do
         result = last steps
 
     (mapM_ print . tuples) result
+    putStrLn "removed:"
+    (mapM_ print . removed_tuples) result
     print $ length (tuples result)
+    let alltids = sort $ map tid (tuples result ++ removed_tuples result)
+    if ([0..length alltids - 1] /= alltids)
+      then putStrLn "tids not consistent!!"
+      else putStrLn "tids consistent!"
+
     return result
   where
-    initdbu = DBU {new_tuples = [], new_id_counter = 0}
+    initdbu = DBU {new_tuples = [], new_removed = [], new_id_counter = 0, new_tuple_counter = 0}
     edgeFile = "graph.txt"
     ruleFile = "rules.rules"
     justDB (_,_,db) = db

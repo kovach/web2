@@ -49,72 +49,72 @@ bindEdge ns c tuple = result
     -- TODO is order ok?
     result = foldl (flip $ uncurry bindNode) c pairs
 
-solveStep :: Graph -> Context -> Query -> [Context]
-solveStep g c (Query (EP e vs)) =
+solveStep :: Graph -> Bindings -> Query -> [Bindings]
+solveStep g (c, bound) (Query dot (EP linear e vs)) =
   let es = filter (edgeMatch c vs)
+         . filter (not . (`elem` bound))
          . constrainRelation e $ g
-  in
-    map (bindEdge vs c) es
+  in do
+    e <- es
+    let newC = bindEdge vs c e
+    let newBound = if linear == Linear then e : bound else bound
+    return (newC, newBound)
 
-solveStep g c (HashQuery (EP e vs)) =
-  let es = safeInit $ filter (edgeMatch c vs)
-         . constrainRelation e $ g
-  in
-    map (bindEdge vs c) es
-  where
-    safeInit [] = []
-    safeInit (x:_) = [x]
-
-solveStep g c (QBinOp op v1 v2) =
+solveStep g (c, bound) (QBinOp op v1 v2) =
   case (matchLookup v1 c, matchLookup v2 c) of
-    (Just v1', Just v2') -> if (op2fn op v1' v2') then [c] else []
+    (Just v1', Just v2') -> if (op2fn op v1' v2') then [(c, bound)] else []
     _ -> error "(in)equality constraints must refer to bound values"
 
-solveSteps :: Graph -> Context -> [Query] -> [Context]
+solveSteps :: Graph -> Bindings -> [Query] -> [Bindings]
 solveSteps g c es = foldM (solveStep g) c es
 
-solve :: Graph -> [Query] -> [Context]
-solve g es = solveSteps g [] es
+solve :: Graph -> [Query] -> [Bindings]
+solve g es = solveSteps g ([], []) es
 
 applyStep :: (DBUpdate, Context, Int) -> Assert -> (DBUpdate, Context, Int)
-applyStep (d@(DBU {new_tuples = es, new_id_counter = count0}), c0, t) (Assert label exprs) =
-  (DBU {new_tuples = new : es, new_id_counter = count1}, c1, t+1)
+applyStep (d@(DBU {new_tuples = es, new_id_counter = count0, new_tuple_counter = t_count}), c0, t)
+          (Assert label exprs) =
+  (DBU { new_tuples = new : es
+       , new_id_counter = new_id_count
+       , new_removed = new_removed d
+       , new_tuple_counter = t_count + 1}
+  , c1
+  , t+1)
   where
     step (c, count, acc) expr =
       let val = reduce c expr
           (val', count', c') = applyLookup count val c
       in (c', count', val':acc)
 
-    (c1, count1, exprs') = foldl step (c0, count0, []) exprs
-    new = T { nodes = reverse exprs', label = label, ts = (Time [t]) }
+    (c1, new_id_count, exprs') = foldl step (c0, count0, []) exprs
+    new = T { nodes = reverse exprs', label = label, ts = Time [t], tid = t_count }
 
 -- returns db containing (ONLY new edges, new object counter)
 applyMatch :: DBUpdate -> Match -> (Context, DBUpdate)
-applyMatch dbu (ctxt, rhs) =
+applyMatch dbu ((ctxt, bound), rhs) =
   let (dbu', ctxt', _) = foldl' applyStep (dbu, ctxt, 0) rhs
-  in (ctxt', dbu' { new_tuples = reverse $ new_tuples dbu' })
+  in (ctxt', dbu' { new_removed = bound ++ new_removed dbu', new_tuples = reverse $ new_tuples dbu' })
 
 -- `rhs` is a description of new edges to add, given a context
 -- add edges for each match simultaneously (according to timestamp)
 -- updates are sequenced so that new nodes get unique ids
 -- all updates get same top-level time (see fixt)
 applyAll :: DB -> [Match] -> DBUpdate
-applyAll (DB {id_counter = counter}) ms = dbu
+applyAll (DB {tuple_counter = t_counter, id_counter = counter}) ms = dbu
   where
-    init = DBU {new_tuples = [], new_id_counter = counter}
+    init = DBU {new_tuples = [], new_removed = [], new_id_counter = counter, new_tuple_counter = t_counter}
     dbu = foldl' (\a b -> snd $ applyMatch a b) init ms
 
-subQ :: [(Name, Q)] -> [Query] -> [Query]
-subQ bs query = map fix query
-  where
-    fix q = foldl (flip subst1) q bs 
-    subst1 (n,v) (Query (EP rel ns)) = Query $ EP rel (map (sub n v) ns)
-    subst1 (n,v) (QBinOp op l r) = QBinOp op (sub n v l) (sub n v r)
-    sub n v (QVar n') | n == n' = v
-    sub _ _ e = e
-
-toTuple (l, (s,t)) = 
-  T {nodes = [s, t], label = l, ts = Time [0,0]}
+--subQ :: [(Name, Q)] -> [Query] -> [Query]
+--subQ bs query = map fix query
+--  where
+--    fix q = foldl (flip subst1) q bs
+--    subst1 (n,v) (Query (EP rel ns)) = Query $ EP rel (map (sub n v) ns)
+--    subst1 (n,v) (QBinOp op l r) = QBinOp op (sub n v l) (sub n v r)
+--    sub n v (QVar n') | n == n' = v
+--    sub _ _ e = e
+--toTuple (l, (s,t)) =
+--  T {nodes = [s, t], label = l, ts = Time [0,0]}
 
 rn :: String -> Node
 rn x =
