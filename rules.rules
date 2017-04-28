@@ -1,48 +1,32 @@
-# transitive closure
-# r a b, .r b c => r a c
+# player initialization
+make_players p1 p2 => player p1, player p2, op p1 p2, op p2 p1, hp p1 3, hp p2 3
 
-# an event
-# archer x, .sum p x, op p op => dmg op
-# hp x 0 => lose x
-
-# todo: counting/reactive rules
-# [ p | dmg p ] n => hp p (10 - n)
-
-# factorial
-# acc base acc, arg base 1 => val base acc, done base
-# acc base acc, arg base n, n /= 1 => acc y (acc*n), arg y (n-1)
-
-# better factorial
-# call_fac arg => fac 1 arg
-# fac acc arg, arg /= 1 => fac (acc*arg) (arg-1)
-# fac acc 1 => done
-
-# natural numbers
-# sum r a 'z n => val r n, done
-# sum r a m n, s m l => s y n, sum r b l y
-
+# playing a card
 hand p h, ..in_hand h c, .play p c => summon p c
 
 # generic minion stuff
 make_minion p str hp => token t, owns p t, hp t hp, str t str
-.dmg c amt, ..hp c n => hp c (n-amt)
+.dmg c amt, ..hp c n => hp c (n-amt), print c 'takes amt 'damage
 
-# archer card: 2/1, deal 1 dmg to opponent
-.summon p c, archer c => make_minion p 2 1
+# combat
+attack t1 t2, token t1, token t2, str t1 s1, str t2 s2 => dmg t1 s2, dmg t2 s1
+
+# archer card: 2/2, deal 1 dmg to opponent
+.summon p c, archer c => make_minion p 2 1, print p 'summons_archer
 .summon p x, archer x, op p other => dmg other 1
 
 # wizard card: 3/3, deal 1 dmg to all opponent minions
-.summon p c, wizard c => make_minion p 3 3
+.summon p c, wizard c => make_minion p 3 3, print p 'summons_wizard
 .summon p c, wizard c, op p other, owns other minion => dmg minion 1
 
 # characters with 0 hp are marked dead
-hp c 0 => dead c
+hp c 0 => dead c, print c 'dies
 
 # end condition
-player p1, player p2, dead p1, dead p2 => draw
-player p, dead p => lose p
+player p1, player p2, dead p1, dead p2 => outcome_draw
+player p, dead p => outcome_lose p
 
-
+# TODO after randomized selection?
 # draw 2
 # ..in_deck deck c1, ..in_deck deck c2 => in_hand c1, in_hand c2
 # draw 1

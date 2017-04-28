@@ -8,13 +8,7 @@
 # s a one
 # sum x y a a
 
-player p1
-player p2
-op p1 p2
-op p2 p1
-
-hp p1 3
-hp p2 3
+make_players p1 p2
 
 archer a1
 archer a2

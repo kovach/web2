@@ -10,6 +10,7 @@ import qualified Data.Map as M
 data Time = Time [Int]
   deriving (Eq, Show, Ord)
 appT (Time a) (Time b) = Time (reverse b ++ a) -- TODO
+revT (Time a) = Time (reverse a)
 newtype Label = L String
   deriving (Eq, Ord)
 
@@ -104,7 +105,7 @@ data Linear = Linear | Normal
 -- Left-hand side of rule
 data Query =
   Query Dot EP
-  | Counter [Name] [Query]
+  | Counter [Name] [Query] -- TODO implement
   | QBinOp Op Q Q
   -- TODO forall/unique/some/empty
   -- rand/single

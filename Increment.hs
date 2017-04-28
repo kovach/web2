@@ -6,17 +6,19 @@ import Data.Maybe
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Map (Map)
-import Data.List (sort)
+import Data.List (sort, sortOn)
 import qualified Data.Map as M
+
+import System.Console.ANSI
 
 import Data.Char
 
 import Types
-import Graph
 import Expr
+import Graph
+import Rules
 import Parser2
 import Parse
-import qualified Queue as Q
 
 import Debug.Trace
 
@@ -100,16 +102,35 @@ trans1 = do
     rules <- readRules ruleFile
 
     mapM_ print $ rules
+    putStrLn "input relations:"
+    mapM_ (putStrLn . ("  " ++) . show) $ inputRelations rules
+    putStrLn "output relations:"
+    mapM_ (putStrLn . ("  " ++) . show) $ outputRelations rules
 
     -- TODO!: proper ordering
     let index = foldr (insertRule) emptyIndex $ rules
         steps = map justDB $ unfold (stepS index) schedule
         result = last steps
+        log = sortOn (revT . ts . snd) $ (map (True,) $ tuples result) ++ (map (False,) $ removed_tuples result)
 
-    (mapM_ print . tuples) result
-    putStrLn "removed:"
-    (mapM_ print . removed_tuples) result
+    -- setSGR [SetColor Foreground Vivid Blue]
+    -- putStrLn "added:"
+    -- (mapM_ print . tuples) result
+    -- setSGR [SetColor Foreground Vivid Red]
+    -- putStrLn "removed:"
+    -- (mapM_ print . removed_tuples) result
+    -- setSGR [Reset]
+
+    putStrLn "game log:"
+    mapM_ (colorTuple rules) $ log
+
+    --putStrLn "partial game log?"
+    --mapM_ (colorTuple [rules !! 0]) $ log
+
+    putStrLn "final tuple count:"
     print $ length (tuples result)
+
+    -- random unit test
     let alltids = sort $ map tid (tuples result ++ removed_tuples result)
     if ([0..length alltids - 1] /= alltids)
       then putStrLn "tids not consistent!!"
@@ -121,5 +142,23 @@ trans1 = do
     edgeFile = "graph.txt"
     ruleFile = "rules.rules"
     justDB (_,_,db) = db
+    colorTuple rules (alive, t) = do
+      let debug = True
+      let ddebug = False
+      let str = (if alive then "" else "  ") ++ show t
+      case tupleIOType rules t of
+        Input -> do
+          setSGR [SetColor Foreground Vivid White]
+          putStrLn str
+        Output -> do
+          setSGR [SetColor Foreground Dull Blue]
+          putStrLn str
+        Internal -> unless (not debug) $ do
+          setSGR [SetColor Foreground Dull Green]
+          putStrLn str
+        Ignored -> unless (not ddebug) $ do
+          setSGR [SetColor Foreground Dull Yellow]
+          putStrLn str
+      setSGR [Reset]
 
 main = trans1 >> return ()
