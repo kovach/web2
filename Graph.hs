@@ -20,43 +20,49 @@ constrainRelation l = filter ((== l) . label)
 
 ref = NTRef
 
-matchLookup :: Q -> Context -> Maybe Node
-matchLookup (QVal v) _ = Just v
-matchLookup (QVar n) c = lookup n c
+matchLookup :: NodeVar -> Context -> Maybe Node
+matchLookup (NVal v) _ = Just v
+matchLookup (NVar n) c = lookup n c
 
-applyLookup :: Count -> Q -> Context -> (Node, Count, Context)
+-- looks up value in context; generates fresh node if unbound
+applyLookup :: Count -> NodeVar -> Context -> (Node, Count, Context)
 applyLookup cnt v c | Just v <- matchLookup v c = (v, cnt, c)
-applyLookup cnt (QVar n) c = (ref cnt, cnt+1, (n,ref cnt) : c)
+applyLookup cnt (NVar n) c = (ref cnt, cnt+1, (n,ref cnt) : c)
 
-edgeMatch c qs t = all step pairs
-  where
-    step (p, q) =
-      case matchLookup q c of
-        Just v -> v == p
-        Nothing -> True
-    pairs = zip (nodes t) qs
+-- process one variable unification instance on the LHS
+matchStep :: Context -> (Node, NodeVar) -> Maybe Context
+matchStep c (node, (NVar n)) =
+  case lookup n c of
+    Nothing -> Just $ (n, node) : c
+    Just v -> if v == node then Just c else Nothing
+matchStep c (node, (NVal v)) = if v == node then Just c else Nothing
+
+-- process all unification instances for a given tuple
+edgeMatch :: Context -> [NodeVar] -> Tuple -> Maybe (Tuple, Context)
+edgeMatch c vs t | length (nodes t) /= length vs = error $ "relation/pattern arity mismatch! tuple involved:" ++ show t
+edgeMatch c vs t =
+  let ps = zip (nodes t) vs
+  in do
+    c' <- foldM matchStep c ps
+    return (t, c')
 
 bindNode p e c =
   case matchLookup p c of
     Nothing ->
-      let QVar n = p in (n, e) : c
+      let NVar n = p in (n, e) : c
     Just _ -> c
-
--- TODO
-bindEdge ns c tuple = result
-  where
-    pairs = zip ns (nodes tuple)
-    -- TODO is order ok?
-    result = foldl (flip $ uncurry bindNode) c pairs
 
 solveStep :: Graph -> Bindings -> Query -> [Bindings]
 solveStep g (c, bound) (Query dot (EP linear e vs)) =
-  let es = filter (edgeMatch c vs)
+  -- 3 steps:
+  --   constrainRelation picks out the relation tuples by name
+  --   not . (`elem` bound) filters out tuples that have been bound "linearly" so far by this pattern
+  --   edgeMatch unifies the variables of the Query against the nodes in a given tuple
+  let pairs = mapMaybe (edgeMatch c vs)
          . filter (not . (`elem` bound))
          . constrainRelation e $ g
   in do
-    e <- es
-    let newC = bindEdge vs c e
+    (e, newC) <- pairs
     let newBound = if linear == Linear then e : bound else bound
     return (newC, newBound)
 
@@ -105,13 +111,13 @@ applyAll (DB {tuple_counter = t_counter, id_counter = counter}) ms = dbu
     init = DBU {new_tuples = [], new_removed = [], new_id_counter = counter, new_tuple_counter = t_counter}
     dbu = foldl' (\a b -> snd $ applyMatch a b) init ms
 
---subQ :: [(Name, Q)] -> [Query] -> [Query]
+--subQ :: [(Name, NodeVar)] -> [Query] -> [Query]
 --subQ bs query = map fix query
 --  where
 --    fix q = foldl (flip subst1) q bs
 --    subst1 (n,v) (Query (EP rel ns)) = Query $ EP rel (map (sub n v) ns)
 --    subst1 (n,v) (QBinOp op l r) = QBinOp op (sub n v l) (sub n v r)
---    sub n v (QVar n') | n == n' = v
+--    sub n v (NVar n') | n == n' = v
 --    sub _ _ e = e
 --toTuple (l, (s,t)) =
 --  T {nodes = [s, t], label = l, ts = Time [0,0]}

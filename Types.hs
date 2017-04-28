@@ -19,6 +19,10 @@ instance IsString Label where
 instance Show Label where
   show (L s) = s
 
+-- for now, objects (indexed by int) or literal ints
+data Node = NTInt Int | NTRef Int | NTNamed String
+  deriving (Eq, Ord)
+
 type Id = Int
 
 data Tuple = T
@@ -27,10 +31,6 @@ data Tuple = T
   , ts :: Time -- TODO replace with provenance (a rule application instance)
   , tid :: Id }
   deriving (Eq, Show, Ord)
-
--- for now, objects (indexed by int) or literal ints
-data Node = NTInt Int | NTRef Int | NTNamed String
-  deriving (Eq, Ord)
 
 instance IsString Node where
   fromString = NTNamed
@@ -68,13 +68,13 @@ type Name = String
 --type Edge = (Label, (Node, Node))
 type Edge = Tuple
 
-data Q = QVal Node | QVar Name
+data NodeVar = NVal Node | NVar Name
   deriving (Eq, Show, Ord)
 
-instance IsString Q where
-  fromString = QVar
-instance Num Q where
-  fromInteger = QVal . fromInteger
+instance IsString NodeVar where
+  fromString = NVar
+instance Num NodeVar where
+  fromInteger = NVal . fromInteger
 
 data NumOp = Sum | Mul | Sub
   deriving (Eq, Show, Ord)
@@ -91,7 +91,7 @@ instance Num E where
   (-) = EBinOp Sub
 
 data EP =
-  EP Linear Label [Q]
+  EP Linear Label [NodeVar]
   deriving (Eq, Show, Ord)
 
 data Op = QEq | QDisEq | QLess | QMore
@@ -106,7 +106,7 @@ data Linear = Linear | Normal
 data Query =
   Query Dot EP
   | Counter [Name] [Query] -- TODO implement
-  | QBinOp Op Q Q
+  | QBinOp Op NodeVar NodeVar
   -- TODO forall/unique/some/empty
   -- rand/single
   deriving (Eq, Show, Ord)

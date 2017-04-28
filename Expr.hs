@@ -18,6 +18,6 @@ reduce1 c (EBinOp op e1 e2) = r e1 `fn` r e2
     r = reduce1 c
     fn = bop2fn op
 
-reduce _ (EVar n) = QVar n
-reduce _ (ENamed n) = QVal (NTNamed n)
-reduce c e = QVal . NTInt $ reduce1 c e
+reduce _ (EVar n) = NVar n
+reduce _ (ENamed n) = NVal (NTNamed n)
+reduce c e = NVal . NTInt $ reduce1 c e

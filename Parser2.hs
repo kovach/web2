@@ -4,7 +4,7 @@ import Parse
 
 comma_ = token $ char ','
 symbol_ = char '\'' *> identifier
-q_ = (QVal <$> ((NTNamed <$> symbol_) <|> (NTInt <$> int_))) <|> (QVar <$> identifier)
+q_ = (NVal <$> ((NTNamed <$> symbol_) <|> (NTInt <$> int_))) <|> (NVar <$> identifier)
 rel_ = token $ L <$> identifier
 dotrel_ = char '.' *> rel_
 hashrel_ = char '#' *> rel_
