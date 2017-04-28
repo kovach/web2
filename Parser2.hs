@@ -15,16 +15,15 @@ ineq_ =
   (token (string ">") *> return QMore)
 qbin_ = token $ flip QBinOp <$> token q_ <*> ineq_ <*> token q_
 ep_ = token $
-  ((EP <$> rel_ <*> sepBy flex1 q_)
-   ) -- <|> (char '@' *> (Tuple <$> rel_ <*> sepBy flex1 q_)))
---pred_ = token $ (Query <$> (EP <$> rel_ <*> pure (QVal rootNode) <*> q_))
+  ((EP <$> rel_ <*> sepBy flex q_)
+   )
 query_ = token $ Query <$> ep_
 dotquery_ = token $ char '.' *> (DotQuery <$> ep_)
-hashquery_ = token $ char '#' *> (HashQuery <$> ep_)
+hashquery_ = token $ char '@' *> (HashQuery <$> ep_)
 countquery_ = token . bracket_ $ Counter <$> names_ <* sep <*> lhs_
   where
     sep = token (char '|')
-    names_ = token $ sepBy1 flex1 identifier
+    names_ = token $ sepBy1 flex identifier
 
 clause_ = qbin_ <|> dotquery_ <|> hashquery_ <|> query_ <|> countquery_
 lhs_ = sepBy1 comma_ clause_
@@ -43,8 +42,7 @@ expr_ =
   <|> (ENamed <$> symbol_)
   <|> (wrap_ $ flip EBinOp <$> token expr_ <*> binOp_ <*> token expr_)
 
---rpred_ = flip Assert rootExpr <$> rel_ <*> expr_
-rquery_ = Assert <$> rel_ <*> sepBy flex1 expr_
+rquery_ = Assert <$> rel_ <*> sepBy flex expr_
 rclause_ = rquery_
 rhs_ = sepBy1 comma_ rclause_
 
@@ -55,7 +53,6 @@ parse s =
   case runParser rule_ s of
     Right (r, "") -> r
     p -> error $ "bad parse: " ++ show p
-
 
 notComment ('#' : _) = False
 notComment "" = False

@@ -328,3 +328,18 @@ implementation steps:
   - we could record which relations are added by a rule, forming a graph of interacting rules; static analyses possible?
   - since a pattern is a set of clauses, free to evaluate in any order. optimal order might be to do join with smaller relations first, or smaller joint relations. can record size information for each relation as we go along
     - can materialize important implicit join relations in rules; is there an algorithm to optimally cover patterns with sub relations, to speed up incremental processing?
+
+4/27
+  - added @ for "most recent value"
+  - basic minion stuff works
+  ? thinking about adding "linear bind" which deletes the tuple. better to just allow negation on the right?
+      ! negation on right is worse if we ever allow multiple edges (with
+      different provenance). which do we delete? what if there is no edge to
+      delete? I think these issues wouldn't be observable inside the system,
+      but seems clearer to identify the edge we are deleting using a match on the left
+
+    immediately needed for: removing card from hand, minion from play, interposition effects
+
+    ? linear bind rules will have higher priority
+
+    ? can replace @

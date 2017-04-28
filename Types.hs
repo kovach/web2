@@ -98,19 +98,18 @@ data Query =
   | Counter [String] [Query]
   | QBinOp Op Q Q
   -- TODO forall/unique/some/empty
-  -- dot
   -- rand/single
   deriving (Eq, Show, Ord)
 
 
 -- Right-hand side of rule
-data RQuery =
+data Assert =
   Assert Label [E]
   deriving (Eq, Show, Ord)
 
 type Pattern = Set Query
 type LHS = [Query]
-type RHS = [RQuery]
+type RHS = [Assert]
 
 type Trigger = (Rule, EP, Pattern)
 type Index = Map Label [Trigger]
@@ -132,6 +131,3 @@ unfold f x =
   case f x of
     Nothing -> [x] -- unfoldr returns []
     Just x' -> x : unfold f x'
-
---rootNode = (NTNamed ".")
---rootExpr = ENamed "."

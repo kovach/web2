@@ -2,6 +2,43 @@
 # arg x 4
 # lol
 
-s one 'z
-s a one
-sum x y a a
+# call_fac 7
+
+# s one 'z
+# s a one
+# sum x y a a
+
+player p1
+player p2
+op p1 p2
+op p2 p1
+
+hp p1 3
+hp p2 3
+
+archer a1
+archer a2
+archer a3
+wizard w1
+
+# initial hands
+hand p1 hand1
+hand p2 hand2
+in_hand hand1 a1
+in_hand hand1 a2
+in_hand hand1 a3
+in_hand hand2 w1
+
+
+start_game
+
+play p1 a1
+play p1 a2
+
+end_turn
+
+play p2 w1
+
+end_turn
+
+play p1 a3

@@ -9,9 +9,32 @@
 # [ p | dmg p ] n => hp p (10 - n)
 
 # factorial
-acc base acc, arg base 1 => val base acc, done base
-acc base acc, arg base n, n /= 1 => acc y (acc*n), arg y (n-1)
+# acc base acc, arg base 1 => val base acc, done base
+# acc base acc, arg base n, n /= 1 => acc y (acc*n), arg y (n-1)
+
+# better factorial
+# call_fac arg => fac 1 arg
+# fac acc arg, arg /= 1 => fac (acc*arg) (arg-1)
+# fac acc 1 => done
 
 # natural numbers
-sum r a 'z n => val r n, done
-sum r a m n, s m l => s y n, sum r b l y
+# sum r a 'z n => val r n, done
+# sum r a m n, s m l => s y n, sum r b l y
+
+make_minion p str hp => token t, owns p t, hp t hp, str t str
+hand p h, in_hand h c, .play p c => summon p c
+
+# archer card: 2/1, deal 1 dmg to opponent
+.summon p c, archer c => make_minion p 2 1
+.summon p x, archer x, op p other, @hp other n => hp other (n-1)
+
+# wizard card: 3/3, deal 1 dmg to all opponent minions
+.summon p c, wizard c => make_minion p 3 3
+.summon p c, wizard c, op p other, owns other minion, @hp minion n => hp minion (n-1)
+
+# characters with 0 hp are marked dead
+hp c 0 => dead c
+
+# end condition
+player p1, player p2, dead p1, dead p2 => draw
+player p, dead p, op p op => win op

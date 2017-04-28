@@ -56,6 +56,15 @@ solveStep g c (Query (EP e vs)) =
   in
     map (bindEdge vs c) es
 
+solveStep g c (HashQuery (EP e vs)) =
+  let es = safeInit $ filter (edgeMatch c vs)
+         . constrainRelation e $ g
+  in
+    map (bindEdge vs c) es
+  where
+    safeInit [] = []
+    safeInit (x:_) = [x]
+
 solveStep g c (QBinOp op v1 v2) =
   case (matchLookup v1 c, matchLookup v2 c) of
     (Just v1', Just v2') -> if (op2fn op v1' v2') then [c] else []
@@ -67,7 +76,7 @@ solveSteps g c es = foldM (solveStep g) c es
 solve :: Graph -> [Query] -> [Context]
 solve g es = solveSteps g [] es
 
-applyStep :: (DBUpdate, Context, Int) -> RQuery -> (DBUpdate, Context, Int)
+applyStep :: (DBUpdate, Context, Int) -> Assert -> (DBUpdate, Context, Int)
 applyStep (d@(DBU {new_tuples = es, new_id_counter = count0}), c0, t) (Assert label exprs) =
   (DBU {new_tuples = new : es, new_id_counter = count1}, c1, t+1)
   where
@@ -80,10 +89,10 @@ applyStep (d@(DBU {new_tuples = es, new_id_counter = count0}), c0, t) (Assert la
     new = T { nodes = reverse exprs', label = label, ts = (Time [t]) }
 
 -- returns db containing (ONLY new edges, new object counter)
-applyMatch :: DBUpdate -> Match -> DBUpdate
+applyMatch :: DBUpdate -> Match -> (Context, DBUpdate)
 applyMatch dbu (ctxt, rhs) =
-  let (dbu', _, _) = foldl' applyStep (dbu, ctxt, 0) rhs
-  in dbu' { new_tuples = reverse $ new_tuples dbu' }
+  let (dbu', ctxt', _) = foldl' applyStep (dbu, ctxt, 0) rhs
+  in (ctxt', dbu' { new_tuples = reverse $ new_tuples dbu' })
 
 -- `rhs` is a description of new edges to add, given a context
 -- add edges for each match simultaneously (according to timestamp)
@@ -93,7 +102,7 @@ applyAll :: DB -> [Match] -> DBUpdate
 applyAll (DB {id_counter = counter}) ms = dbu
   where
     init = DBU {new_tuples = [], new_id_counter = counter}
-    dbu = foldl' applyMatch init ms
+    dbu = foldl' (\a b -> snd $ applyMatch a b) init ms
 
 subQ :: [(Name, Q)] -> [Query] -> [Query]
 subQ bs query = map fix query
@@ -113,7 +122,7 @@ rn x =
     [(i, "")] -> NTInt i
     _ -> NTNamed x
 
-rq :: String -> Maybe RQuery
+rq :: String -> Maybe Assert
 rq s =
   case words s of
     "#" : _ -> Nothing
