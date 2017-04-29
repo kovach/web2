@@ -145,7 +145,7 @@ trans1 = do
     colorTuple rules (alive, t) = do
       let debug = True
       let ddebug = False
-      let str = (if alive then "" else "  ") ++ show t
+      let str = (if alive then "" else "    ") ++ show t
       case tupleIOType rules t of
         Input -> do
           setSGR [SetColor Foreground Vivid White]

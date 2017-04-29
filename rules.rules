@@ -2,25 +2,25 @@
 make_players p1 p2 => player p1, player p2, op p1 p2, op p2 p1, hp p1 3, hp p2 3
 
 # playing a card
-hand p h, ..in_hand h c, .play p c => summon p c
+hand p h, ..in_hand h card, .play p card => summon p card
 
 # generic minion stuff
-make_minion p str hp => token t, owns p t, hp t hp, str t str
+make_minion owner origin str hp => token origin t, owns owner t, hp t hp, str t str
 .dmg c amt, ..hp c n => hp c (n-amt), print c 'takes amt 'damage
 
 # combat
-attack t1 t2, token t1, token t2, str t1 s1, str t2 s2 => dmg t1 s2, dmg t2 s1
+.attack h1 h2, token h1 t1, token h2 t2, str t1 s1, str t2 s2 => dmg t1 s2, dmg t2 s1
 
 # archer card: 2/2, deal 1 dmg to opponent
-.summon p c, archer c => make_minion p 2 1, print p 'summons_archer
+.summon p c, archer c => make_minion p c 2 2, print p 'summons_archer
 .summon p x, archer x, op p other => dmg other 1
 
 # wizard card: 3/3, deal 1 dmg to all opponent minions
-.summon p c, wizard c => make_minion p 3 3, print p 'summons_wizard
+.summon p c, wizard c => make_minion p c 3 3, print p 'summons_wizard
 .summon p c, wizard c, op p other, owns other minion => dmg minion 1
 
-# characters with 0 hp are marked dead
-hp c 0 => dead c, print c 'dies
+# characters with 0 or less hp are marked dead
+hp c n, n < 1 => dead c, print c 'dies
 
 # end condition
 player p1, player p2, dead p1, dead p2 => outcome_draw

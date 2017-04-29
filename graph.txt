@@ -35,4 +35,7 @@ play p2 w1
 
 end_turn
 
+attack a1 w1
+attack a2 w1
+
 play p1 a3
