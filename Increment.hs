@@ -92,7 +92,7 @@ stepS index (c, q, db) = Just (c+1, q', db')
              }
 
 -- Main function
-trans1 = do
+trans1 edgeFile ruleFile = do
     edges <- readG edgeFile
     let (ctxt, dbu) = applyMatch initdbu (emptyBindings, edges)
         --queue = foldl (flip Q.snoc) Q.empty (new_tuples dbu)
@@ -121,7 +121,7 @@ trans1 = do
     -- (mapM_ print . removed_tuples) result
     -- setSGR [Reset]
 
-    putStrLn "game log:"
+    putStrLn "\n\ngame log:"
     mapM_ (colorTuple rules) $ log
 
     --putStrLn "partial game log?"
@@ -139,12 +139,12 @@ trans1 = do
     return result
   where
     initdbu = DBU {new_tuples = [], new_removed = [], new_id_counter = 0, new_tuple_counter = 0}
-    edgeFile = "graph.txt"
-    ruleFile = "rules.rules"
+    --edgeFile = "graph.txt"
+    --ruleFile = "rules.arrow"
     justDB (_,_,db) = db
     colorTuple rules (alive, t) = do
       let debug = True
-      let ddebug = False
+      let ddebug = True
       let str = (if alive then "" else "    ") ++ show t
       case tupleIOType rules t of
         Input -> do
@@ -161,4 +161,5 @@ trans1 = do
           putStrLn str
       setSGR [Reset]
 
-main = trans1 >> return ()
+main = trans1 "graph.txt" "rules.arrow"
+main2 = trans1 "graph2.txt" "path-count.arrow"

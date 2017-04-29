@@ -1,19 +1,9 @@
-# acc x 1
-# arg x 4
-# lol
-
-# call_fac 7
-
-# s one 'z
-# s a one
-# sum x y a a
-
 make_players p1 p2
 
 archer a1
 archer a2
 archer a3
-wizard w1
+mage w1
 
 # initial hands
 hand p1 hand1
