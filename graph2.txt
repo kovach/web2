@@ -1,6 +1,26 @@
-dict d
+# db db
+# tuple t1 p 'a 'b
+# tuple t2 p 'b 'c
+# in db t1
+# in db t2
 
-unify d 'v1 'x
-unify d 'v2 'y
-unify d 'v1 'x
-unify d 'v2 'z
+#unify d 'v1 'x
+#unify d 'v2 'y
+#unify d 'v1 'x
+#unify d 'v2 'z
+
+# null d
+# bindings d 0
+#
+# clause 0 p a b
+# clause 1 p b c
+# assert 2 p a c
+
+
+in s 0
+in s 1
+in s 2
+
+linearize s
+
+reduce s

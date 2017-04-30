@@ -50,18 +50,25 @@ edgeMatch c vs t =
     return (t, c')
 
 solveStep :: Graph -> Bindings -> Query -> [Bindings]
-solveStep g (c, bound) (Query dot (EP linear e vs)) =
-  -- 3 steps:
-  --   constrainRelation picks out the relation tuples by name
-  --   not . (`elem` bound) filters out tuples that have been bound "linearly" so far by this pattern
-  --   edgeMatch unifies the variables of the Query against the nodes in a given tuple
-  let pairs = mapMaybe (edgeMatch c vs)
-         . filter (not . (`elem` bound))
-         . constrainRelation e $ g
-  in do
-    (e, newC) <- pairs
-    let newBound = if linear == Linear then e : bound else bound
-    return (newC, newBound)
+solveStep g (c, bound) (Query dot (EP linear unique e vs)) =
+    -- 4 steps:
+    --   constrainRelation picks out the relation tuples by name
+    --   not . (`elem` bound) filters out tuples that have been bound "linearly" so far by this pattern
+    --   edgeMatch unifies the variables of the Query against the nodes in a given tuple
+    --   handleUnique returns a single tuple if the unique flag is set
+    let pairs =
+          handleUnique
+          . mapMaybe (edgeMatch c vs)
+          . filter (not . (`elem` bound))
+          . constrainRelation e $ g
+    in do
+      (e, newC) <- pairs
+      let newBound = if linear == Linear then e : bound else bound
+      return (newC, newBound)
+  where
+    handleUnique = if unique == Unique then safeInit else id
+    safeInit [] = []
+    safeInit (x:_) = [x]
 
 solveStep g (c, bound) (QBinOp op v1 v2) =
   case (matchLookup v1 c, matchLookup v2 c) of

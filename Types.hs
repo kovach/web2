@@ -76,16 +76,18 @@ instance IsString NodeVar where
 instance Num NodeVar where
   fromInteger = NVal . fromInteger
 
-data EP =
-  EP Linear Label [NodeVar]
-  deriving (Eq, Show, Ord)
-
 data Op = QEq | QDisEq | QLess | QMore
   deriving (Eq, Show, Ord)
 
 data Dot = High | Low
   deriving (Eq, Show, Ord)
-data Linear = Linear | Normal
+data Linear = Linear | NonLinear
+  deriving (Eq, Show, Ord)
+data Unique = Unique | NonUnique
+  deriving (Eq, Show, Ord)
+
+data EP =
+  EP Linear Unique Label [NodeVar]
   deriving (Eq, Show, Ord)
 
 -- Left-hand side of rule

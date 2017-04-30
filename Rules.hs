@@ -8,7 +8,7 @@ import Data.List (nub)
 lhsRels, rhsRels :: Rule -> [Label]
 lhsRels (Rule lhs _) = mapMaybe l lhs
   where
-    l (Query _ (EP _ rel _)) = Just rel
+    l (Query _ (EP _ _ rel _)) = Just rel
     l (Counter _ _) = error "unimplemented!"
     l _ = Nothing
 rhsRels (Rule _ rhs) = map r rhs

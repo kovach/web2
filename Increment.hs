@@ -33,7 +33,7 @@ dotClauses = mapMaybe isdot
 linearClauses :: LHS -> LHS
 linearClauses = mapMaybe islinear
   where
-    islinear q@(Query _ (EP Linear _ _)) = Just q
+    islinear q@(Query _ (EP Linear _ _ _)) = Just q
     islinear _ = Nothing
 
 insertRule :: Rule -> Index -> Index
@@ -44,10 +44,10 @@ insertRule rule@(Rule lhs rhs) ind =
   where
     pattern = S.fromList lhs
     -- For now, this makes rules trigger in order of appearance in file
-    step q@(Query _ ep@(EP _ l _)) ind =
-      M.insertWith (++) l [(linear, rule, ep, S.delete q pattern)] ind
+    step q@(Query _ ep@(EP _ _ rel _)) ind =
+      M.insertWith (++) rel [(linear, rule, ep, S.delete q pattern)] ind
     step _ ind = ind
-    linear = if not . null . linearClauses $ lhs then Linear else Normal
+    linear = if not . null . linearClauses $ lhs then Linear else NonLinear
 
 indLookup label ind | Just v <- M.lookup label ind = v
 indLookup _ _ = []
@@ -58,7 +58,7 @@ increment tuple ind g = result
   where
     result = concatEithers $ map step ts
     ts = indLookup (label tuple) ind
-    step (linear, Rule _ rhs, p@(EP _ _ _), pattern) =
+    step (linear, Rule _ rhs, p@(EP _ _ _ _), pattern) =
       let cs = do
             -- bind new tuple to identified clause
             let b0 = ([], [])
@@ -72,7 +72,7 @@ increment tuple ind g = result
              (x:y:_) -> error $ "multiple match of linear bind\n" ++ unlines (map show matches)
              [x] -> Right x
              [] -> Left []
-           Normal -> Left matches
+           NonLinear -> Left matches
     -- Accept all nonlinear matches up to the first linear match
     concatEithers [] = []
     concatEithers (Right x : _) = [x]
@@ -163,8 +163,6 @@ trans1 edgeFile ruleFile = do
 
   where
     initdbu = DBU {new_tuples = [], new_removed = [], new_id_counter = 0, new_tuple_counter = 0}
-    --edgeFile = "graph.txt"
-    --ruleFile = "rules.arrow"
     justDB (_,_,db) = db
     colorTuple rules (alive, t) = do
       let debug = True

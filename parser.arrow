@@ -1,6 +1,37 @@
+# List-based dict
+..look t d k, cons d p r, pair p k v => Just t v
+..look t d k, cons d _ r => look t r k
+..look t d _, null d => Nothing t
+
+# Set-based unifying dict
 # if the value in the dict matches, succeed
-  dict d, ..unify d var node, entry d var node => ok
+  context d, ..unify d var node, entry d var node => ok
 # if the value doesn't match, delete the dict
-..dict d, ..unify d var node, entry d var _    => fail
+..context d, ..unify d var node, entry d var _    => fail
 # otherwise add a binding to d
-  dict d, ..unify d var node => entry d var node, bind
+  context d, ..unify d var node => entry d var node, bind
+
+linearize s => nil n, stack s n
+..@in s a, ..stack s l => cons new a l, stack s new
+
+reduce p, stack p l => flatten _ l
+..flatten out v, cons v a r => in out a, flatten out r
+..flatten out v, nil v =>
+
+
+# context d, .entry d var val, ..linearized l d => pair p var val, cons new p l, linearized new d
+#
+# linearize out d, entry d var val => null n, ptr out n, temp_entry out var val
+# ..temp_entry out var val, ..ptr out r => pair p var val, cons new p r, ptr out new
+#
+# ..rule => null d, bindings d 0, time 0
+#
+# bindings b t, .clause t rel v1 v2, tuple _ rel n1 n2 => bind b1 b v1 n1, bind b2 b1 v2 n2, bindings b2 (t+1)
+#
+# ..bind out in var val => look t in var, bind_ out var val
+# ..Just t val, ..bind_ out var val => bindings
+#
+#
+# ..time t, bindings b t, .assert rel v1 v2 => time (t+1)
+#
+# ..time t, ..endrule, bindings d t => done d
