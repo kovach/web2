@@ -133,10 +133,14 @@ trans1 edgeFile ruleFile = do
     -- random unit test
     let alltids = sort $ map tid (tuples result ++ removed_tuples result)
     if ([0..length alltids - 1] /= alltids)
-      then putStrLn "tids not consistent!!"
+      then do
+        putStrLn "tids not consistent!!"
+        print alltids
+        print $ zipWith (-) alltids (tail alltids)
+        print $ map tid $ tuples result
+        print $ map tid $ removed_tuples result
       else putStrLn "tids consistent!"
 
-    return result
   where
     initdbu = DBU {new_tuples = [], new_removed = [], new_id_counter = 0, new_tuple_counter = 0}
     --edgeFile = "graph.txt"
