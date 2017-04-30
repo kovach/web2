@@ -4,7 +4,10 @@ import Parse
 
 comma_ = token $ char ','
 symbol_ = char '\'' *> identifier
-q_ = (NVal <$> ((NTNamed <$> symbol_) <|> (NTInt <$> int_))) <|> (NVar <$> identifier)
+hole_ = token $ char '_'
+q_ = (NVal <$> ((NTNamed <$> symbol_) <|> (NTInt <$> int_)))
+     <|> (NVar <$> identifier)
+     <|> (pure NHole <* hole_)
 rel_ = token $ L <$> identifier
 dotrel_ = char '.' *> rel_
 hashrel_ = char '#' *> rel_
@@ -41,6 +44,7 @@ expr_ =
   <|> (EVar <$> identifier)
   <|> (ENamed <$> symbol_)
   <|> (wrap_ $ flip EBinOp <$> token expr_ <*> binOp_ <*> token expr_)
+  <|> (pure EHole <* hole_)
 
 rquery_ = Assert <$> rel_ <*> sepBy flex expr_
 rclause_ = rquery_

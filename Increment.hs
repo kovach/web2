@@ -37,8 +37,9 @@ insertRule rule@(Rule lhs rhs) ind =
     cs -> foldr step ind cs
   where
     pattern = S.fromList lhs
+    -- For now, this makes rules trigger in order of appearance in file
     step q@(Query _ ep@(EP _ l _)) ind =
-      M.insertWith (++) l [(rule, ep, S.delete q pattern)] ind
+      M.insertWith (flip (++)) l [(rule, ep, S.delete q pattern)] ind
     step _ ind = ind
 
 indLookup label ind | Just v <- M.lookup label ind = v
@@ -46,17 +47,28 @@ indLookup _ _ = []
 
 -- looks up rel in index, then completes the Pattern into Match
 increment :: Tuple -> Index -> Graph -> [Match]
-increment tuple ind g = concatMap step ts
+increment tuple ind g = concatEithers $ map step ts
   where
     ts = indLookup (label tuple) ind
     step (Rule _ rhs, p@(EP linear _ _), pattern) =
       let cs = do
             -- bind new tuple to identified clause
-            let b0 = ([], if linear == Linear then [tuple] else [])
+            let b0 = ([], [])
             c <- solveStep [tuple] b0 (Query Low p)
             -- match remaining clauses
             foldM (solveStep g) c (S.toList pattern)
-      in zip cs (repeat rhs)
+          matches = zip cs (repeat rhs)
+      -- TODO doesn't handle multiple matches with a linear clause that isn't the focused one
+      in case linear of
+           Linear -> case matches of
+             (x:y:_) -> error $ "multiple match of linear bind\n" ++ unlines (map show matches)
+             [x] -> Right x
+             [] -> Left []
+           Normal -> Left matches
+    -- Accept all nonlinear matches up to the first linear match
+    concatEithers [] = []
+    concatEithers (Right x : _) = [x]
+    concatEithers (Left xs : r) = xs ++ concatEithers r
 
 --queueEdge :: (Label, [Node]) -> Schedule -> Schedule
 --queueEdge (l, ns) (c, q, db) = (c, Q.snoc t q, db')
@@ -107,7 +119,7 @@ trans1 edgeFile ruleFile = do
     putStrLn "output relations:"
     mapM_ (putStrLn . ("  " ++) . show) $ outputRelations rules
 
-    -- TODO!: proper ordering
+    -- TODO!: robust ordering
     let index = foldr (insertRule) emptyIndex $ rules
         steps = map justDB $ unfold (stepS index) schedule
         result = last steps
@@ -166,4 +178,4 @@ trans1 edgeFile ruleFile = do
       setSGR [Reset]
 
 main = trans1 "graph.txt" "rules.arrow"
-main2 = trans1 "graph2.txt" "path-count.arrow"
+main2 = trans1 "graph2.txt" "parser.arrow"

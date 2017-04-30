@@ -68,27 +68,13 @@ type Name = String
 --type Edge = (Label, (Node, Node))
 type Edge = Tuple
 
-data NodeVar = NVal Node | NVar Name
+data NodeVar = NVal Node | NVar Name | NHole
   deriving (Eq, Show, Ord)
 
 instance IsString NodeVar where
   fromString = NVar
 instance Num NodeVar where
   fromInteger = NVal . fromInteger
-
-data NumOp = Sum | Mul | Sub
-  deriving (Eq, Show, Ord)
-data E = EBinOp NumOp E E | ELit Int | EVar Name | ENamed String
-  deriving (Eq, Show, Ord)
-
-instance IsString E where
-  fromString = EVar
-
-instance Num E where
-  fromInteger = ELit . fromInteger
-  (+) = EBinOp Sum
-  (*) = EBinOp Mul
-  (-) = EBinOp Sub
 
 data EP =
   EP Linear Label [NodeVar]
@@ -111,6 +97,22 @@ data Query =
   -- rand/single
   deriving (Eq, Show, Ord)
 
+
+data NumOp = Sum | Mul | Sub
+  deriving (Eq, Show, Ord)
+data E = EBinOp NumOp E E
+       | ELit Int
+       | EVar Name
+       | ENamed String
+       | EHole
+  deriving (Eq, Show, Ord)
+instance IsString E where
+  fromString = EVar
+instance Num E where
+  fromInteger = ELit . fromInteger
+  (+) = EBinOp Sum
+  (*) = EBinOp Mul
+  (-) = EBinOp Sub
 
 -- Right-hand side of rule
 data Assert =

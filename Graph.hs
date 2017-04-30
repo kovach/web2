@@ -23,11 +23,13 @@ ref = NTRef
 matchLookup :: NodeVar -> Context -> Maybe Node
 matchLookup (NVal v) _ = Just v
 matchLookup (NVar n) c = lookup n c
+matchLookup NHole    c = Nothing
 
 -- looks up value in context; generates fresh node if unbound
 applyLookup :: Count -> NodeVar -> Context -> (Node, Count, Context)
 applyLookup cnt v c | Just v <- matchLookup v c = (v, cnt, c)
 applyLookup cnt (NVar n) c = (ref cnt, cnt+1, (n,ref cnt) : c)
+applyLookup cnt NHole    c = (ref cnt, cnt+1,               c)
 
 -- process one variable unification instance on the LHS
 matchStep :: Context -> (Node, NodeVar) -> Maybe Context
@@ -36,6 +38,7 @@ matchStep c (node, (NVar n)) =
     Nothing -> Just $ (n, node) : c
     Just v -> if v == node then Just c else Nothing
 matchStep c (node, (NVal v)) = if v == node then Just c else Nothing
+matchStep c (node, NHole) = Just c
 
 -- process all unification instances for a given tuple
 edgeMatch :: Context -> [NodeVar] -> Tuple -> Maybe (Tuple, Context)
@@ -45,12 +48,6 @@ edgeMatch c vs t =
   in do
     c' <- foldM matchStep c ps
     return (t, c')
-
-bindNode p e c =
-  case matchLookup p c of
-    Nothing ->
-      let NVar n = p in (n, e) : c
-    Just _ -> c
 
 solveStep :: Graph -> Bindings -> Query -> [Bindings]
 solveStep g (c, bound) (Query dot (EP linear e vs)) =
@@ -110,17 +107,6 @@ applyAll (DB {tuple_counter = t_counter, id_counter = counter}) ms = dbu
   where
     init = DBU {new_tuples = [], new_removed = [], new_id_counter = counter, new_tuple_counter = t_counter}
     dbu = foldl' (\a b -> snd $ applyMatch a b) init ms
-
---subQ :: [(Name, NodeVar)] -> [Query] -> [Query]
---subQ bs query = map fix query
---  where
---    fix q = foldl (flip subst1) q bs
---    subst1 (n,v) (Query (EP rel ns)) = Query $ EP rel (map (sub n v) ns)
---    subst1 (n,v) (QBinOp op l r) = QBinOp op (sub n v l) (sub n v r)
---    sub n v (NVar n') | n == n' = v
---    sub _ _ e = e
---toTuple (l, (s,t)) =
---  T {nodes = [s, t], label = l, ts = Time [0,0]}
 
 rn :: String -> Node
 rn x =
