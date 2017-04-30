@@ -11,13 +11,22 @@
 # otherwise add a binding to d
   context d, ..unify d var node => entry d var node, bind
 
+# copy a set
+mirror input output, in input x => in output x
+
+# consume the set s and build a list from it
 linearize s => nil n, stack s n
 ..@in s a, ..stack s l => cons new a l, stack s new
 
-reduce p, stack p l => flatten _ l
+# consume the list p and build a set from it
+reduce p, stack p l => set p s, flatten s l
 ..flatten out v, cons v a r => in out a, flatten out r
 ..flatten out v, nil v =>
 
+# set based unify
+..step c var val, in c p, pair p var val => ok
+..step c var val, in c p, pair p var v, v /= val => kill c
+..step c var val => pair new var val, in c new, bind
 
 # context d, .entry d var val, ..linearized l d => pair p var val, cons new p l, linearized new d
 #
