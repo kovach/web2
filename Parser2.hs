@@ -52,7 +52,7 @@ rclause_ = rquery_
 rhs_ = (sepBy comma_ rclause_)
 
 
-rule_ = Rule <$> (token lhs_) <*> (arrow_ *> rhs_)
+rule_ = ws *> (Rule <$> (token lhs_) <*> (arrow_ *> rhs_))
 
 parse s =
   case runParser rule_ s of

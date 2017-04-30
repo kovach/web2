@@ -123,7 +123,7 @@ type Pattern = Set Query
 type LHS = [Query]
 type RHS = [Assert]
 
-type Trigger = (Rule, EP, Pattern)
+type Trigger = (Linear, Rule, EP, Pattern)
 type Index = Map Label [Trigger]
 
 data Rule = Rule LHS RHS

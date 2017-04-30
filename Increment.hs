@@ -30,6 +30,12 @@ dotClauses = mapMaybe isdot
     isdot q@(Query High _) = Just q
     isdot _ = Nothing
 
+linearClauses :: LHS -> LHS
+linearClauses = mapMaybe islinear
+  where
+    islinear q@(Query _ (EP Linear _ _)) = Just q
+    islinear _ = Nothing
+
 insertRule :: Rule -> Index -> Index
 insertRule rule@(Rule lhs rhs) ind =
   case dotClauses lhs of
@@ -39,18 +45,20 @@ insertRule rule@(Rule lhs rhs) ind =
     pattern = S.fromList lhs
     -- For now, this makes rules trigger in order of appearance in file
     step q@(Query _ ep@(EP _ l _)) ind =
-      M.insertWith (flip (++)) l [(rule, ep, S.delete q pattern)] ind
+      M.insertWith (++) l [(linear, rule, ep, S.delete q pattern)] ind
     step _ ind = ind
+    linear = if not . null . linearClauses $ lhs then Linear else Normal
 
 indLookup label ind | Just v <- M.lookup label ind = v
 indLookup _ _ = []
 
 -- looks up rel in index, then completes the Pattern into Match
 increment :: Tuple -> Index -> Graph -> [Match]
-increment tuple ind g = concatEithers $ map step ts
+increment tuple ind g = result
   where
+    result = concatEithers $ map step ts
     ts = indLookup (label tuple) ind
-    step (Rule _ rhs, p@(EP linear _ _), pattern) =
+    step (linear, Rule _ rhs, p@(EP _ _ _), pattern) =
       let cs = do
             -- bind new tuple to identified clause
             let b0 = ([], [])
@@ -133,7 +141,7 @@ trans1 edgeFile ruleFile = do
     -- (mapM_ print . removed_tuples) result
     -- setSGR [Reset]
 
-    putStrLn "\n\ngame log:"
+    putStrLn "\ngame log:"
     mapM_ (colorTuple rules) $ log
 
     --putStrLn "partial game log?"
