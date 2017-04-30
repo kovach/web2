@@ -1,0 +1,6 @@
+dict d
+
+unify d 'v1 'x
+unify d 'v2 'y
+unify d 'v1 'x
+unify d 'v2 'z

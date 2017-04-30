@@ -1,0 +1,7 @@
+..look d k, dict d, entry d k v => val t v
+
+#unify d var node => ulook d var node
+unify d var node => look d var, check d var node
+..check d var node, ..val t v, node = v => ok
+..check d var node, ..val t v, node /= v, ..dict d => fail
+..check d var node, ..look d _, dict d => entry d var node, bind
