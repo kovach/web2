@@ -5,6 +5,7 @@ archer a2
 archer a3
 mage w1
 flame f1
+shield s1
 
 # initial hands
 hand p1 hand1
@@ -15,6 +16,7 @@ in_hand hand1 a3
 hand p2 hand2
 in_hand hand2 w1
 in_hand hand2 f1
+in_hand hand2 s1
 
 
 start_game
@@ -25,7 +27,8 @@ play p1 a2
 end_turn p1
 
 play p2 w1
-play p2 f1
+# play p2 f1
+play p2 s1
 
 end_turn p2
 
