@@ -13,19 +13,19 @@ hand p h, ..in_hand h card, .play p card => summon p card
 # combat
 .attack h1 h2, token h1 t1, token h2 t2, str t1 s1, str t2 s2 => dmg t1 s2, dmg t2 s1
 
-# archer card: 2/2, deal 1 dmg to opponent
+# "archer" card: 2/2, deal 1 dmg to opponent
 .summon p c, archer c => make_minion p c t 2 2, print p 'summons_archer
 .summon p x, archer x, op p other => dmg other 1
 
-# mage card: 3/3, deal 1 dmg to all opponent minions
+# "battle mage" card: 3/3, deal 1 dmg to all opponent minions
 .summon p c, mage c => make_minion p c t 3 3, print p 'summons_mage
 .summon p c, mage c, op p other, owns other minion => dmg minion 1
 
-# living flame card: 2/2, deal damage to all minions at end of controlling player's turn
+# "living flame" card: 2/2, deal damage to all minions at end of controlling player's turn
 .summon p c, flame c => make_minion p c t 2 2, fiery t, print p 'summons_living_flame
 fiery t, owns p t, turn_ending p, token x other, other /= t => dmg other 1
 
-# shieldbearer: 3/3, any damage dealt to other friendly characters is reduced to 1
+# "shield bearer" card: 3/3, any damage dealt to other friendly characters is reduced to 1
 .summon p c, shield c => make_minion p c t 3 3, damage_reducer t, print p 'summons_shieldbearer
 damage_reducer sb, owns p sb, ..dmg other n, other /= sb, owns p other, n > 1 => dmg other 1
 
@@ -45,7 +45,6 @@ player p, dead p => outcome_lose p
 
 
 # summon p c ; mage c, op p other, owns other minion ; sample 1 minion => prepare_thing
-
 # TODO after randomized selection?
 # draw 2
 # ..in_deck deck c1, ..in_deck deck c2 => in_hand c1, in_hand c2

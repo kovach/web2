@@ -11,9 +11,7 @@ lhsRels (Rule lhs _) = mapMaybe l lhs
     l (Query _ (EP _ _ rel _)) = Just rel
     l (Counter _ _) = error "unimplemented!"
     l _ = Nothing
-rhsRels (Rule _ rhs) = map r rhs
-  where
-    r (Assert rel _) = rel
+rhsRels (Rule _ rhs) = map assertRel rhs
 
 -- compute relations
 --   appearing anywhere in rule set
@@ -43,3 +41,6 @@ tupleIOType rules t =
   else if l `elem` outputRelations rules then Output
   else if l `elem` allRelations rules then Internal
   else Ignored
+
+trueInputs :: [Rule] -> RHS -> [Label]
+trueInputs rules init = filter (not . (`elem` (map assertRel init))) $ inputRelations rules

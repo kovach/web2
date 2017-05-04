@@ -25,11 +25,15 @@ data Node = NTInt Int | NTRef Int | NTNamed String
 
 type Id = Int
 
+type Provenance = (RuleId, Dependency)
+
 data Tuple = T
   { nodes :: [Node]
   , label :: Label
   , ts :: Time -- TODO replace with provenance (a rule application instance)
-  , tid :: Id }
+  , tid :: Id
+  , source :: Maybe Provenance
+  }
   deriving (Eq, Show, Ord)
 
 instance IsString Node where
@@ -121,23 +125,26 @@ data Assert =
   Assert Label [E]
   deriving (Eq, Show, Ord)
 
+assertRel (Assert rel _) = rel
+
 type Pattern = Set Query
 type LHS = [Query]
 type RHS = [Assert]
 
-type Trigger = (Linear, Rule, EP, Pattern)
-type Index = Map Label [Trigger]
-
+type RuleId = Int
 data Rule = Rule LHS RHS
   deriving (Eq, Show, Ord)
 
-type Graph = [Tuple]
+type Trigger = (RuleId, Linear, Rule, EP, Pattern)
+type Index = Map Label [Trigger]
 
 type Context = [(Name, Node)]
-type Bindings = (Context, [Tuple])
-emptyBindings = ([], [])
+type Consumed = [Tuple]
+type Dependency = [Tuple]
+type Bindings = (Context, Consumed, Dependency)
+emptyMatchBindings = ([], [], [])
 
-type Match = (Bindings, RHS)
+type Match = (RuleId, Bindings, RHS)
 
 -- Utilities
 
@@ -147,3 +154,6 @@ unfold f x =
   case f x of
     Nothing -> [x] -- unfoldr returns []
     Just x' -> x : unfold f x'
+
+
+ppTuple t = show $ t { source = Nothing }

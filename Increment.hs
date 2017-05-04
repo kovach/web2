@@ -36,8 +36,8 @@ linearClauses = mapMaybe islinear
     islinear q@(Query _ (EP Linear _ _ _)) = Just q
     islinear _ = Nothing
 
-insertRule :: Rule -> Index -> Index
-insertRule rule@(Rule lhs rhs) ind =
+insertRule :: (Int, Rule) -> Index -> Index
+insertRule (id, rule@(Rule lhs rhs)) ind =
   case dotClauses lhs of
     [] -> foldr step ind lhs
     cs -> foldr step ind cs
@@ -45,7 +45,7 @@ insertRule rule@(Rule lhs rhs) ind =
     pattern = S.fromList lhs
     -- For now, this makes rules trigger in order of appearance in file
     step q@(Query _ ep@(EP _ _ rel _)) ind =
-      M.insertWith (++) rel [(linear, rule, ep, S.delete q pattern)] ind
+      M.insertWith (++) rel [(id, linear, rule, ep, S.delete q pattern)] ind
     step _ ind = ind
     linear = if not . null . linearClauses $ lhs then Linear else NonLinear
 
@@ -53,30 +53,30 @@ indLookup label ind | Just v <- M.lookup label ind = v
 indLookup _ _ = []
 
 -- looks up rel in index, then completes the Pattern into Match
-increment :: Tuple -> Index -> Graph -> [Match]
-increment tuple ind g = result
+increment :: Tuple -> Index -> [Tuple] -> [Match]
+increment tuple ind g = concat result
   where
-    result = concatEithers $ map step ts
+    result = map step ts
     ts = indLookup (label tuple) ind
-    step (linear, Rule _ rhs, p@(EP _ _ _ _), pattern) =
+    step (ruleid, linear, Rule _ rhs, p@(EP _ _ _ _), pattern) =
       let cs = do
             -- bind new tuple to identified clause
-            let b0 = ([], [])
+            let b0 = emptyMatchBindings
             c <- solveStep [tuple] b0 (Query Low p)
             -- match remaining clauses
             foldM (solveStep g) c (S.toList pattern)
-          matches = zip cs (repeat rhs)
-      -- TODO doesn't handle multiple matches with a linear clause that isn't the focused one
+          fixMatch binding = (ruleid, binding, rhs)
+          matches = map fixMatch cs
+      -- TODO doesn't handle multiple matches of linear tuple correctly
       in case linear of
            Linear -> case matches of
              (x:y:_) -> error $ "multiple match of linear bind\n" ++ unlines (map show matches)
-             [x] -> Right x
-             [] -> Left []
-           NonLinear -> Left matches
+             _ -> matches
+           NonLinear -> matches
     -- Accept all nonlinear matches up to the first linear match
-    concatEithers [] = []
-    concatEithers (Right x : _) = [x]
-    concatEithers (Left xs : r) = xs ++ concatEithers r
+    --concatEithers [] = []
+    --concatEithers (Right x : _) = [x]
+    --concatEithers (Left xs : r) = xs ++ concatEithers r
 
 --queueEdge :: (Label, [Node]) -> Schedule -> Schedule
 --queueEdge (l, ns) (c, q, db) = (c, Q.snoc t q, db')
@@ -99,9 +99,11 @@ stepS _ p@(c, _, _) | c > stepLimit = Nothing
 stepS _ p@(_, q, _) | null q = Nothing
 stepS index (c, q, db) = Just (c+1, q', db')
   where
+    wut ts = 97 `elem` (map tid ts)
     next = head q
-    fixt t = t { ts = ts next `appT` ts t }
+    fixt t = (if tid t == 97 then trace ("\n\nwut"++show t++"\n\n") else id) $ t { ts = ts next `appT` ts t }
     dbu = applyAll db (increment next index (tuples db))
+    -- new tuples will be processed first
     q' = (map fixt $ new_tuples dbu) ++ (tail q)
     newly_removed = new_removed dbu
     db' = DB { tuples = filter (not . (`elem` newly_removed)) $ next : tuples db
@@ -113,8 +115,8 @@ stepS index (c, q, db) = Just (c+1, q', db')
 
 -- Main function
 trans1 edgeFile ruleFile = do
-    edges <- readG edgeFile
-    let (ctxt, dbu) = applyMatch initdbu (emptyBindings, edges)
+    edges <- readDBFile edgeFile
+    let (ctxt, dbu) = applyMatch initdbu (0, emptyMatchBindings, edges)
         --queue = foldl (flip Q.snoc) Q.empty (new_tuples dbu)
         stack = new_tuples dbu
         schedule = (0, stack, emptyDB { tuple_counter = new_tuple_counter dbu, id_counter = new_id_counter dbu })
@@ -128,7 +130,7 @@ trans1 edgeFile ruleFile = do
     mapM_ (putStrLn . ("  " ++) . show) $ outputRelations rules
 
     -- TODO!: robust ordering
-    let index = foldr (insertRule) emptyIndex $ rules
+    let index = foldr (insertRule) emptyIndex $ zip [1..] rules
         steps = map justDB $ unfold (stepS index) schedule
         result = last steps
         log = sortOn (revT . ts . snd) $ (map (True,) $ tuples result) ++ (map (False,) $ removed_tuples result)
@@ -167,7 +169,7 @@ trans1 edgeFile ruleFile = do
     colorTuple rules (alive, t) = do
       let debug = True
       let ddebug = True
-      let str = (if alive then "" else "    ") ++ show t
+      let str = (if alive then "" else "    ") ++ ppTuple t
       case tupleIOType rules t of
         Input -> do
           setSGR [SetColor Foreground Vivid White]
@@ -185,3 +187,4 @@ trans1 edgeFile ruleFile = do
 
 main = trans1 "graph.txt" "rules.arrow"
 main2 = trans1 "graph2.txt" "parser.arrow"
+main3 = trans1 "graph3.txt" "linearity.arrow"
