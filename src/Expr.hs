@@ -18,6 +18,7 @@ reduce1 c (EBinOp op e1 e2) = r e1 `fn` r e2
     r = reduce1 c
     fn = bop2fn op
 
+reduce :: Context -> E -> NodeVar
 reduce _ EHole = NHole
 reduce _ (EVar n) = NVar n
 reduce _ (ENamed n) = NVal (NTNamed n)

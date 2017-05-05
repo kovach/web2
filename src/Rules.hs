@@ -42,5 +42,7 @@ tupleIOType rules t =
   else if l `elem` allRelations rules then Internal
   else Ignored
 
-trueInputs :: [Rule] -> RHS -> [Label]
-trueInputs rules init = filter (not . (`elem` (map assertRel init))) $ inputRelations rules
+trueInputs :: Label -> [Rule] -> RHS -> [Label]
+trueInputs l rules init = filter (not . (`elem` initRels)) $ inputRelations rules
+  where
+    initRels = takeWhile (/= l) (map assertRel init)

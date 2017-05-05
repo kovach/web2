@@ -5,10 +5,13 @@ start_game, make_players p1 p2 => player p1, player p2, op p1 p2, op p2 p1, hp p
 make_minion owner origin t str hp => token origin t, owns owner t, hp t hp, str t str
 
 # handle end turn action
-.end_turn player => turn_ending player
+player p, .end_turn p => turn_ending p
 
 # playing a card
 hand p h, ..in_hand h card, .play p card => summon p card
+
+# attack action
+owns p1 t1, token h1 t1, op p1 p2, owns p2 t2, token h2 t2, .do_attack h1 h2 => attack h1 h2
 
 # combat
 .attack h1 h2, token h1 t1, token h2 t2, str t1 s1, str t2 s2 => dmg t1 s2, dmg t2 s1

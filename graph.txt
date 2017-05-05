@@ -18,7 +18,6 @@ in_hand hand2 w1
 in_hand hand2 f1
 in_hand hand2 s1
 
-
 start_game
 
 play p1 a1
