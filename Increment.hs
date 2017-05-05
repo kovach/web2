@@ -47,17 +47,37 @@ insertRule (id, rule@(Rule lhs rhs)) ind =
     step q@(Query _ ep@(EP _ _ rel _)) ind =
       M.insertWith (++) rel [(id, linear, rule, ep, S.delete q pattern)] ind
     step _ ind = ind
+    -- TODO remove
     linear = if not . null . linearClauses $ lhs then Linear else NonLinear
 
 indLookup label ind | Just v <- M.lookup label ind = v
 indLookup _ _ = []
 
+findDoubles xs = step sorted
+  where
+    sorted = sort xs
+    step [] = []
+    step [x] = []
+    step (x:y:ys) | x == y = x : step (dropWhile (== x) ys)
+    step (_:ys) = step ys
+
+-- prevents any members of a match group (a set of matches from a particular
+-- Trigger) that consume the same tuple from firing
+-- TODO: should this cause a runtime error?
+removeConflicts :: [Match] -> [Match]
+removeConflicts matches = filter matchOK matches
+  where
+    consumed = concatMap takeConsumed matches
+    doubles = findDoubles consumed
+    matchOK = not . any (`elem` doubles) . takeConsumed
+
 -- looks up rel in index, then completes the Pattern into Match
 increment :: Tuple -> Index -> [Tuple] -> [Match]
 increment tuple ind g = concat result
   where
-    result = map step ts
     ts = indLookup (label tuple) ind
+    result = map step ts
+    step :: Trigger -> [Match]
     step (ruleid, linear, Rule _ rhs, p@(EP _ _ _ _), pattern) =
       let cs = do
             -- bind new tuple to identified clause
@@ -70,19 +90,8 @@ increment tuple ind g = concat result
       -- TODO doesn't handle multiple matches of linear tuple correctly
       in case linear of
            Linear -> case matches of
-             (x:y:_) -> error $ "multiple match of linear bind\n" ++ unlines (map show matches)
-             _ -> matches
+             _ -> removeConflicts matches
            NonLinear -> matches
-    -- Accept all nonlinear matches up to the first linear match
-    --concatEithers [] = []
-    --concatEithers (Right x : _) = [x]
-    --concatEithers (Left xs : r) = xs ++ concatEithers r
-
---queueEdge :: (Label, [Node]) -> Schedule -> Schedule
---queueEdge (l, ns) (c, q, db) = (c, Q.snoc t q, db')
---  where
---    t = T {nodes = ns, label = l, ts = Time [time_counter db]}
---    db' = db { time_counter = time_counter db + 1 }
 
 type Schedule = (Int, [Tuple], DB)
 stepLimit = 100

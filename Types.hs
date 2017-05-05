@@ -146,6 +146,10 @@ emptyMatchBindings = ([], [], [])
 
 type Match = (RuleId, Bindings, RHS)
 
+-- TODO use better data type
+takeConsumed :: Match -> Consumed
+takeConsumed (_,(_,c,_),_) = c
+
 -- Utilities
 
 -- Dumb version of unfold
