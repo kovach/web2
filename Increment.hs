@@ -108,9 +108,8 @@ stepS _ p@(c, _, _) | c > stepLimit = Nothing
 stepS _ p@(_, q, _) | null q = Nothing
 stepS index (c, q, db) = Just (c+1, q', db')
   where
-    wut ts = 97 `elem` (map tid ts)
     next = head q
-    fixt t = (if tid t == 97 then trace ("\n\nwut"++show t++"\n\n") else id) $ t { ts = ts next `appT` ts t }
+    fixt t = t { ts = ts next `appT` ts t }
     dbu = applyAll db (increment next index (tuples db))
     -- new tuples will be processed first
     q' = (map fixt $ new_tuples dbu) ++ (tail q)
