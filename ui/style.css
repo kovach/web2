@@ -9,6 +9,7 @@ body {
   font-family: 'Noto Sans';
 	font-size: 14pt;
   color: #222;
+  background-color: #224;
 }
 
 #main {
@@ -16,8 +17,8 @@ body {
   width: 50%;
   min-height: 100%;
   height: 100%;
-  background-color: #eee;
-  border: 2px solid black;
+  background-color: #777;
+  /*border: 2px solid #ccc;*/
   padding: 3px;
 }
 #actions {
@@ -41,4 +42,12 @@ body {
   border-color:black;
   */
   padding: 2px;
+}
+.box > .box:hover {
+  background-color: #666;
+}
+
+.td {
+  min-width:22px;
+  min-height:22px;
 }

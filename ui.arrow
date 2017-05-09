@@ -1,15 +1,25 @@
+# simple example
 make_minion p m => minion m, owns p m
 
-player p => box f p 'player, color f '555, child f 'main
+player p => box f p 'player, color f '333, child f 'main
 minion m, owns p m, box arena p _ => box b m 'm, child b arena, color b 'fa0
+hand p c, box arena p _ => box b c 'card, child b arena, color b '626
 
-dead m, box b m _ => clear b
+dead m, ..minion m, box b m _ => clear b
+# foo m, box b m _, minion m => dead m
 
-click b, box b m _, minion m => dead m
+minion a, minion b, a /= b, owns p1 a, owns p2 b, op p1 p2, attack a b => dead b
 
-..hover b, ..focus b => unfocus b
-..hover b, ..focus p => focus b, unfocus p
-..hover b => focus b
+summon p a => make_minion p m
 
-.focus b, ..color b pr => color b 'd0d, prev_color b pr
-..unfocus b, ..prev_color b pr, ..color b _ => color b pr
+choose_card a, card a => play_card a
+play_card a, ..hand p a => summon p a
+play_card a, box b a _ => clear b
+
+# focusing state machine
+# ..hover b, ..focus b => unfocus b
+# ..hover b, ..focus p => focus b, unfocus p
+# ..hover b => focus b
+#
+# .focus b, ..color b pr => color b 'd0d, prev_color b pr
+# ..unfocus b, ..prev_color b pr, ..color b _ => color b pr

@@ -87,18 +87,6 @@ increment tuple ind g = concat result
            Linear -> removeConflicts matches
            NonLinear -> matches
 
-actions :: DB -> Index -> Label -> [(Label, [Node])]
-actions db ind label = concatMap step triggers
-  where
-    triggers = indLookup label ind
-    step  (_, _, _, (EP _ _ rel vs), pattern) = actions
-      where
-        bindings = solveSteps (tuples db) emptyMatchBindings (S.toList pattern)
-        -- TODO a rule with a free variable in a user-action should cause an error
-        -- it will fail at this fromJust
-        bind (ctxt, _, _) = (rel, map (fromJust . flip matchLookup ctxt) vs)
-        actions = map bind bindings
-
 attributes :: Node -> DB -> [Tuple]
 attributes n db = filter ok (tuples db)
   where

@@ -28,10 +28,10 @@ matchLookup (NVar n) c = lookup n c
 matchLookup NHole    c = Nothing
 
 -- looks up value in context; generates fresh node if unbound
-applyLookup :: Count -> NodeVar -> Context -> (Node, Count, Context)
-applyLookup cnt v c | Just v <- matchLookup v c = (v, cnt, c)
-applyLookup cnt (NVar n) c = (ref cnt, cnt+1, (n,ref cnt) : c)
-applyLookup cnt NHole    c = (ref cnt, cnt+1,               c)
+applyLookup :: NodeVar -> Count -> Context -> (Node, Count, Context)
+applyLookup v cnt c | Just v <- matchLookup v c = (v, cnt, c)
+applyLookup (NVar n) cnt c = (ref cnt, cnt+1, (n,ref cnt) : c)
+applyLookup NHole    cnt c = (ref cnt, cnt+1,               c)
 
 -- process one variable unification instance on the LHS
 matchStep :: Context -> (Node, NodeVar) -> Maybe Context
@@ -101,7 +101,7 @@ applyStep prov (d@(DBU {new_tuples = es, new_id_counter = count0, new_tuple_coun
   where
     step (c, count, acc) expr =
       let val = reduce c expr
-          (val', count', c') = applyLookup count val c
+          (val', count', c') = applyLookup val count c
       in (c', count', val':acc)
 
     (c1, new_id_count, nodes) = foldl step (c0, count0, []) exprs

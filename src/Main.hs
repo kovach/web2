@@ -17,6 +17,12 @@ import qualified Data.Text.Lazy.Encoding as T (encodeUtf8)
 import Network.TextServer
 import GHC.Generics
 
+import Data.List (nub, sortOn)
+import Data.Set (Set)
+import qualified Data.Set as S
+
+import Debug.Trace
+
 import Data.Aeson
 
 deriving instance Generic Label
@@ -27,7 +33,6 @@ data TupleJSON = TJ
   , t_label :: Label
   }
   deriving (Generic, Show)
-
 
 instance ToJSON Label where
   toEncoding = genericToEncoding defaultOptions
@@ -50,27 +55,61 @@ instance FromJSON Command where
 
 parseCommand = decode
 
+parseEvent (Hover n) = ("hover", [n])
+parseEvent (UnHover n) = ("unhover", [n])
+parseEvent (Click n) = ("click", [n])
+
 encodeDB = encode . reverse . map tupleJSON . tuples
 
-printer msg noop@(ind, db) = do
+data State = State [Label] [Node] Index DB
+
+validActions _ [] = []
+validActions [] as = as
+validActions [choice] as = filter (any (== choice) . snd) as
+validActions choices as =
+  let ps = filter ((\ns -> all (`elem` ns) choices) . snd) as
+      correct = filter ((== choices) . snd) as
+  in case ps of
+       [] -> []
+       a:_ -> if length choices == length (snd a) then correct else ps
+
+shared as bs = S.size (S.fromList as `S.intersection` S.fromList bs)
+
+handler msg noop@(State inputs choices ind db) =
   case parseCommand msg of
     Just Reset -> do
-      (_,ind',_,db') <- mainUI
-      return (Just $ encodeDB db , (ind', db'))
-    Just (Hover n) -> do
-      putStrLn "hover"
-      let db' = insertTuple ind ("hover", [n]) db
-      return (Just $ encodeDB db', (ind, db'))
-    Just (UnHover n) -> do
-      putStrLn "unhover"
-      let db' = insertTuple ind ("unhover", [n]) db
-      return (Just $ encodeDB db', (ind, db'))
+      -- Initialize everything
+      (_,ind',inputs,db') <- mainUI
+      putStrLn "actions:"
+      mapM_ print inputs
+      putStrLn ""
+      return (Just $ encodeDB db , State inputs choices ind' db')
+    -- Special handling for click, for now
     Just (Click n) -> do
-      putStrLn "click"
-      let db' = insertTuple ind ("click", [n]) db
-      return (Just $ encodeDB db', (ind, db'))
+      let acts0 = map (actions db ind) inputs
+          cs = nub $ choices ++ [n]
+          acts1 = concatMap (validActions cs) acts0
+      putStrLn $ "click: " ++ show n ++ "\nchoices: " ++ (show $ cs)
+      putStrLn $ show acts1
+      case acts1 of
+           -- This is an error? Reset the chosen set.
+           [] -> return (Nothing, State inputs [] ind db)
+           _ -> case filter ((n `elem`) . snd) acts1 of
+                  -- Clicked an irrelevant thing
+                  [] -> return (Nothing, noop)
+                  -- Apply choice
+                  [choice] ->
+                    let db' = insertTuple ind choice db
+                    in return (Just $ encodeDB db', State inputs [] ind db')
+                  _ -> return (Nothing, State inputs (nub $ n:choices) ind db)
+    Just ev -> do
+      let t = parseEvent ev
+      let db' = insertTuple ind t db
+      return (newdb db')
     _ -> return (Nothing, noop)
+  where
+    newdb db = (Just $ encodeDB db, State inputs choices ind db)
 
 main = do
-  (_,ind,_,db) <- mainUI
-  runServer (ind, db) printer
+  (_,ind,inputs,db) <- mainUI
+  runServer (State inputs [] ind db) handler

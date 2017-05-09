@@ -7,19 +7,20 @@ var initSock = function() {
     sock.send(resetCommand());
   };
   sock.onmessage = function(event) {
-    var d = event.data;
     var obj = JSON.parse(event.data);
 
     var m = get('main');
     while (m.firstChild) {
       m.removeChild(m.firstChild);
     }
+
     _.each(obj, parseTuple);
 
     return;
   }
 }
 
+// TODO
 var parseNode = function(node) {
   switch (node.tag) {
     case "NTRef":
@@ -75,23 +76,23 @@ var parseTuple = function(t) {
         console.log('click: ', ev.button);
         ev.stopPropagation();
         ev.preventDefault();
-        sock.send(clickCommand(id));
+        sock.send(clickCommand(obj));
       });
       elem.addEventListener('contextmenu', function(ev) {
         console.log('click: ', ev.button);
         ev.stopPropagation();
         ev.preventDefault();
-        sock.send(hoverCommand(id));
+        sock.send(hoverCommand(obj));
       });
       //elem.addEventListener('mouseenter', function(ev) {
       //  ev.stopPropagation();
-      //  console.log('over');
-      //  sock.send(hoverCommand(id));
+      //  elem.style.backgroundColor = "#666";
+      //  //sock.send(hoverCommand(id));
       //});
       //elem.addEventListener('mouseleave', function(ev) {
       //  ev.stopPropagation();
-      //  console.log('out', id);
-      //  sock.send(unhoverCommand(id));
+      //  elem.style.backgroundColor = "#777";
+      //  //sock.send(unhoverCommand(id));
       //});
       break;
     case "child":
@@ -108,7 +109,14 @@ var parseTuple = function(t) {
       var elem = elements[nodes[0].contents];
       elem.parentNode.removeChild(elem);
       break;
-    case "hide":
+    case "elem":
+      var id = nodes[0].contents;
+      var obj = nodes[1].contents;
+      var elem = create(nodes[2].contents, id);
+      elem.setAttribute('ref', obj);
+      elements[id] = elem;
+    case "text":
+      mkText(nodes[1].contents, elements[nodes[0].contents]);
       break;
   }
 

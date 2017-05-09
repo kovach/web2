@@ -35,11 +35,15 @@ var mkBox = function(str, id, socket, other) {
   if (other)
     append(el, other);
   el.addEventListener('onmouseenter', function() {
-    console.log('enter');
   });
   el.addEventListener('onmouseleave', function() {
-    console.log('leave');
   });
+  return el;
+}
+
+var create = function(type, id) {
+  var el = document.createElement(type);
+  el.id = id;
   return el;
 }
 

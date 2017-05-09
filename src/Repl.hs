@@ -9,6 +9,7 @@ import Data.List (sort, sortOn)
 import Types
 import Rules
 import Increment
+import Reflection
 import Parse
 
 parseCommand str =
