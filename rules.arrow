@@ -16,7 +16,6 @@ owns p1 t1, token h1 t1, op p1 p2, owns p2 t2, token h2 t2, .do_attack h1 h2 => 
 # combat
 .attack h1 h2, token h1 t1, token h2 t2, str t1 s1, str t2 s2 => dmg t1 s2, dmg t2 s1
 
-
 ### Cards ###
 # "archer" card: 2/2, deal 1 dmg to opponent
 .summon p c, archer c => make_minion p c t 2 2, print p 'summons_archer

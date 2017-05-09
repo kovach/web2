@@ -1,0 +1,15 @@
+make_minion p m => minion m, owns p m
+
+player p => box f p 'player, color f '555, child f 'main
+minion m, owns p m, box arena p _ => box b m 'm, child b arena, color b 'fa0
+
+dead m, box b m _ => clear b
+
+click b, box b m _, minion m => dead m
+
+..hover b, ..focus b => unfocus b
+..hover b, ..focus p => focus b, unfocus p
+..hover b => focus b
+
+.focus b, ..color b pr => color b 'd0d, prev_color b pr
+..unfocus b, ..prev_color b pr, ..color b _ => color b pr

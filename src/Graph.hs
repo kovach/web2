@@ -73,15 +73,21 @@ solveStep g (c, bound, deps) (Query dot (EP linear unique e vs)) =
     safeInit (x:_) = [x]
 
 solveStep g b@(c, bound, _) (QBinOp op v1 v2) =
-  case (matchLookup v1 c, matchLookup v2 c) of
+  case (matchLookup (reduce c v1) c, matchLookup (reduce c v2) c) of
     (Just v1', Just v2') -> if (op2fn op v1' v2') then [b] else []
     _ -> error "(in)equality constraints must refer to bound values"
 
 solveSteps :: [Tuple] -> Bindings -> [Query] -> [Bindings]
 solveSteps g c es = foldM (solveStep g) c es
 
---solve :: [Tuple] -> [Query] -> [Bindings]
---solve g es = solveSteps g emptyMatchBindings es
+-- Assigns tuple a timestamp. DOES NOT insert tuple into DB
+makeTuple :: DB -> RawTuple -> (DB, Tuple)
+makeTuple db (rel, ns) = (db', t)
+  where
+    ts = Time [time_counter db]
+    tid = tuple_counter db
+    db' = db { tuple_counter = tuple_counter db + 1, time_counter = time_counter db + 1 }
+    t = T { nodes = ns, label = rel, ts = ts, tid = tid, source = Nothing }
 
 applyStep :: Provenance -> (DBUpdate, Context, Int) -> Assert -> (DBUpdate, Context, Int)
 applyStep prov (d@(DBU {new_tuples = es, new_id_counter = count0, new_tuple_counter = t_count}), c0, t)
@@ -98,8 +104,8 @@ applyStep prov (d@(DBU {new_tuples = es, new_id_counter = count0, new_tuple_coun
           (val', count', c') = applyLookup count val c
       in (c', count', val':acc)
 
-    (c1, new_id_count, exprs') = foldl step (c0, count0, []) exprs
-    new = T { nodes = reverse exprs', label = label, ts = Time [t], tid = t_count, source = Just prov }
+    (c1, new_id_count, nodes) = foldl step (c0, count0, []) exprs
+    new = T { nodes = reverse nodes, label = label, ts = Time [t], tid = t_count, source = Just prov }
 
 -- returns db containing (ONLY new edges, new object counter)
 applyMatch :: DBUpdate -> Match -> (Context, DBUpdate)

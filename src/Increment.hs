@@ -1,16 +1,13 @@
+{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TupleSections #-}
 module Increment where
 
-import Control.Monad
 import Data.Maybe
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Map (Map)
-import Data.List (sort, sortOn)
 import qualified Data.Map as M
-
-import System.Console.ANSI
-import System.Console.Readline
+import Data.List (sort, sortOn)
 
 import Data.Char
 
@@ -20,8 +17,6 @@ import Graph
 import Rules
 import Parser2
 import Parse
-
-import Debug.Trace
 
 emptyIndex = M.empty
 
@@ -81,11 +76,11 @@ increment tuple ind g = concat result
     step :: Trigger -> [Match]
     step (ruleid, linear, Rule _ rhs, p@(EP _ _ _ _), pattern) =
       let cs = do
-            -- bind new tuple to identified clause
             let b0 = emptyMatchBindings
+            -- bind new tuple to identified clause
             c <- solveStep [tuple] b0 (Query Low p)
             -- match remaining clauses
-            foldM (solveStep g) c (S.toList pattern)
+            solveSteps g c (S.toList pattern)
           fixMatch binding = (ruleid, binding, rhs)
           matches = map fixMatch cs
       in case linear of
@@ -98,15 +93,22 @@ actions db ind label = concatMap step triggers
     triggers = indLookup label ind
     step  (_, _, _, (EP _ _ rel vs), pattern) = actions
       where
-        bindings = foldM (solveStep (tuples db)) emptyMatchBindings (S.toList pattern)
+        bindings = solveSteps (tuples db) emptyMatchBindings (S.toList pattern)
+        -- TODO a rule with a free variable in a user-action should cause an error
+        -- it will fail at this fromJust
         bind (ctxt, _, _) = (rel, map (fromJust . flip matchLookup ctxt) vs)
         actions = map bind bindings
 
+attributes :: Node -> DB -> [Tuple]
+attributes n db = filter ok (tuples db)
+  where
+    ok t = n `elem` nodes t
+
 
 type Schedule = (Int, [Tuple], DB)
-stepLimit = 100
+scheduleDB (_, _, db) = db
+stepLimit = 150
 emptySchedule = (0, [], emptyDB)
-cons = (:)
 
 -- Main function responsible for updating program state
 --   - pops edge from stack
@@ -131,22 +133,6 @@ stepS index (c, q, db) = Just (c+1, q', db')
              , tuple_counter = new_tuple_counter dbu
              }
 
-
-
-repl = do
-  ml <- readline "% "
-  case ml of
-    Nothing -> return ()
-    Just line -> do
-      putStrLn line
-      repl
-
-repl1 start_marker edgeFile ruleFile = do
-  (rules, inputs) <- runProgram start_marker edgeFile ruleFile
-
-  repl
-
-
 -- Main function
 runProgram start_marker edgeFile ruleFile = do
     edges <- readDBFile edgeFile
@@ -159,22 +145,10 @@ runProgram start_marker edgeFile ruleFile = do
     -- calculate user actions
     let externalInputs = trueInputs start_marker rules edges
 
-    mapM_ print $ rules
-    putStrLn "input relations:"
-    mapM_ (putStrLn . ("  " ++) . show) $ inputRelations rules
-    putStrLn "output relations:"
-    mapM_ (putStrLn . ("  " ++) . show) $ outputRelations rules
-    putStrLn "external inputs:"
-    mapM_ (putStrLn . ("  " ++) . show) $ externalInputs
-
 
     let index = foldr (insertRule) emptyIndex $ zip [1..] rules
-        steps = map justDB $ unfold (stepS index) schedule
+        steps = map scheduleDB $ unfold (stepS index) schedule
         result = last steps
-        log = sortOn (revT . ts . snd) $ (map (True,) $ tuples result) ++ (map (False,) $ removed_tuples result)
-
-    putStrLn "\ngame log:"
-    mapM_ (colorTuple rules) $ log
 
     --putStrLn "partial game log?"
     --mapM_ (colorTuple [rules !! 0]) $ log
@@ -186,44 +160,18 @@ runProgram start_marker edgeFile ruleFile = do
     let alltids = sort $ map tid (tuples result ++ removed_tuples result)
     if ([0..length alltids - 1] /= alltids)
       then do
-        putStrLn "tids not consistent!!"
+        warn "tids not consistent!!"
         print alltids
         print $ zipWith (-) alltids (tail alltids)
         print $ map tid $ tuples result
         print $ map tid $ removed_tuples result
-      else putStrLn "tids consistent!"
+      else warn "tids consistent!"
 
-    putStrLn "play actions:"
-    mapM_ print $ actions result index "play"
-    putStrLn "actions:"
-    mapM_ print $ actions result index "end_turn"
-    putStrLn "actions:"
-    mapM_ print $ actions result index "do_attack"
-
-    return (rules, externalInputs)
+    return (rules, index, externalInputs, result)
 
   where
     initdbu = DBU {new_tuples = [], new_removed = [], new_id_counter = 0, new_tuple_counter = 0}
-    justDB (_,_,db) = db
-    colorTuple rules (alive, t) = do
-      let debug = True
-      let ddebug = True
-      let str = (if alive then "" else "    ") ++ ppTuple t
-      case tupleIOType rules t of
-        Input -> do
-          setSGR [SetColor Foreground Vivid White]
-          putStrLn str
-        Output -> do
-          setSGR [SetColor Foreground Dull Blue]
-          putStrLn str
-        Internal -> unless (not debug) $ do
-          setSGR [SetColor Foreground Dull Green]
-          putStrLn str
-        Ignored -> unless (not ddebug) $ do
-          setSGR [SetColor Foreground Dull Yellow]
-          putStrLn str
-      setSGR [Reset]
+    --justDB (_,_,db) = db
+    warn s = putStrLn $ "\n"++s++"\n"
 
-main1 = runProgram "start_game" "graph.txt" "rules.arrow" >> return ()
-main2 = runProgram "" "graph2.txt" "parser.arrow" >> return ()
-main3 = runProgram "" "graph3.txt" "linearity.arrow" >> return ()
+mainUI = runProgram "" "ui.txt" "ui.arrow"

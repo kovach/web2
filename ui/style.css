@@ -1,0 +1,44 @@
+@font-face {
+  font-family: 'Noto Sans';
+  font-style: normal;
+  font-weight: 400;
+  src: url(NotoSans-Regular.ttf);
+}
+
+body {
+  font-family: 'Noto Sans';
+	font-size: 14pt;
+  color: #222;
+}
+
+#main {
+  display: inline-block;
+  width: 50%;
+  min-height: 100%;
+  height: 100%;
+  background-color: #eee;
+  border: 2px solid black;
+  padding: 3px;
+}
+#actions {
+  display: inline-block;
+  width: 20%;
+  min-height: 100%;
+  height: 100%;
+  background-color: #ddd;
+}
+#log {
+  display: inline-block;
+  width: 20%;
+  min-height: 100%;
+  height: 100%;
+  background-color: #bbf;
+}
+
+.box {
+  /*border-size: 1px;
+  border-style:solid;
+  border-color:black;
+  */
+  padding: 2px;
+}

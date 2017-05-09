@@ -27,6 +27,8 @@ type Id = Int
 
 type Provenance = (RuleId, Dependency)
 
+type RawTuple = (Label, [Node])
+
 data Tuple = T
   { nodes :: [Node]
   , label :: Label
@@ -69,8 +71,6 @@ initDB g = DB { tuples = g, removed_tuples = [], time_counter = 0, id_counter = 
 emptyDB = initDB []
 
 type Name = String
---type Edge = (Label, (Node, Node))
-type Edge = Tuple
 
 data NodeVar = NVal Node | NVar Name | NHole
   deriving (Eq, Show, Ord)
@@ -94,16 +94,6 @@ data EP =
   EP Linear Unique Label [NodeVar]
   deriving (Eq, Show, Ord)
 
--- Left-hand side of rule
-data Query =
-  Query Dot EP
-  | Counter [Name] [Query] -- TODO implement
-  | QBinOp Op NodeVar NodeVar
-  -- TODO forall/unique/some/empty
-  -- rand/single
-  deriving (Eq, Show, Ord)
-
-
 data NumOp = Sum | Mul | Sub
   deriving (Eq, Show, Ord)
 data E = EBinOp NumOp E E
@@ -119,6 +109,18 @@ instance Num E where
   (+) = EBinOp Sum
   (*) = EBinOp Mul
   (-) = EBinOp Sub
+
+-- Left-hand side of rule
+data Query =
+  Query Dot EP
+  | Counter [Name] [Query] -- TODO implement
+  -- nb: the ordering of these constructors is significant
+  -- TODO don't rely on this
+  | QBinOp Op E E
+  -- TODO forall/unique/some/empty?
+  --      rand
+  deriving (Eq, Show, Ord)
+
 
 -- Right-hand side of rule
 data Assert =

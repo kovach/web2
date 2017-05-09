@@ -16,9 +16,15 @@ extra-source-files:  ChangeLog.md
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Main, Rules, Graph, Expr, Parser2, Types, Increment
+  exposed-modules:     Repl, Reflection, Increment, Rules, Graph, Expr, Parser2, Types
   -- other-modules:       
   other-extensions:    TupleSections, OverloadedStrings
   build-depends:       base >=4.9 && <4.10, random >=1.1 && <1.2, containers >=0.5 && <0.6, ansi-terminal >=0.6 && <0.7, readline
+                       -- , text, text-server
   hs-source-dirs:      src
   default-language:    Haskell2010
+
+executable server
+  main-is:            Main.hs
+  build-depends:      text-server, base >=4.8, text, containers >=0.5 && <0.6, aeson, bytestring
+  hs-source-dirs:     src

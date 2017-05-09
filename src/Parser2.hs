@@ -1,9 +1,12 @@
 module Parser2 where
+
+import Data.Char (isSpace)
+
 import Types
 import Parse
 
 comma_ = token $ char ','
-symbol_ = char '\'' *> identifier
+symbol_ = char '\'' *> (many (digit <|> alpha <|> anyChar "_"))
 hole_ = token $ char '_'
 q_ = (NVal <$> ((NTNamed <$> symbol_) <|> (NTInt <$> int_)))
      <|> (NVar <$> identifier)
@@ -16,7 +19,7 @@ ineq_ =
   (token (string "/=") *> return QDisEq) <|>
   (token (string "<") *> return QLess) <|>
   (token (string ">") *> return QMore)
-qbin_ = token $ flip QBinOp <$> token q_ <*> ineq_ <*> token q_
+qbin_ = token $ flip QBinOp <$> token expr_ <*> ineq_ <*> token expr_
 single_ = (char '@' *> pure Unique) <|> (pure NonUnique)
 ep_ lin = token $ EP lin <$> single_ <*> rel_ <*> sepBy flex q_
 
@@ -60,9 +63,11 @@ parse s =
     Right (r, "") -> r
     p -> error $ "bad parse: " ++ show p
 
-notComment ('#' : _) = False
-notComment "" = False
-notComment _ = True
+notComment = check . dropWhile isSpace
+  where
+    check ('#' : _) = False
+    check "" = False
+    check _ = True
 
 readRules f = do
   rs <- filter notComment . lines <$> readFile f

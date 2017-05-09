@@ -1,0 +1,6 @@
+player p1
+player p2
+
+make_minion p1 m1
+make_minion p1 m2
+make_minion p2 m3
