@@ -11,15 +11,7 @@ import Graph
 import Rules
 import Parser2
 import Parse
-import Increment
-
--- TODO last.unfold is dumb
-insertTuple :: Index -> (Label, [Node]) -> DB -> DB
-insertTuple index edge db = scheduleDB . last $ unfold (stepS index) schedule
-  where
-    (db', tuple) = makeTuple db edge
-    schedule = (0, [tuple], db')
-
+import Index
 
 uiRels = ["box", "child", "color", "clear", "hide"]
 
@@ -28,6 +20,8 @@ pullRells ls db = filter ok (tuples db)
   where
     ok t = label t `elem` ls
 
+-- TODO generalize to sets of Label inputs?
+-- For now, assume that actions are factored as single relations.
 actions :: DB -> Index -> Label -> [RawTuple]
 actions db ind label = concatMap step triggers
   where
@@ -39,8 +33,3 @@ actions db ind label = concatMap step triggers
         -- it will fail at this fromJust
         bind (ctxt, _, _) = (rel, map (fromJust . flip matchLookup ctxt) vs)
         actions = map bind bindings
-
---flattenRawTuple :: [RawTuple] -> [RawTuple]
---flattenRawTuple = snd . foldl' step 0
---  where
---    step (count, ts) (l, ns) = (count+1, header : (nodes ++ ts))

@@ -7,10 +7,12 @@ import qualified Data.Set as S
 import Data.Map (Map)
 import qualified Data.Map as M
 
-data Time = Time [Int]
-  deriving (Eq, Show, Ord)
-appT (Time a) (Time b) = Time (reverse b ++ a) -- TODO
-revT (Time a) = Time (reverse a)
+-- TODO remove
+-- data Time = Time [Int]
+--   deriving (Eq, Show, Ord)
+-- appT (Time a) (Time b) = Time (reverse b ++ a) -- TODO
+-- revT (Time a) = Time (reverse a)
+
 newtype Label = L String
   deriving (Eq, Ord)
 
@@ -32,9 +34,9 @@ type RawTuple = (Label, [Node])
 data Tuple = T
   { nodes :: [Node]
   , label :: Label
-  , ts :: Time -- TODO replace with provenance (a rule application instance)
   , tid :: Id
   , source :: Maybe Provenance
+  -- , ts :: Time -- TODO replace with provenance (a rule application instance)
   }
   deriving (Eq, Show, Ord)
 
@@ -54,8 +56,7 @@ type Count = Int
 data DB = DB
   { tuples :: [Tuple]
   , removed_tuples :: [Tuple]
-  , time_counter :: Int
-  , id_counter :: Count
+  , node_counter :: Count
   , tuple_counter :: Count
   }
   deriving (Eq, Show, Ord)
@@ -67,7 +68,8 @@ data DBUpdate = DBU
   , new_removed :: [Tuple]
   }
 
-initDB g = DB { tuples = g, removed_tuples = [], time_counter = 0, id_counter = 0, tuple_counter = 0}
+initDB g = DB { tuples = g, removed_tuples = []
+              , node_counter = 0, tuple_counter = 0}
 emptyDB = initDB []
 
 type Name = String
@@ -139,6 +141,8 @@ data Rule = Rule LHS RHS
 
 type Trigger = (RuleId, Linear, Rule, EP, Pattern)
 type Index = Map Label [Trigger]
+emptyIndex = M.empty
+
 
 type Context = [(Name, Node)]
 type Consumed = [Tuple]

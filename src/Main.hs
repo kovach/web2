@@ -73,7 +73,10 @@ validActions choices as =
        [] -> []
        a:_ -> if length choices == length (snd a) then correct else ps
 
-shared as bs = S.size (S.fromList as `S.intersection` S.fromList bs)
+allEq [] = True
+allEq [a] = True
+allEq (a:b:r) | a == b = allEq (b:r)
+allEq _ = False
 
 handler msg noop@(State inputs choices ind db) =
   case parseCommand msg of
@@ -89,19 +92,22 @@ handler msg noop@(State inputs choices ind db) =
       let acts0 = map (actions db ind) inputs
           cs = nub $ choices ++ [n]
           acts1 = concatMap (validActions cs) acts0
-      putStrLn $ "click: " ++ show n ++ "\nchoices: " ++ (show $ cs)
-      putStrLn $ show acts1
+      putStrLn $ "click: " ++ show n
+      putStrLn $ "choices: " ++ (show $ cs)
+      putStrLn $ "actions: " ++ show acts1
+      putStrLn ""
       case acts1 of
-           -- This is an error? Reset the chosen set.
-           [] -> return (Nothing, State inputs [] ind db)
-           _ -> case filter ((n `elem`) . snd) acts1 of
-                  -- Clicked an irrelevant thing
-                  [] -> return (Nothing, noop)
-                  -- Apply choice
-                  [choice] ->
-                    let db' = insertTuple ind choice db
-                    in return (Just $ encodeDB db', State inputs [] ind db')
-                  _ -> return (Nothing, State inputs (nub $ n:choices) ind db)
+           -- No valid action. Reset the chosen set.
+           [] -> do
+             putStrLn "reset"
+             return (Nothing, State inputs [] ind db)
+           _ -> if allEq acts1
+                -- A unique action is chosen, possibly triggering more than one rule
+                then let choice = head acts1
+                         db' = insertTuple ind choice db
+                     in return (Just $ encodeDB db', State inputs [] ind db')
+                -- No db update, just add (possibly) new choice to set
+                else return (Nothing, State inputs (nub $ n:choices) ind db)
     Just ev -> do
       let t = parseEvent ev
       let db' = insertTuple ind t db

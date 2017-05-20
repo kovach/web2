@@ -1,7 +1,10 @@
+{-# LANGUAGE RecordWildCards #-}
 module Graph where
 
 import Control.Monad
+import Control.Monad.State
 import Data.List
+import qualified Data.Set as S
 import Data.Maybe
 import Data.String
 
@@ -9,6 +12,8 @@ import Types
 import Expr
 import Parser2
 import Parse (runParser)
+import Monad
+import Index
 
 import Debug.Trace
 
@@ -28,10 +33,14 @@ matchLookup (NVar n) c = lookup n c
 matchLookup NHole    c = Nothing
 
 -- looks up value in context; generates fresh node if unbound
-applyLookup :: NodeVar -> Count -> Context -> (Node, Count, Context)
-applyLookup v cnt c | Just v <- matchLookup v c = (v, cnt, c)
-applyLookup (NVar n) cnt c = (ref cnt, cnt+1, (n,ref cnt) : c)
-applyLookup NHole    cnt c = (ref cnt, cnt+1,               c)
+applyLookup :: NodeVar -> Context -> M2 (Node, Context)
+applyLookup v c | Just v <- matchLookup v c = return (v, c)
+applyLookup (NVar n) c = do
+  v <- freshNode
+  return (v, (n, v) : c)
+applyLookup NHole c = do
+  v <- freshNode
+  return (v, c)
 
 -- process one variable unification instance on the LHS
 matchStep :: Context -> (Node, NodeVar) -> Maybe Context
@@ -80,48 +89,66 @@ solveStep g b@(c, bound, _) (QBinOp op v1 v2) =
 solveSteps :: [Tuple] -> Bindings -> [Query] -> [Bindings]
 solveSteps g c es = foldM (solveStep g) c es
 
--- Assigns tuple a timestamp. DOES NOT insert tuple into DB
-makeTuple :: DB -> RawTuple -> (DB, Tuple)
-makeTuple db (rel, ns) = (db', t)
+-- Main Matching Function --
+-- looks up rel in index, then completes the Pattern into Match
+getMatches :: Tuple -> Index -> [Tuple] -> [Match]
+getMatches tuple ind g = takeValid [] $ concat result
   where
-    ts = Time [time_counter db]
-    tid = tuple_counter db
-    db' = db { tuple_counter = tuple_counter db + 1, time_counter = time_counter db + 1 }
-    t = T { nodes = ns, label = rel, ts = ts, tid = tid, source = Nothing }
+    ts = indLookup (label tuple) ind
+    result = map step ts
+    step :: Trigger -> [Match]
+    step (ruleid, linear, Rule _ rhs, p@(EP _ _ _ _), pattern) =
+      let cs = do
+            let b0 = emptyMatchBindings
+            -- bind new tuple to identified clause
+            c <- solveStep [tuple] b0 (Query Low p)
+            -- match remaining clauses
+            solveSteps g c (S.toList pattern)
+          fixMatch binding = (ruleid, binding, rhs)
+          matches = map fixMatch cs
+      in case linear of
+           Linear -> removeConflicts matches
+           NonLinear -> matches
 
-applyStep :: Provenance -> (DBUpdate, Context, Int) -> Assert -> (DBUpdate, Context, Int)
-applyStep prov (d@(DBU {new_tuples = es, new_id_counter = count0, new_tuple_counter = t_count}), c0, t)
-          (Assert label exprs) =
-  (DBU { new_tuples = new : es
-       , new_id_counter = new_id_count
-       , new_removed = new_removed d
-       , new_tuple_counter = t_count + 1}
-  , c1
-  , t+1)
+applyStep :: Provenance -> Context -> Assert -> M2 Context
+applyStep prov c0 (Assert label exprs) = do
+    (c1, nodes) <- foldM step (c0, []) exprs
+    scheduleAdd (label, reverse nodes) (Just prov)
+    return c1
   where
-    step (c, count, acc) expr =
-      let val = reduce c expr
-          (val', count', c') = applyLookup val count c
-      in (c', count', val':acc)
+    step (c0, acc) expr = do
+      (val, c1) <- applyLookup (reduce c0 expr) c0
+      return (c1, val:acc)
 
-    (c1, new_id_count, nodes) = foldl step (c0, count0, []) exprs
-    new = T { nodes = reverse nodes, label = label, ts = Time [t], tid = t_count, source = Just prov }
+applyMatch :: Match -> M2 Context
+applyMatch (ruleid, (ctxt, bound, deps), rhs) = do
+  c <- foldM (applyStep (ruleid, deps)) ctxt $ reverse rhs
+  mapM scheduleDel bound
+  return c
 
--- returns db containing (ONLY new edges, new object counter)
-applyMatch :: DBUpdate -> Match -> (Context, DBUpdate)
-applyMatch dbu (ruleid, (ctxt, bound, deps), rhs) =
-  let (dbu', ctxt', _) = foldl' (applyStep (ruleid, deps)) (dbu, ctxt, 0) rhs
-  in (ctxt', dbu' { new_removed = bound ++ new_removed dbu', new_tuples = reverse $ new_tuples dbu' })
+-- Main Update Function --
+stepDB :: M2 Bool
+stepDB = do
+  modify $ \s -> s { gas = gas s - 1 }
+  -- a_unprocessed, index, db
+  S2{..} <- get
+  case a_unprocessed of
+    [] -> return True
+    x:xs -> do
+      let ms = (getMatches x index (tuples db))
+      modify $ \s -> s { a_unprocessed = xs }
+      mapM_ applyMatch $ reverse ms
+      insertTuple x
+      processDels
+      return False
 
--- `rhs` is a description of new edges to add, given a context
--- add edges for each match simultaneously (according to timestamp)
--- updates are sequenced so that new nodes get unique ids
-applyAll :: DB -> [Match] -> DBUpdate
-applyAll (DB {tuple_counter = t_counter, id_counter = counter}) ms = dbu
-  where
-    init = DBU {new_tuples = [], new_removed = [], new_id_counter = counter, new_tuple_counter = t_counter}
-    validMatches = takeValid [] ms
-    dbu = foldl' (\a b -> snd $ applyMatch a b) init validMatches
+fixDB :: M2 ()
+fixDB = do
+  g <- gets gas
+  if g < 1 then return ()
+  else do
+    guard <- stepDB
+    if guard then return () else fixDB
 
 -- checks to see if the tuples a match depends on have been consumed by an earlier match
 matchValid :: Bindings -> Consumed -> Bool
@@ -150,14 +177,3 @@ rq s =
 readDBFile file = do
   f <- readFile file
   return $ mapMaybe rq . filter notComment . lines $ f
-
-ppC :: Context -> String
-ppC = wrap . intercalate "," . map t . reverse
-  where
-    t (a, v) = a++":"++show v
-    wrap s = "[" ++ s ++ "]"
-ppR = wrap . intercalate "," . map ppC
-  where
-    wrap s = "{" ++ s ++ "}"
-
-ppDB (DB {tuples = g}) = mapM_ print g
