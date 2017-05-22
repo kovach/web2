@@ -40,26 +40,11 @@ runProgram start_marker edgeFile ruleFile = do
     --putStrLn "partial game log?"
     --mapM_ (colorTuple [rules !! 0]) $ log
 
-    putStrLn "final tuple count:"
-    print $ length (tuples result)
-
-    -- random unit test
-    let alltids = sort $ map tid (tuples result ++ removed_tuples result)
-    if ([0..length alltids - 1] /= alltids)
-      then do
-        warn "tids not consistent!!"
-        print alltids
-        print $ zipWith (-) alltids (tail alltids)
-        print $ map tid $ tuples result
-        print $ map tid $ removed_tuples result
-      else warn "tids consistent!"
-
     return (rules, index, externalInputs, result)
 
   where
     initdbu = DBU {new_tuples = [], new_removed = [], new_id_counter = 0, new_tuple_counter = 0}
     --justDB (_,_,db) = db
-    warn s = putStrLn $ "\n"++s++"\n"
 
 mainUI = runProgram "" "ui.txt" "ui.arrow"
 parseCommand str =
@@ -107,9 +92,24 @@ runTextDemo start_marker edgeFile ruleFile = do
     putStrLn "actions:"
     mapM_ print $ actions result index "do_attack"
 
+    putStrLn "final tuple count:"
+    print $ length (tuples result)
+
+    -- random unit test
+    let alltids = sort $ map tid (tuples result ++ removed_tuples result)
+    if ([0..length alltids - 1] /= alltids)
+      then do
+        warn "tids not consistent!!"
+        print alltids
+        print $ zipWith (-) alltids (tail alltids)
+        print $ map tid $ tuples result
+        print $ map tid $ removed_tuples result
+      else warn "tids consistent!"
+
     return ()
 
   where
+    warn s = putStrLn $ "\n"++s++"\n"
     colorTuple rules (alive, t) = do
       let debug = True
       let ddebug = True
@@ -134,4 +134,5 @@ repl1 = runRepl "start_game" "graph.txt" "rules.arrow" >> return ()
 main1 = runTextDemo "start_game" "graph.txt" "rules.arrow"
 main2 = runTextDemo "" "graph2.txt" "parser.arrow"
 main3 = runTextDemo "" "graph3.txt" "linearity.arrow"
+main4 = runTextDemo "" "scheme.graph" "scheme.arrow"
 

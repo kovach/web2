@@ -1,0 +1,22 @@
+make_players p1 p2
+node n1 1 1
+node n2 1 2
+node n3 2 1
+node n4 2 2
+
+# n1 n2
+# n3 n4
+
+dedge n1 n2
+dedge n1 n3
+dedge n2 n4
+dedge n3 n4
+
+minion p1 'm1 n3
+minion p1 'm4 n4
+minion p2 'm2 n2
+
+input_fast p1 'm1 n1
+#input_fast p1 'm4 n2
+input_slow p2 'm2 n1
+start_turn
