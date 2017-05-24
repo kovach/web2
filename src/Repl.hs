@@ -134,5 +134,4 @@ repl1 = runRepl "start_game" "graph.txt" "rules.arrow" >> return ()
 main1 = runTextDemo "start_game" "graph.txt" "rules.arrow"
 main2 = runTextDemo "" "graph2.txt" "parser.arrow"
 main3 = runTextDemo "" "graph3.txt" "linearity.arrow"
-main4 = runTextDemo "" "scheme.graph" "scheme.arrow"
-
+main4 = runTextDemo "start_game" "scheme.graph" "scheme.arrow"

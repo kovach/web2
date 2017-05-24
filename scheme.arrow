@@ -1,18 +1,18 @@
-## make a grid
-#xc a, yc b => node n a b
-#node n1 a b, node n2 c d, (a-c) = 1, b = d => edge n1 n2, edge n2 n1
-#node n1 a b, node n2 c d, (b-d) = 1, a = c => edge n1 n2, edge n2 n1
-
 # init
 make_players p1 p2 => op p1 p2, op p2 p1
 dedge a b => edge a b, edge b a
 
-minion p m loc => owns p m, loc m loc, hp m 2, str m 2, damage_taken m 0
+minion p m loc hp str => owns p m, loc m loc, hp m hp, str m str, damage_taken m 0, can_move m
 
 # input actions
-input_fast p m target, owns p m, loc m l, edge l target => act_fast m target
+input_fast p m target, owns p m, loc m l, edge l target, can_move m => act_fast m target
 input_slow p m target, owns p m, loc m l, edge l target => act_slow m target
 input_wait p m, owns p m => wait m
+
+# special creatures
+hydra m, .damage _ m, ..str m s => str m (s+1), print 'hydra m 'grows
+wall w, ..can_move w =>
+wall w, ..check_fast m l, loc w l, act_slow w _ => print 'wall w 'blocks m
 
 # phase beginnings
 .start_turn, ..damage_taken m _ => damage_taken m 0
@@ -22,8 +22,6 @@ input_wait p m, owns p m => wait m
 .fast_stage, act_fast m t => fast m t
 .move_stage, act_move m t => move m t
 .slow_stage, act_slow m t => slow m t
-
-dying m, ..owns _ m, ..loc m _ => print m 'dies
 
 # game rules
 fast m target, owns _ m => check_fast m target
@@ -37,18 +35,16 @@ move m t, owns _ m => check_move m t
 .do_move m target, ..loc m _ => loc m target, print m 'moves target
 
 slow m target, owns _ m => check_slow m target
-..check_slow m target, loc m base, loc other target, act_slow other base =>
+..check_slow m target, loc m base, loc other target, act_slow other base => print m 'guards other
 ..check_slow m target, loc m base, loc other target, act_fast other base =>
 ..check_slow m target, loc other target => damage m other, print m 'retaliates other
 
 .damage m other, str m s, ..damage_taken other n => damage_taken other (n+s)
 
+dying m, ..owns _ m, ..loc m _ => print m 'dies
 
 # phase endings
-#ready t p1, ready t p2, op p1 p2 => start_turn
 ..start_turn => fast_stage
 ..fast_stage => move_stage
 ..move_stage => slow_stage
 ..slow_stage => end_turn
-
-# ..end_turn => start_turn
