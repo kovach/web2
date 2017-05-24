@@ -16,7 +16,11 @@ import Parser2
 import Index
 
 -- Main function
-runProgram start_marker edgeFile ruleFile = do
+runProgram start_marker edgeName ruleName = do
+    let prefix = "examples/"
+        edgeFile = prefix ++ edgeName
+        ruleFile = prefix ++ ruleName
+
     edges <- readDBFile edgeFile
 
     --let (ctxt, dbu) = applyMatch initdbu (0, emptyMatchBindings, edges)
@@ -131,7 +135,5 @@ runTextDemo start_marker edgeFile ruleFile = do
 
 repl1 = runRepl "start_game" "graph.txt" "rules.arrow" >> return ()
 
-main1 = runTextDemo "start_game" "graph.txt" "rules.arrow"
-main2 = runTextDemo "" "graph2.txt" "parser.arrow"
-main3 = runTextDemo "" "graph3.txt" "linearity.arrow"
-main4 = runTextDemo "start_game" "scheme.graph" "scheme.arrow"
+main1 = runTextDemo "start_game" "card_game.graph" "card_game.arrow"
+main2 = runTextDemo "start_game" "scheme.graph" "scheme.arrow"
