@@ -9,16 +9,15 @@ import Types
 import Expr
 import Graph
 import Rules
-import Parser2
 import Parse
 import Index
 
 uiRels = ["box", "child", "color", "clear", "hide"]
 
-pullRells :: [Label] -> DB -> [Tuple]
-pullRells ls db = filter ok (tuples db)
-  where
-    ok t = label t `elem` ls
+--pullRells :: [Label] -> DB -> [Tuple]
+--pullRells ls db = filter ok (tuples db)
+--  where
+--    ok t = label t `elem` ls
 
 -- TODO generalize to sets of Label inputs?
 -- For now, assume that actions are factored as single relations.

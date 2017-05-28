@@ -16,7 +16,7 @@ extra-source-files:  ChangeLog.md
 cabal-version:       >=1.10
 
 library
-  exposed-modules:     Repl, Monad, Types, Graph, Index, Rules, Parser2
+  exposed-modules:     Repl, Monad, Types, Graph, Index, Rules, Parser
   -- other-modules:       
   other-extensions:    TupleSections, OverloadedStrings
   build-depends:       base >=4.9 && <4.10, random >=1.1 && <1.2, containers >=0.5 && <0.6,

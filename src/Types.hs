@@ -7,12 +7,6 @@ import qualified Data.Set as S
 import Data.Map (Map)
 import qualified Data.Map as M
 
--- TODO remove
--- data Time = Time [Int]
---   deriving (Eq, Show, Ord)
--- appT (Time a) (Time b) = Time (reverse b ++ a) -- TODO
--- revT (Time a) = Time (reverse a)
-
 newtype Label = L String
   deriving (Eq, Ord)
 
@@ -35,8 +29,7 @@ data Tuple = T
   { nodes :: [Node]
   , label :: Label
   , tid :: Id
-  , source :: Maybe Provenance
-  -- , ts :: Time -- TODO replace with provenance (a rule application instance)
+  , source :: Maybe Provenance -- TODO something with this
   }
   deriving (Eq, Show, Ord)
 
@@ -53,22 +46,28 @@ instance Show Node where
 
 type Count = Int
 
+type Graph = Map Label [Tuple]
+
+insertTuple :: Tuple -> Graph -> Graph
+insertTuple t = M.insertWith (++) (label t) [t]
+
+toGraph :: [Tuple] -> Graph
+toGraph = foldr step M.empty
+  where
+    step t = insertTuple t
+
+fromGraph :: Graph -> [Tuple]
+fromGraph = concat . map snd . M.toList
+
 data DB = DB
-  { tuples :: [Tuple]
+  { tuples :: Graph
   , removed_tuples :: [Tuple]
   , node_counter :: Count
   , tuple_counter :: Count
   }
   deriving (Eq, Show, Ord)
 
-data DBUpdate = DBU
-  { new_tuples :: [Tuple]
-  , new_id_counter :: Count
-  , new_tuple_counter :: Count
-  , new_removed :: [Tuple]
-  }
-
-initDB g = DB { tuples = g, removed_tuples = []
+initDB g = DB { tuples = toGraph g, removed_tuples = []
               , node_counter = 0, tuple_counter = 0}
 emptyDB = initDB []
 
@@ -117,7 +116,7 @@ data Query =
   Query Dot EP
   | Counter [Name] [Query] -- TODO implement
   -- nb: the ordering of these constructors is significant
-  -- TODO don't rely on this
+  --   TODO don't rely on this
   | QBinOp Op E E
   -- TODO forall/unique/some/empty?
   --      rand

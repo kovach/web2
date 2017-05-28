@@ -12,7 +12,7 @@ import Rules
 import Graph
 import Reflection
 import Parse
-import Parser2
+import Parser
 import Index
 
 -- Main function
@@ -22,10 +22,6 @@ runProgram start_marker edgeName ruleName = do
         ruleFile = prefix ++ ruleName
 
     edges <- readDBFile edgeFile
-
-    --let (ctxt, dbu) = applyMatch initdbu (0, emptyMatchBindings, edges)
-    --    stack = new_tuples dbu
-    --    schedule = (0, stack, emptyDB { tuple_counter = new_tuple_counter dbu, id_counter = new_id_counter dbu })
 
     rules <- readRules ruleFile
 
@@ -41,14 +37,9 @@ runProgram start_marker edgeName ruleName = do
         (_, s2) = runDB emptyDB index prog
         result = db s2
 
-    --putStrLn "partial game log?"
-    --mapM_ (colorTuple [rules !! 0]) $ log
-
     return (rules, index, externalInputs, result)
 
   where
-    initdbu = DBU {new_tuples = [], new_removed = [], new_id_counter = 0, new_tuple_counter = 0}
-    --justDB (_,_,db) = db
 
 mainUI = runProgram "" "ui.txt" "ui.arrow"
 parseCommand str =
@@ -84,30 +75,27 @@ runTextDemo start_marker edgeFile ruleFile = do
     putStrLn "external inputs:"
     mapM_ (putStrLn . ("  " ++) . show) $ externalInputs
 
-    let log = sortOn (tid . snd) $ (map (True,) $ tuples result) ++ (map (False,) $ removed_tuples result)
+    let tupleList = fromGraph $ tuples result
+    let log = sortOn (tid . snd) $ (map (True,) $ tupleList) ++ (map (False,) $ removed_tuples result)
 
     putStrLn "\ngame log:"
     mapM_ (colorTuple rules) $ log
 
     putStrLn "play actions:"
-    mapM_ print $ actions result index "play"
-    putStrLn "actions:"
-    mapM_ print $ actions result index "end_turn"
-    putStrLn "actions:"
-    mapM_ print $ actions result index "do_attack"
+    mapM_ print $ concatMap (actions result index) externalInputs
 
     putStrLn "final tuple count:"
     print $ length (tuples result)
 
     -- random unit test
-    let alltids = sort $ map tid (tuples result ++ removed_tuples result)
-    if ([0..length alltids - 1] /= alltids)
+    let alltids = sort $ map tid (tupleList ++ removed_tuples result)
+        expectedids = [0..length alltids - 1]
+    if (expectedids /= alltids)
       then do
         warn "tids not consistent!!"
         print alltids
-        print $ zipWith (-) alltids (tail alltids)
-        print $ map tid $ tuples result
-        print $ map tid $ removed_tuples result
+        putStrLn "missing:"
+        print $ filter (not . (`elem` alltids)) expectedids
       else warn "tids consistent!"
 
     return ()
@@ -136,4 +124,5 @@ runTextDemo start_marker edgeFile ruleFile = do
 repl1 = runRepl "start_game" "graph.txt" "rules.arrow" >> return ()
 
 main1 = runTextDemo "start_game" "card_game.graph" "card_game.arrow"
-main2 = runTextDemo "start_game" "scheme.graph" "scheme.arrow"
+main2 = runTextDemo "start_turn" "scheme.graph" "scheme.arrow"
+main3 = runTextDemo "" "test.graph" "test.arrow"

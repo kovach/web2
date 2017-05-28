@@ -6,10 +6,11 @@ import Data.Maybe
 import Data.String
 import Control.Monad
 import Control.Monad.State
+import qualified Data.Map as M
 
 import Types
 
-data S2 = S2
+data InterpreterState = IS
   { db :: DB
   , a_unprocessed :: [Tuple]
   , d_unprocessed :: [Tuple]
@@ -19,11 +20,11 @@ data S2 = S2
   , gas :: Int
   } deriving (Eq, Show, Ord)
 
-type M2 = State S2
+type M2 = State InterpreterState
 
 defaultGas = 150
-emptyS2 = S2 emptyDB [] [] [] [] emptyIndex defaultGas
-makeS2 db index = S2 db [] [] [] [] index defaultGas
+emptyS2 = IS emptyDB [] [] [] [] emptyIndex defaultGas
+makeS2 db index = IS db [] [] [] [] index defaultGas
 
 runDB db index m = runState m (makeS2 db index)
 
@@ -39,7 +40,7 @@ freshNode = do
 
 flush :: M2 ([Tuple], [Tuple])
 flush = do
-  S2{..} <- get
+  IS{..} <- get
   modify $ \s -> s { a_buffer = [], d_buffer = [] }
   return (a_buffer, d_buffer)
 
@@ -49,9 +50,9 @@ makeTuple (rel, ns) p = do
   moddb $ \s -> s { tuple_counter = c + 1 }
   return $ T { nodes = ns, label = rel, tid = c, source = p }
 
-insertTuple t = do
+storeTuple t = do
   modify $ \s -> s { a_buffer = t : a_buffer s }
-  moddb $ \s -> s { tuples = t : tuples s }
+  moddb $ \s -> s { tuples = insertTuple t (tuples s) }
 
 scheduleAdd :: RawTuple -> Maybe Provenance -> M2 ()
 scheduleAdd r p = do
@@ -63,9 +64,9 @@ scheduleDel t = modify $ \s -> s { d_unprocessed = t : d_unprocessed s }
 
 processDels = do
   r <- gets d_unprocessed
-  let fix = filter (not . (`elem` r))
+  let fix = filter $ not . (`elem` r)
   modify $ \s -> s { d_unprocessed = [] }
-  moddb $ \s -> s { tuples = fix (tuples s), removed_tuples = r ++ removed_tuples s }
+  moddb $ \s -> s { tuples = M.map fix (tuples s), removed_tuples = r ++ removed_tuples s }
   modify $ \s -> s
     { a_buffer = fix $ a_buffer s
     , d_buffer = r ++ d_buffer s

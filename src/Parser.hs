@@ -1,4 +1,4 @@
-module Parser2 where
+module Parser where
 
 import Data.Char (isSpace)
 
@@ -50,9 +50,9 @@ expr_ =
   <|> (wrap_ $ flip EBinOp <$> token expr_ <*> binOp_ <*> token expr_)
   <|> (pure EHole <* hole_)
 
-rquery_ = Assert <$> rel_ <*> sepBy flex expr_
+-- allow trailing whitespace?
+rquery_ = token $ Assert <$> rel_ <*> sepBy flex expr_
 rclause_ = rquery_
--- nullRHS_ = token $ char '.'
 rhs_ = (sepBy comma_ rclause_)
 
 
@@ -63,12 +63,8 @@ parse s =
     Right (r, "") -> r
     p -> error $ "bad parse: " ++ show p
 
-notComment = check . dropWhile isSpace
-  where
-    check ('#' : _) = False
-    check "" = False
-    check _ = True
+filterComment = filter (not . null) . map (takeWhile (/= '#')) . lines
 
 readRules f = do
-  rs <- filter notComment . lines <$> readFile f
+  rs <- filterComment <$> readFile f
   return $ map parse rs

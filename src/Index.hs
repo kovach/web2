@@ -13,8 +13,6 @@ import Data.Char
 
 import Types
 import Expr
-import Rules
-import Parse
 
 dotClauses :: LHS -> LHS
 dotClauses = mapMaybe isdot
@@ -68,7 +66,7 @@ removeConflicts matches = filter matchOK matches
     matchOK = not . any (`elem` doubles) . takeConsumed
 
 attributes :: Node -> DB -> [Tuple]
-attributes n db = filter ok (tuples db)
+attributes n db = filter ok . fromGraph $ tuples db
   where
     ok t = n `elem` nodes t
 

@@ -5,12 +5,13 @@ import Control.Monad
 import Control.Monad.State
 import Data.List
 import qualified Data.Set as S
+import qualified Data.Map as M
 import Data.Maybe
 import Data.String
 
 import Types
 import Expr
-import Parser2
+import Parser
 import Parse (runParser)
 import Monad
 import Index
@@ -23,7 +24,10 @@ op2fn QDisEq = (/=)
 op2fn QLess = (<)
 op2fn QMore = (>)
 
-constrainRelation l = filter ((== l) . label)
+constrainRelation l g =
+  case M.lookup l g of
+    Nothing -> []
+    Just x -> x
 
 ref = NTRef
 
@@ -60,7 +64,7 @@ edgeMatch c vs t =
     c' <- foldM matchStep c ps
     return (t, c')
 
-solveStep :: [Tuple] -> Bindings -> Query -> [Bindings]
+solveStep :: Graph -> Bindings -> Query -> [Bindings]
 solveStep g (c, bound, deps) (Query dot (EP linear unique e vs)) =
     -- 4 steps:
     --   constrainRelation picks out the relation tuples by name
@@ -86,12 +90,12 @@ solveStep g b@(c, bound, _) (QBinOp op v1 v2) =
     (Just v1', Just v2') -> if (op2fn op v1' v2') then [b] else []
     _ -> error "(in)equality constraints must refer to bound values"
 
-solveSteps :: [Tuple] -> Bindings -> [Query] -> [Bindings]
+solveSteps :: Graph -> Bindings -> [Query] -> [Bindings]
 solveSteps g c es = foldM (solveStep g) c es
 
 -- Main Matching Function --
 -- looks up rel in index, then completes the Pattern into Match
-getMatches :: Tuple -> Index -> [Tuple] -> [Match]
+getMatches :: Tuple -> Index -> Graph -> [Match]
 getMatches tuple ind g = takeValid [] $ concat result
   where
     ts = indLookup (label tuple) ind
@@ -101,7 +105,7 @@ getMatches tuple ind g = takeValid [] $ concat result
       let cs = do
             let b0 = emptyMatchBindings
             -- bind new tuple to identified clause
-            c <- solveStep [tuple] b0 (Query Low p)
+            c <- solveStep (toGraph [tuple]) b0 (Query Low p)
             -- match remaining clauses
             solveSteps g c (S.toList pattern)
           fixMatch binding = (ruleid, binding, rhs)
@@ -131,14 +135,14 @@ stepDB :: M2 Bool
 stepDB = do
   modify $ \s -> s { gas = gas s - 1 }
   -- a_unprocessed, index, db
-  S2{..} <- get
+  IS{..} <- get
   case a_unprocessed of
     [] -> return True
     x:xs -> do
       let ms = (getMatches x index (tuples db))
       modify $ \s -> s { a_unprocessed = xs }
       mapM_ applyMatch $ reverse ms
-      insertTuple x
+      storeTuple x
       processDels
       return False
 
@@ -176,4 +180,4 @@ rq s =
 
 readDBFile file = do
   f <- readFile file
-  return $ mapMaybe rq . filter notComment . lines $ f
+  return $ mapMaybe rq . filterComment $ f
