@@ -138,11 +138,12 @@ stepDB = do
   IS{..} <- get
   case a_unprocessed of
     [] -> return True
-    x:xs -> do
-      let ms = (getMatches x index (tuples db))
+    (r,p):xs -> do
+      t <- makeTuple r p
+      let ms = (getMatches t index (tuples db))
       modify $ \s -> s { a_unprocessed = xs }
       mapM_ applyMatch $ reverse ms
-      storeTuple x
+      storeTuple t
       processDels
       return False
 

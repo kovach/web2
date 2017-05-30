@@ -12,7 +12,7 @@ import Types
 
 data InterpreterState = IS
   { db :: DB
-  , a_unprocessed :: [Tuple]
+  , a_unprocessed :: [(RawTuple, Maybe Provenance)]
   , d_unprocessed :: [Tuple]
   , a_buffer :: [Tuple]
   , d_buffer :: [Tuple]
@@ -56,8 +56,7 @@ storeTuple t = do
 
 scheduleAdd :: RawTuple -> Maybe Provenance -> M2 ()
 scheduleAdd r p = do
-  t <- makeTuple r p
-  modify $ \s -> s { a_unprocessed = t : a_unprocessed s }
+  modify $ \s -> s { a_unprocessed = (r,p) : a_unprocessed s }
 
 scheduleDel :: Tuple -> M2 ()
 scheduleDel t = modify $ \s -> s { d_unprocessed = t : d_unprocessed s }
