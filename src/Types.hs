@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Types where
 
@@ -165,4 +166,6 @@ unfold f x =
     Just x' -> x : unfold f x'
 
 
-ppTuple t = show $ t { source = Nothing }
+pad n s = s ++ replicate (n - length s) ' '
+ppTuple (T{..}) = unwords $ [pad 20 $ show label] ++ map show nodes
+--ppTuple (T{..}) = unwords $ [show tid, show label] ++ map show nodes

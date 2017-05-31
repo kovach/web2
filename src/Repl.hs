@@ -105,7 +105,8 @@ runTextDemo start_marker edgeFile ruleFile = do
     colorTuple rules (alive, t) = do
       let debug = True
       let ddebug = True
-      let str = (if alive then "" else "    ") ++ ppTuple t
+      --let str = (if alive then "" else "    ") ++ ppTuple t
+      let str = ppTuple t
       case tupleIOType rules t of
         Input -> do
           setSGR [SetColor Foreground Vivid White]
