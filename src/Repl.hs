@@ -4,7 +4,8 @@ module Repl where
 import Control.Monad
 import System.Console.ANSI
 import System.Console.Readline
-import Data.List (sort, sortOn)
+import Data.List (sort, sortOn, intercalate)
+import Data.Maybe (fromJust)
 
 import Types
 import Monad
@@ -14,6 +15,33 @@ import Reflection
 import Parse
 import Parser
 import Index
+
+rootTuple = makeTuple ("", []) Nothing
+
+data PTree = Node Tuple [PTree] | RNode Tuple
+
+makeTree :: [Tuple] -> Tuple -> PTree
+makeTree ts root =
+  let cs = sortOn tid $ filter ((== (Just root)) . fmap tuple_src . source) ts
+  in Node root (map (makeTree ts) cs)
+
+setTupleColor rules t = setSGR [SetColor Foreground Dull c]
+  where
+    c = (fromJust $ lookup (tupleIOType rules t) colorMapping)
+    colorMapping =
+      [ (Input, White)
+      , (Output, Blue)
+      , (Internal, Green)
+      , (Ignored, Yellow) ]
+
+printTree rules = p 0
+  where
+    p i (Node t ts) = do
+      putStr $ replicate i ' '
+      setTupleColor rules t
+      putStrLn $ ppTuple t
+      setSGR [Reset]
+      mapM_ (p (i+2)) ts
 
 -- Main function
 runProgram start_marker edgeName ruleName = do
@@ -32,23 +60,25 @@ runProgram start_marker edgeName ruleName = do
     let index = makeIndex rules
 
     let prog = do
-          applyMatch (0, emptyMatchBindings, edges)
+          t <- rootTuple
+          applyMatch t (0, emptyMatchBindings, edges)
           fixDB
-        (_, s2) = runDB emptyDB index prog
+          return t
+        (rootT, s2) = runDB emptyDB index prog
         result = db s2
+        resultTree = makeTree (allTuples result) rootT
 
-    return (rules, index, externalInputs, result)
+    return (rules, index, externalInputs, result, resultTree)
 
   where
 
-mainUI = runProgram "" "ui.txt" "ui.arrow"
 parseCommand str =
   case runParser int_ str of
     Right (i, "") -> Just $ NTRef i
     _ -> Nothing
 
 
-repl i@(rules, _, inputs, db) = do
+repl i@(rules, _, inputs, db, _) = do
   ml <- readline "% "
   case ml of
     Nothing -> return ()
@@ -61,11 +91,10 @@ repl i@(rules, _, inputs, db) = do
 
 runRepl start_marker edgeFile ruleFile = do
   output <- runProgram start_marker edgeFile ruleFile
-
   repl output
 
 runTextDemo start_marker edgeFile ruleFile = do
-    (rules, index, externalInputs, result) <- runProgram start_marker edgeFile ruleFile
+    (rules, index, externalInputs, result, resultTree) <- runProgram start_marker edgeFile ruleFile
 
     mapM_ print $ rules
     putStrLn "input relations:"
@@ -76,20 +105,23 @@ runTextDemo start_marker edgeFile ruleFile = do
     mapM_ (putStrLn . ("  " ++) . show) $ externalInputs
 
     let tupleList = fromGraph $ tuples result
-    let log = sortOn (tid . snd) $ (map (True,) $ tupleList) ++ (map (False,) $ removed_tuples result)
 
-    putStrLn "\ngame log:"
-    mapM_ (colorTuple rules) $ log
+    --let log = sortOn (tid . snd) $ (map (True,) $ tupleList) ++ (map (False,) $ removed_tuples result)
+    --putStrLn "\ngame log:"
+    --mapM_ (colorTuple rules) $ log
 
     putStrLn "play actions:"
     mapM_ print $ concatMap (actions result index) externalInputs
+
+    printTree rules resultTree
 
     putStrLn "final tuple count:"
     print $ length (tuples result)
 
     -- random unit test
     let alltids = sort $ map tid (tupleList ++ removed_tuples result)
-        expectedids = [0..length alltids - 1]
+        -- rootTuple exists but isn't in db
+        expectedids = [1..length alltids]
     if (expectedids /= alltids)
       then do
         warn "tids not consistent!!"
@@ -105,21 +137,9 @@ runTextDemo start_marker edgeFile ruleFile = do
     colorTuple rules (alive, t) = do
       let debug = True
       let ddebug = True
-      --let str = (if alive then "" else "    ") ++ ppTuple t
       let str = ppTuple t
-      case tupleIOType rules t of
-        Input -> do
-          setSGR [SetColor Foreground Vivid White]
-          putStrLn str
-        Output -> do
-          setSGR [SetColor Foreground Dull Blue]
-          putStrLn str
-        Internal -> unless (not debug) $ do
-          setSGR [SetColor Foreground Dull Green]
-          putStrLn str
-        Ignored -> unless (not ddebug) $ do
-          setSGR [SetColor Foreground Dull Yellow]
-          putStrLn str
+      setTupleColor rules t
+      putStrLn str
       setSGR [Reset]
 
 repl1 = runRepl "start_game" "graph.txt" "rules.arrow" >> return ()
@@ -127,3 +147,6 @@ repl1 = runRepl "start_game" "graph.txt" "rules.arrow" >> return ()
 main1 = runTextDemo "start_game" "card_game.graph" "card_game.arrow"
 main2 = runTextDemo "start_turn" "scheme.graph" "scheme.arrow"
 main3 = runTextDemo "" "test.graph" "test.arrow"
+mainUI = runProgram "" "ui.txt" "ui.arrow"
+
+main = main2

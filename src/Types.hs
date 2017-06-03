@@ -22,7 +22,12 @@ data Node = NTInt Int | NTRef Int | NTNamed String
 
 type Id = Int
 
-type Provenance = (RuleId, Dependency)
+-- the rule, the triggering tuple, all matched tuples
+data Provenance = Provenance
+  { rule_src :: RuleId
+  , tuple_src :: Tuple
+  , deps :: Dependency
+  } deriving (Eq, Show, Ord)
 
 type RawTuple = (Label, [Node])
 
@@ -71,6 +76,9 @@ data DB = DB
 initDB g = DB { tuples = toGraph g, removed_tuples = []
               , node_counter = 0, tuple_counter = 0}
 emptyDB = initDB []
+
+allTuples :: DB -> [Tuple]
+allTuples db = fromGraph (tuples db) ++ removed_tuples db
 
 type Name = String
 
@@ -167,5 +175,5 @@ unfold f x =
 
 
 pad n s = s ++ replicate (n - length s) ' '
-ppTuple (T{..}) = unwords $ [pad 20 $ show label] ++ map show nodes
+ppTuple (T{..}) = unwords $ [pad 0 $ show label] ++ map show nodes
 --ppTuple (T{..}) = unwords $ [show tid, show label] ++ map show nodes

@@ -124,9 +124,9 @@ applyStep prov c0 (Assert label exprs) = do
       (val, c1) <- applyLookup (reduce c0 expr) c0
       return (c1, val:acc)
 
-applyMatch :: Match -> M2 Context
-applyMatch (ruleid, (ctxt, bound, deps), rhs) = do
-  c <- foldM (applyStep (ruleid, deps)) ctxt $ reverse rhs
+applyMatch :: Tuple -> Match -> M2 Context
+applyMatch t (ruleid, (ctxt, bound, deps), rhs) = do
+  c <- foldM (applyStep (Provenance ruleid t deps)) ctxt $ reverse rhs
   mapM scheduleDel bound
   return c
 
@@ -142,7 +142,7 @@ stepDB = do
       t <- makeTuple r p
       let ms = (getMatches t index (tuples db))
       modify $ \s -> s { a_unprocessed = xs }
-      mapM_ applyMatch $ reverse ms
+      mapM_ (applyMatch t) $ reverse ms
       storeTuple t
       processDels
       return False

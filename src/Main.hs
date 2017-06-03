@@ -7,9 +7,9 @@ import Types
 import Expr
 import Graph
 import Rules
-import Parser2
+import Parser
 import Parse
-import Increment
+import Index
 import Reflection
 
 import qualified Data.ByteString.Lazy as T (pack, unpack, intercalate, append)

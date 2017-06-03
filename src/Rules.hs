@@ -34,6 +34,7 @@ outputRelations rules = filter (\rel -> (not $ any (rel `elem`) $ lhsSets))
 
 
 data IOMarker = Input | Output | Internal | Ignored
+  deriving (Eq, Show, Ord)
 tupleIOType :: [Rule] -> Tuple -> IOMarker
 tupleIOType rules t =
   let l = label t in
