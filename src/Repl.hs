@@ -1,9 +1,10 @@
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Repl where
 
 import Control.Monad
 import System.Console.ANSI
-import System.Console.Readline
+--import System.Console.Readline
 import Data.List (sort, sortOn, intercalate)
 import Data.Maybe (fromJust)
 
@@ -25,20 +26,26 @@ makeTree ts root =
   let cs = sortOn tid $ filter ((== (Just root)) . fmap tuple_src . source) ts
   in Node root (map (makeTree ts) cs)
 
-setTupleColor rules t = setSGR [SetColor Foreground Dull c]
+data IOMarker = Input | Output | Internal | Ignored
+  deriving (Eq, Show, Ord)
+
+setTupleColor is os as t = setSGR [SetColor Foreground Dull marker]
   where
-    c = (fromJust $ lookup (tupleIOType rules t) colorMapping)
-    colorMapping =
-      [ (Input, White)
-      , (Output, Blue)
-      , (Internal, Green)
-      , (Ignored, Yellow) ]
+    marker =
+      let l = label t in
+      if l `elem` is then White
+      else if l `elem` os then Blue
+      else if l `elem` as then Green
+      else Yellow
 
 printTree rules = p 0
   where
+    is = inputRelations rules
+    os = outputRelations rules
+    as = allRelations rules
     p i (Node t ts) = do
       putStr $ replicate i ' '
-      setTupleColor rules t
+      setTupleColor is os as t
       putStrLn $ ppTuple t
       setSGR [Reset]
       mapM_ (p (i+2)) ts
@@ -50,21 +57,18 @@ runProgram start_marker edgeName ruleName = do
         ruleFile = prefix ++ ruleName
 
     edges <- readDBFile edgeFile
-
     rules <- readRules ruleFile
 
     -- calculate user actions
     let externalInputs = trueInputs start_marker rules edges
-
-
     let index = makeIndex rules
 
     let prog = do
           t <- rootTuple
-          applyMatch t (0, emptyMatchBindings, edges)
+          applyMatch t (-1, emptyMatchBindings, edges)
           fixDB
           return t
-        (rootT, s2) = runDB emptyDB index prog
+        (rootT, s2) = runDB (Just $ 2^30) emptyDB index prog
         result = db s2
         resultTree = makeTree (allTuples result) rootT
 
@@ -78,22 +82,23 @@ parseCommand str =
     _ -> Nothing
 
 
-repl i@(rules, _, inputs, db, _) = do
-  ml <- readline "% "
-  case ml of
-    Nothing -> return ()
-    Just line -> do
-      addHistory line
-      case parseCommand line of
-        Just obj -> mapM_ (putStrLn . ppTuple) (attributes obj db)
-        _ -> return ()
-      repl i
+--repl i@(rules, _, inputs, db, _) = do
+--  ml <- readline "% "
+--  case ml of
+--    Nothing -> return ()
+--    Just line -> do
+--      addHistory line
+--      case parseCommand line of
+--        Just obj -> mapM_ (putStrLn . ppTuple) (attributes obj db)
+--        _ -> return ()
+--      repl i
+--
+--runRepl start_marker edgeFile ruleFile = do
+--  output <- runProgram start_marker edgeFile ruleFile
+--  repl output
+-- repl1 = runRepl "start_game" "graph.txt" "rules.arrow" >> return ()
 
-runRepl start_marker edgeFile ruleFile = do
-  output <- runProgram start_marker edgeFile ruleFile
-  repl output
-
-runTextDemo start_marker edgeFile ruleFile = do
+runTextDemo start_marker edgeFile ruleFile do_print = do
     (rules, index, externalInputs, result, resultTree) <- runProgram start_marker edgeFile ruleFile
 
     mapM_ print $ rules
@@ -106,21 +111,17 @@ runTextDemo start_marker edgeFile ruleFile = do
 
     let tupleList = fromGraph $ tuples result
 
-    --let log = sortOn (tid . snd) $ (map (True,) $ tupleList) ++ (map (False,) $ removed_tuples result)
-    --putStrLn "\ngame log:"
-    --mapM_ (colorTuple rules) $ log
-
     putStrLn "play actions:"
     mapM_ print $ concatMap (actions result index) externalInputs
 
-    printTree rules resultTree
+    if do_print then printTree rules resultTree else return ()
 
     putStrLn "final tuple count:"
-    print $ length (tuples result)
+    print $ length tupleList
 
     -- random unit test
     let alltids = sort $ map tid (tupleList ++ removed_tuples result)
-        -- rootTuple exists but isn't in db
+        -- rootTuple (tid 0) exists but isn't in db
         expectedids = [1..length alltids]
     if (expectedids /= alltids)
       then do
@@ -134,19 +135,10 @@ runTextDemo start_marker edgeFile ruleFile = do
 
   where
     warn s = putStrLn $ "\n"++s++"\n"
-    colorTuple rules (alive, t) = do
-      let debug = True
-      let ddebug = True
-      let str = ppTuple t
-      setTupleColor rules t
-      putStrLn str
-      setSGR [Reset]
-
-repl1 = runRepl "start_game" "graph.txt" "rules.arrow" >> return ()
 
 main1 = runTextDemo "start_game" "card_game.graph" "card_game.arrow"
-main2 = runTextDemo "start_turn" "scheme.graph" "scheme.arrow"
-main3 = runTextDemo "" "test.graph" "test.arrow"
-mainUI = runProgram "" "ui.txt" "ui.arrow"
+main2 = runTextDemo "start_turn" "game2.graph" "game2.arrow"
+main3 = runTextDemo nullLabel "test.graph" "test.arrow"
+mainUI = runProgram nullLabel "ui.txt" "ui.arrow"
 
-main = main2
+main = main2 True

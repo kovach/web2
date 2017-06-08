@@ -32,17 +32,6 @@ outputRelations rules = filter (\rel -> (not $ any (rel `elem`) $ lhsSets))
   where
     lhsSets = map lhsRels rules
 
-
-data IOMarker = Input | Output | Internal | Ignored
-  deriving (Eq, Show, Ord)
-tupleIOType :: [Rule] -> Tuple -> IOMarker
-tupleIOType rules t =
-  let l = label t in
-  if l `elem` inputRelations rules then Input
-  else if l `elem` outputRelations rules then Output
-  else if l `elem` allRelations rules then Internal
-  else Ignored
-
 trueInputs :: Label -> [Rule] -> RHS -> [Label]
 trueInputs l rules init = filter (not . (`elem` initRels)) $ inputRelations rules
   where

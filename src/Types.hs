@@ -16,6 +16,8 @@ instance IsString Label where
 instance Show Label where
   show (L s) = s
 
+nullLabel = L ""
+
 -- for now, objects (indexed by int) or literal ints
 data Node = NTInt Int | NTRef Int | NTNamed String
   deriving (Eq, Ord)
@@ -123,7 +125,7 @@ instance Num E where
 -- Left-hand side of rule
 data Query =
   Query Dot EP
-  | Counter [Name] [Query] -- TODO implement
+  | Counter [NodeVar] [Query] -- TODO implement
   -- nb: the ordering of these constructors is significant
   --   TODO don't rely on this
   | QBinOp Op E E

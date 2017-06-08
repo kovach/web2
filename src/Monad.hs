@@ -24,9 +24,9 @@ type M2 = State InterpreterState
 
 defaultGas = 150
 emptyS2 = IS emptyDB [] [] [] [] emptyIndex defaultGas
-makeS2 db index = IS db [] [] [] [] index defaultGas
+makeS2 db index gas = IS db [] [] [] [] index gas
 
-runDB db index m = runState m (makeS2 db index)
+runDB mgas db index m = runState m (makeS2 db index (fromMaybe defaultGas mgas))
 
 -- Utilities
 moddb :: (DB -> DB) -> M2 ()
@@ -64,11 +64,13 @@ scheduleDel t = modify $ \s -> s { d_unprocessed = t : d_unprocessed s }
 processDels = do
   r <- gets d_unprocessed
   let fix = filter $ not . (`elem` r)
-  modify $ \s -> s { d_unprocessed = [] }
-  moddb $ \s -> s { tuples = M.map fix (tuples s), removed_tuples = r ++ removed_tuples s }
-  modify $ \s -> s
-    { a_buffer = fix $ a_buffer s
-    , d_buffer = r ++ d_buffer s
-    }
+  if r /= [] then do
+    modify $ \s -> s { d_unprocessed = [] }
+    moddb $ \s -> s { tuples = M.map fix (tuples s), removed_tuples = r ++ removed_tuples s }
+    modify $ \s -> s
+      { a_buffer = fix $ a_buffer s
+      , d_buffer = r ++ d_buffer s
+      }
+    else return ()
 
 increment = undefined

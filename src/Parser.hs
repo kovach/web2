@@ -27,12 +27,12 @@ query_ = token $ Query Low <$> ep_ NonLinear
 dotquery_ = token $ string "." *> (Query High <$> ep_ NonLinear)
 linearquery_ = token $ string ".." *> (Query Low <$> ep_ Linear)
 dotlinearquery_ = token $ string "..." *> (Query High <$> ep_ Linear)
-countquery_ = token . bracket_ $ Counter <$> names_ <* sep <*> lhs_
-  where
-    sep = token (char '|')
-    names_ = token $ sepBy1 flex identifier
+-- countquery_ = token . bracket_ $ Counter <$> names_ <* sep <*> lhs_
+--   where
+--     sep = token (char '|')
+--     names_ = token $ sepBy1 flex identifier
 
-clause_ = qbin_ <|> dotquery_ <|> linearquery_ <|> dotlinearquery_ <|> query_ <|> countquery_
+clause_ = qbin_ <|> dotquery_ <|> linearquery_ <|> dotlinearquery_ <|> query_ -- <|> countquery_
 lhs_ = sepBy1 comma_ clause_
 
 arrow_ = token $ string "=>"

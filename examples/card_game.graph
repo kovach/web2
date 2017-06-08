@@ -31,7 +31,7 @@ play p2 s1
 
 end_turn p2
 
-attack a1 w1
-attack a2 w1
+do_attack a1 w1
+do_attack a2 w1
 
 play p1 a3
