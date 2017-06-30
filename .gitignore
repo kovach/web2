@@ -1,1 +1,9 @@
 .*
+dist/
+tags
+profiling/
+examples/test.arrow
+examples/test.graph
+notes
+game-notes
+old/

@@ -48,3 +48,5 @@ dying m, ..owns _ m, ..loc m _ => print m 'dies
 ..fast_stage => move_stage
 ..move_stage => slow_stage
 ..slow_stage => end_turn
+
+#hydra w ~> foo w

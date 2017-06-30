@@ -10,25 +10,39 @@ import qualified Data.Map as M
 
 import Types
 
+import Debug.Trace
+
 data InterpreterState = IS
   { db :: DB
-  , a_unprocessed :: [(RawTuple, Maybe Provenance)]
-  , d_unprocessed :: [Tuple]
-  , a_buffer :: [Tuple]
-  , d_buffer :: [Tuple]
+  , new_unprocessed :: [Msg]
+  , msgLog :: [Msg]
+  -- TODO remove these two
   , index :: Index
+  , functions :: [Rule]
   , gas :: Int
   } deriving (Eq, Show, Ord)
 
 type M2 = State InterpreterState
 
-defaultGas = 150
-emptyS2 = IS emptyDB [] [] [] [] emptyIndex defaultGas
-makeS2 db index gas = IS db [] [] [] [] index gas
+defaultGas = 500
+emptyS2 = IS emptyDB [] [] emptyIndex [] defaultGas
+makeS2 db index fns gas = IS db [] [] index fns gas
 
-runDB mgas db index m = runState m (makeS2 db index (fromMaybe defaultGas mgas))
+runDB mgas db index fns m = runState m (makeS2 db index fns (fromMaybe defaultGas mgas))
 
--- Utilities
+useGas :: M2 ()
+useGas = modify $ \s -> s { gas = gas s - 1}
+
+withGas :: a -> (a -> M2 a) -> M2 a
+withGas s f = do
+  g <- gets gas
+  if g < 1 then return s else do
+    useGas
+    f s
+
+logMsg :: Msg -> M2 ()
+logMsg m = modify $ \s -> s { msgLog = m : msgLog s }
+
 moddb :: (DB -> DB) -> M2 ()
 moddb f = modify $ \s -> s { db = f (db s) }
 
@@ -38,39 +52,24 @@ freshNode = do
   moddb $ \s -> s { node_counter = c + 1 }
   return (NTRef c)
 
-flush :: M2 ([Tuple], [Tuple])
-flush = do
-  IS{..} <- get
-  modify $ \s -> s { a_buffer = [], d_buffer = [] }
-  return (a_buffer, d_buffer)
+flushEvents :: M2 [Msg]
+flushEvents = do
+  es <- gets new_unprocessed
+  modify $ \s -> s { new_unprocessed = [] }
+  return es
 
-makeTuple :: RawTuple -> Maybe Provenance -> M2 Tuple
+makeTuple :: RawTuple -> Provenance -> M2 Tuple
 makeTuple (rel, ns) p = do
   c <- gets (tuple_counter . db)
   moddb $ \s -> s { tuple_counter = c + 1 }
-  return $ T { nodes = ns, label = rel, tid = c, source = p }
+  let t = T { nodes = ns, label = rel, tid = c, source = p }
+  return t
 
 storeTuple t = do
-  modify $ \s -> s { a_buffer = t : a_buffer s }
   moddb $ \s -> s { tuples = insertTuple t (tuples s) }
 
-scheduleAdd :: RawTuple -> Maybe Provenance -> M2 ()
-scheduleAdd r p = do
-  modify $ \s -> s { a_unprocessed = (r,p) : a_unprocessed s }
+scheduleAdd :: Tuple -> M2 ()
+scheduleAdd t = modify $ \s -> s { new_unprocessed = MT Positive t : new_unprocessed s }
 
 scheduleDel :: Tuple -> M2 ()
-scheduleDel t = modify $ \s -> s { d_unprocessed = t : d_unprocessed s }
-
-processDels = do
-  r <- gets d_unprocessed
-  let fix = filter $ not . (`elem` r)
-  if r /= [] then do
-    modify $ \s -> s { d_unprocessed = [] }
-    moddb $ \s -> s { tuples = M.map fix (tuples s), removed_tuples = r ++ removed_tuples s }
-    modify $ \s -> s
-      { a_buffer = fix $ a_buffer s
-      , d_buffer = r ++ d_buffer s
-      }
-    else return ()
-
-increment = undefined
+scheduleDel t = modify $ \s -> s { new_unprocessed = MT Negative t : new_unprocessed s }

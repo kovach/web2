@@ -3,13 +3,13 @@
 
 name:                arrow
 version:             0.1.0.0
--- synopsis:            
--- description:         
+-- synopsis:
+-- description:
 license:             MIT
 license-file:        LICENSE
 author:              Scott Kovach
 maintainer:          dskovach@gmail.com
--- copyright:           
+-- copyright:
 category:            Language
 build-type:          Simple
 extra-source-files:  ChangeLog.md
@@ -18,9 +18,9 @@ cabal-version:       >=1.10
 executable main
   hs-source-dirs:      src
   main-is:             Main.hs
-  exposed-modules:     Repl, Monad, Types, Graph, Index, Rules, Parser
+  -- exposed-modules:     Repl, Monad, Types, Graph, Index, Rules, Parser
   other-modules:       Expr, Reflection, Parse
-  build-depends:       base >=4.9 && <4.10, random >=1.1 && <1.2, containers >=0.5 && <0.6,
+  build-depends:       base >=4.9 && <4.10, random >=1.1 && <1.2, containers ==0.5.7.1 && <0.6,
                        ansi-terminal >=0.6 && <0.7, mtl
                        -- , text, text-server
   default-language:    Haskell2010
@@ -28,19 +28,10 @@ executable main
   ghc-options:         -fwarn-unused-binds
                        -O2
                        -fprof-auto
-                       "-with-rtsopts=-p -s -h -i0.1"
-
--- executable main
---   hs-source-dirs:      p
---   main-is:             Main.hs
---   build-depends:       base >=4.9 && <4.10, arrow, containers >=0.5 && <0.6,
---                        ansi-terminal >=0.6 && <0.7, readline, mtl
---   default-language:    Haskell2010
---   other-extensions:    TupleSections, OverloadedStrings
---   ghc-prof-options:    -fprof -fprof-auto
+                       "-with-rtsopts=-p -s -h -i0.1 -xc"
 
 executable server
   hs-source-dirs:     server
   main-is:            Main.hs
-  build-depends:      text-server, base >=4.8, text, containers >=0.5 && <0.6, aeson, bytestring, mtl
+  build-depends:      text-server, base >=4.8, text, containers ==0.5.7.1 && <0.6, bytestring, mtl
   default-language:    Haskell2010

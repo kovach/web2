@@ -6,12 +6,12 @@ import Data.Maybe (mapMaybe)
 import Data.List (nub)
 
 lhsRels, rhsRels :: Rule -> [Label]
-lhsRels (Rule lhs _) = mapMaybe l lhs
+lhsRels rule = mapMaybe l (lhs rule)
   where
-    l (Query _ (EP _ _ rel _)) = Just rel
-    l (Counter _ _) = error "unimplemented!"
+    l (Query _ ep) = Just (epLabel ep)
+    -- l (Counter _ _) = error "unimplemented!"
     l _ = Nothing
-rhsRels (Rule _ rhs) = map assertRel rhs
+rhsRels rule = map assertRel (rhs rule)
 
 -- compute relations
 --   appearing anywhere in rule set

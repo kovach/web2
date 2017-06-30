@@ -1,0 +1,26 @@
+# make the board
+row m, col n => location l m n
+location l _ _ => empty l 'black, empty l 'white
+location l1 m n, location l2 j k, m = j, (n-k) = 1 => adjacent l1 l2, adjacent l2 l1
+location l1 m n, location l2 j k, (m-j) = 1, n = k => adjacent l1 l2, adjacent l2 l1
+
+# directed paths of the same color
+stone s l1 c, stone t l2 c, adjacent l1 l2, s < t ~> path s t
+path s t, path t u ~> path s u
+
+# liveness
+stone s l c, adjacent l n, empty n c ~> liberty s
+liberty s, path s t ~> liberty t
+liberty t, path s t ~> liberty s
+
+# place a stone
+..place_stone color m n, location loc m n, op color other, ..empty loc other => make_stone loc color
+
+# death
+stone s _ _, !liberty s => dying s
+dying s, ..stone s l _ => empty l 'black, empty l 'white
+
+..make_stone loc color, ..empty loc color => stone s loc color
+
+# TODO ko
+# TODO prevent illegal placement
