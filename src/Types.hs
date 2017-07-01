@@ -21,11 +21,15 @@
 --
 -- monoids
 --   ? do this next
---   the proof evaluation steps maintain a set of proofs for a given fact
+--   Update maintains a set of proofs for a given fact
 --   matches only observe the overall truth value
 --   can model this as a map into Bool followed by Or
---     could implement other reductions, like (map into Int, +)
+--     could implement other reductions, like (map into Int, +);
 --       then the maintenance system in Update becomes an incremental function evaluator
+--
+-- parsing: block patterns
+--   allow a lhs/rhs to be split up across multiple lines when enclosed by [ ]
+--   could (sort of) replace .graph file with a series of ` => [...]` rules at head of rule file
 
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
@@ -102,17 +106,21 @@ data Provenance = Provenance
   } deriving (Eq, Show, Ord)
 
 
-ppMatch :: Provenance -> String
-ppMatch (Provenance{..}) = "("++maybe "" ppEvent tuple_src ++") "++ppEvents matched
-
-ppEvents = intercalate ", " . map ppEvent
+ppFact (l, ns) = unwords $ [show l] ++ map show ns
+ppTuple (T{..}) = show tid++":"++ppFact (label, nodes)
 ppEvent (E Positive t) = "+"++ppTuple t
 ppEvent (E Negative t) = "-"++ppTuple t
 ppEvent (EFact f ps) = "(+"++show (length ps)++")"++ppFact f
 ppEvent (EFalse f) = "-"++ppFact f
-ppTuple (T{..}) = show tid++":"++ppFact (label, nodes)
-ppFact (l, ns) = unwords $ [show l] ++ map show ns
+ppEvents = intercalate ", " . map ppEvent
 
+ppFS :: FactState -> String
+ppFS = unlines . map pp . M.toList
+  where
+    pp (f, ps) = unlines $ [show f ++ " : " ++ show (length ps)] ++ map (("  " ++) . ppMatch) ps
+
+ppMatch :: Provenance -> String
+ppMatch (Provenance{..}) = "("++maybe "" ppEvent tuple_src ++") "++ppEvents matched
 
 type RawTuple = (Label, [Node])
 type Fact = RawTuple
@@ -122,17 +130,8 @@ data Tuple
   { nodes :: [Node]
   , label :: Label
   , source :: Provenance
-  , tid :: Id
-  }
-  -- | TFact
-  -- { nodes :: [Node]
-  -- , label :: Label
-  -- , sources :: [Provenance]
-  -- }
+  , tid :: Id }
   deriving (Eq, Show, Ord)
-
-rawTuple :: Tuple -> RawTuple
-rawTuple t = (label t, nodes t)
 
 instance IsString Node where
   fromString = NTNamed
@@ -160,17 +159,10 @@ toGraph = foldr step M.empty
 fromGraph :: Graph -> [Tuple]
 fromGraph = concat . map snd . M.toList
 
-data Object = OTuple Tuple | OFact Polarity Fact
-  deriving (Eq, Show, Ord)
-
 type FactState = Map Fact [Provenance]
 
+emptyFS :: FactState
 emptyFS = M.empty
-
-ppFacts :: FactState -> String
-ppFacts = unlines . map pp . M.toList
-  where
-    pp (f, ps) = unlines $ [show f ++ " : " ++ show (length ps)] ++ map (("  " ++) . ppMatch) ps
 
 data DB = DB
   { tuples :: Graph
@@ -315,5 +307,3 @@ second f (a, b) = (a, f b)
 
 toEvents :: FactState -> [Event2]
 toEvents = map (uncurry EFact) . M.toList
-
-ppFS = ppEvents . toEvents

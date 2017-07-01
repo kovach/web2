@@ -139,12 +139,13 @@ getMatches ev ind g fs = takeValid [] $ concatMap step triggers
       else takeValid removed ms
 
 
-applyMatch :: Match -> M2 ()
+applyMatch :: Match -> M2 Context
 applyMatch (prov, ctxt) = do
     let bound = consumed prov
         rhs = rhsRule $ rule_src prov
     c <- foldM (applyStep prov) ctxt $ reverse rhs
     mapM_ scheduleDel bound
+    return c
   where
     applyStep :: Provenance -> Context -> Assert -> M2 Context
     applyStep prov c0 (Assert label exprs) = do
@@ -157,19 +158,6 @@ applyMatch (prov, ctxt) = do
           (val, c1) <- applyLookup (reduce c0 expr) c0
           return (c1, val:acc)
 
-applyLRHS :: Match -> [(Fact, Provenance)]
-applyLRHS (prov, ctxt) = map step rhs
-  where
-    rule@(LRule _ rhs) = rule_src prov
-    step (Assert l es) = ((l, map (simpleLookup rule ctxt) es), prov)
-
-    simpleLookup :: Rule -> Context -> E -> Node
-    simpleLookup rule c e =
-      case matchLookup (reduce c e) c of
-        Nothing -> error $ "Right-hand side of functional rule cannot contain holes or unbound variables. Offending expression: " ++ show e ++ "\n  in rule\n" ++ show rule
-        Just n -> n
-
--- TODO move
 -- Takes positive Tuple or pos/neg LTuple; returns new proofs
 getLMatches :: Event2 -> Index -> Graph -> FactState -> [Msg]
 getLMatches ev ind g fs = map toMsg . concatMap step $ triggers
@@ -183,7 +171,17 @@ getLMatches ev ind g fs = map toMsg . concatMap step $ triggers
           (ctxt, [], matched) <- solveSteps g fs (ctxt, [], [ev]) (S.toList pattern)
           return $ applyLRHS (Provenance rule (Just ev) matched [], ctxt)
         Nothing -> error "impossible"
+    applyLRHS :: Match -> [(Fact, Provenance)]
+    applyLRHS (prov, ctxt) = map step rhs
+      where
+        rule@(LRule _ rhs) = rule_src prov
+        step (Assert l es) = ((l, map (simpleLookup rule ctxt) es), prov)
 
+        simpleLookup :: Rule -> Context -> E -> Node
+        simpleLookup rule c e =
+          case matchLookup (reduce c e) c of
+            Nothing -> error $ "Right-hand side of functional rule cannot contain holes or unbound variables. Offending expression: " ++ show e ++ "\n  in rule\n" ++ show rule
+            Just n -> n
 
 -- checks to see if the tuples a match depends on have been consumed by an earlier match
 matchValid :: Dependency -> Consumed -> Bool

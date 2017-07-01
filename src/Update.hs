@@ -105,6 +105,7 @@ updateDB (MT Negative t) db = db { tuples = removeTuple t (tuples db)
 updateDB f db = db { facts = updateFact f (facts db) }
 
 commitMsgs :: Maybe Rule -> [Msg] -> M2 ()
+commitMsgs _ [] = return ()
 commitMsgs mr msgs = do
   d <- gets db
   let db' = foldr updateDB d msgs
@@ -129,9 +130,12 @@ initS rs ms db = foldr enqueue s0 ms
     s0 = S
       { edges = step1 rrs
       , queues = M.empty
-      , localDB = M.fromList (zip rs (repeat dbl))
+      , localDB = M.fromList $ zip rs $ map restrictFacts rs
       }
-    dbl = (tuples db, facts db, facts db)
+    fs = facts db
+    ts = tuples db
+    restrictFacts r@(LRule _ _) = (ts, fs, clean $ M.map (filter ((== r) . rule_src)) fs)
+    restrictFacts r = (ts, fs, emptyFS)
 
 step2 :: [Msg] -> Rule -> DBL -> [Event2]
 step2 msgs rule (g, fs, _) = events
@@ -266,7 +270,7 @@ solve rs msgs = do
     db <- gets db
     commitMsgs Nothing msgs
     let state = initS rs msgs db
-    withGas state (flip unfoldM step)
+    unfoldM state (\s -> withGas (step s))
   where
     unfoldM :: Monad m => a -> (a -> m (Maybe a)) -> m a
     unfoldM s f = do

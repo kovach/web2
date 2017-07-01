@@ -33,12 +33,12 @@ runDB mgas db index fns m = runState m (makeS2 db index fns (fromMaybe defaultGa
 useGas :: M2 ()
 useGas = modify $ \s -> s { gas = gas s - 1}
 
-withGas :: a -> (a -> M2 a) -> M2 a
-withGas s f = do
+withGas :: (M2 (Maybe b)) -> M2 (Maybe b)
+withGas f = do
   g <- gets gas
-  if g < 1 then return s else do
+  if g < 1 then return Nothing else do
     useGas
-    f s
+    f
 
 logMsg :: Msg -> M2 ()
 logMsg m = modify $ \s -> s { msgLog = m : msgLog s }

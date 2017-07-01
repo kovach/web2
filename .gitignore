@@ -1,7 +1,7 @@
 .*
 dist/
 tags
-profiling/
+main.*
 examples/test.arrow
 examples/test.graph
 notes

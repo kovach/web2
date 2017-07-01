@@ -19,7 +19,10 @@ import Reflection
 
 import Debug.Trace
 
-rootTuple = makeTuple ("", []) (Provenance nullRule Nothing [] [])
+rootTuple = do
+  t <- makeTuple ("", []) (Provenance nullRule Nothing [] [])
+  storeTuple t
+  return t
 
 data PTree = Node Bool Tuple [PTree] | RNode Tuple
 
@@ -33,7 +36,12 @@ makeTree dead ts root@(T{})=
 data IOMarker = Input | Output | Internal | Ignored
   deriving (Eq, Show, Ord)
 
-setTupleColor is os as t = setSGR [SetColor Foreground Dull marker]
+red = setColor Red
+green = setColor Green
+blue = setColor Blue
+white = setColor White
+setColor c = setSGR [SetColor Foreground Dull c]
+setTupleColor is os as t = setColor marker
   where
     marker =
       let l = label t in
@@ -62,26 +70,30 @@ runProgram start_marker edgeName ruleName = do
         edgeFile = prefix ++ edgeName
         ruleFile = prefix ++ ruleName
 
-    edges <- readDBFile edgeFile
+    edgeBlocks <- readDBFile edgeFile
+    let edges = concat edgeBlocks
     rules <- convert <$> readRules ruleFile
 
     let externalInputs = trueInputs start_marker rules edges
 
-    let initMatch t = (Provenance (Rule [] edges) (Just $ toEvent t) [] [], [])
+    let initMatch t edges c = (Provenance (Rule [] edges) (Just $ toEvent t) [] [], c)
 
-    let prog = do
+    let prog1 (ts, c) es = do
           t <- rootTuple
-          applyMatch $ initMatch t
+          c' <- applyMatch $ initMatch t es c
           msgs <- flushEvents
           _ <- solve rules msgs
+          return (t:ts, c')
+        prog2 = do
+          (roots, _) <- foldM prog1 ([], []) edgeBlocks
           l <- gets msgLog
-          return (t, l)
+          return (roots, l)
         -- TODO remove rule params from runDB
-        ((rootT, msgs), s2) = runDB (Nothing) emptyDB emptyIndex [] prog
+        ((roots, msgs), s2) = runDB (Nothing) emptyDB emptyIndex [] prog2
         result = db s2
-        resultTree = makeTree (removed_tuples result) (allTuples result) rootT
+        resultTrees = map (makeTree (removed_tuples result) (allTuples result)) roots
 
-    return (msgs, rules, externalInputs, result, resultTree)
+    return (msgs, rules, externalInputs, result, resultTrees, defaultGas - gas s2)
 
   where
 
@@ -107,7 +119,7 @@ runProgram start_marker edgeName ruleName = do
 -- repl1 = runRepl "start_game" "graph.txt" "rules.arrow" >> return ()
 
 runTextDemo start_marker edgeFile ruleFile do_print = do
-    (msgLog, rules, externalInputs, result, resultTree) <- runProgram start_marker edgeFile ruleFile
+    (msgLog, rules, externalInputs, result, resultTrees, gas) <- runProgram start_marker edgeFile ruleFile
 
     putStrLn "input relations:"
     mapM_ (putStrLn . ("  " ++) . show) $ inputRelations rules
@@ -125,39 +137,46 @@ runTextDemo start_marker edgeFile ruleFile do_print = do
 
     if do_print
       then do
-        printTree rules resultTree
+        mapM_ (printTree rules) $ reverse resultTrees
       else return ()
-    putStrLn $ ppFacts (facts result)
-
-    putStrLn "final tuple count:"
-    print $ length tupleList
 
     if False then do
       putStrLn "msg log:"
       mapM_ (putStrLn . ppMsg) $ reverse msgLog
       else return ()
 
-    -- random unit test
-    let alltids = sort $ map tid (tupleList ++ removed_tuples result)
-        -- rootTuple (tid 0) exists but isn't in db
-        expectedids = [1..length alltids]
-    if (expectedids /= alltids)
-      then do
-        warn "tids not consistent!!"
-        print alltids
-        putStrLn "missing:"
-        print $ filter (not . (`elem` alltids)) expectedids
-      else warn "tids consistent!"
+    green
+    putStrLn "fact state:"
+    white
+    putStrLn $ ppFS (clean $ facts result)
+
+    putStrLn "final tuple count:"
+    print $ length tupleList
+
+    putStrLn "steps used:"
+    print $ gas
+
+    -- RIP consistency check
+    -- Update is now free to create tuples and then not add them
+    ---- random unit test
+    --let warn s = putStrLn $ "\n"++s++"\n"
+    --let alltids = sort $ map tid (tupleList ++ removed_tuples result)
+    --    -- rootTuple (tid 0) exists but isn't in db
+    --    expectedids = [0..length alltids-1]
+    --if (expectedids /= alltids)
+    --  then do
+    --    warn "tids not consistent!!"
+    --    print alltids
+    --    putStrLn "missing:"
+    --    print $ filter (not . (`elem` alltids)) expectedids
+    --  else warn "tids consistent!"
 
     return ()
-
-  where
-    warn s = putStrLn $ "\n"++s++"\n"
 
 p1 = runTextDemo "start_game" "card_game.graph" "card_game.arrow"
 p2 = runTextDemo "start_turn" "game2.graph" "game2.arrow"
 p3 = runTextDemo nullLabel "test.graph" "test.arrow"
 p4 = runTextDemo "start_game" "go.graph" "go.arrow"
 
-main = p2 True
+main = p4 True
 mn = p4 False
