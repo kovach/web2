@@ -3,12 +3,13 @@ module Parser where
 import Data.Char (isSpace)
 
 import Types
-import Parse
+import Parse hiding (identifier)
 
 tstr = token . string
 
 comma_ = tstr ","
 symbol_ = char '\'' *> (many (digit <|> alpha <|> anyChar "_"))
+identifier = (:) <$> alpha <*> many (digit <|> alpha <|> anyChar "_-")
 hole_ = token $ char '_'
 q_ = (NVal <$> ((NTNamed <$> symbol_) <|> (NTInt <$> int_)))
      <|> (NVar <$> identifier)
