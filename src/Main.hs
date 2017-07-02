@@ -156,6 +156,9 @@ runTextDemo start_marker edgeFile ruleFile do_print = do
     putStrLn "steps used:"
     print $ gas
 
+    putStrLn "msgs sent:"
+    print $ length msgLog
+
     -- RIP consistency check
     -- Update is now free to create tuples and then not add them
     ---- random unit test

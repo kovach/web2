@@ -71,7 +71,13 @@ neg Negative = Positive
 data Event2 = E Polarity Tuple
             | EFact Fact [Provenance]
             | EFalse Fact
-  deriving (Eq, Show, Ord)
+  deriving (Show, Ord)
+
+instance Eq Event2 where
+  (E p1 t1) == (E p2 t2) = p1 == p2 && t1 == t2
+  (EFact f1 _) == (EFact f2 _) = f1 == f2
+  (EFalse f1) == (EFalse f2) = f1 == f2
+  _ == _ = False
 
 etuple (E _ t) = t
 elabel :: Event2 -> Label
@@ -131,7 +137,10 @@ data Tuple
   , label :: Label
   , source :: Provenance
   , tid :: Id }
-  deriving (Eq, Show, Ord)
+  deriving (Show, Ord)
+
+instance Eq Tuple where
+  t1 == t2 = tid t1 == tid t2
 
 instance IsString Node where
   fromString = NTNamed

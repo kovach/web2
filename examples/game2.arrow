@@ -1,3 +1,4 @@
+# TODO this program is broken
 # init
 make_players p1 p2 => op p1 p2, op p2 p1
 dedge a b => edge a b, edge b a
