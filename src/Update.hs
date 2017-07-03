@@ -1,3 +1,5 @@
+-- TODO
+--  ? watch lists
 {-# LANGUAGE RecordWildCards, NamedFieldPuns #-}
 module Update where
 
@@ -57,16 +59,15 @@ look' k m =
     Just v -> v
     Nothing -> []
 
-clean = M.filter (not . null)
-
 fsDiff :: FactState -> FactState -> [Event2]
-fsDiff fs fs' = map (fix Negative) gone ++ map (fix Positive) new
+fsDiff fs0 fs' = map (fix Negative) gone ++ map (fix Positive) new
   where
+    fs = clean fs0
     initial  = M.keysSet fs
     -- true things that became false
     gone = S.toList $ M.keysSet (M.filter null fs') `S.intersection` initial
     -- things that became true
-    new = S.toList $ M.keysSet fs' \\ initial
+    new = S.toList $ M.keysSet (clean fs') \\ initial
     -- turn Fact into Event
     fix Positive key = EFact key (look key fs')
     fix Negative key = EFalse key
@@ -75,10 +76,11 @@ fsMerge :: FactState -> FactState -> FactState
 fsMerge = M.unionWith (++)
 
 partitionMap :: Ord k => (a -> Bool) -> Map k [a] -> (Map k [a], Map k [a])
-partitionMap f m = (clean $ M.fromList a, clean $ M.fromList b)
+partitionMap f m = out
   where
-    (a, b) = unzip . map fix . map (second (partition f)) . M.toList $ m
-    fix (k, (as, bs)) = ((k, as), (k, bs))
+    a = M.map (filter f) m
+    b = M.map (filter (not . f)) m
+    out = (clean a, clean b)
 
 updateFact (MF Positive f pr) fs = M.insertWith (++) f [pr] fs
 updateFact (MF Negative f pr) fs = M.adjust (filter (/= pr)) f fs
@@ -137,21 +139,30 @@ initS rs ms db = foldr enqueue s0 ms
     restrictFacts r@(LRule _ _) = (ts, fs, clean $ M.map (filter ((== r) . rule_src)) fs)
     restrictFacts r = (ts, fs, emptyFS)
 
-step2 :: [Msg] -> Rule -> DBL -> [Event2]
-step2 msgs rule (g, fs, _) = events
+-- New Tuples (that haven't been consumed) pass through as events
+-- Proofs are combined into fs1; the diff wrt fs0 passes through as events
+-- Any other proofs (those not contributing to visible events) are added immediately to fs0
+step2 :: [Msg] -> Rule -> DBL -> (DBL, [Event2])
+step2 msgs rule (g, fs0, me) = ((g, fs0', me), events)
   where
     split (MT p t) = Left (E p t)
     split f@(MF _ _ _) = Right f
     (tuples, proofs) = partitionEithers $ map split msgs
-
-    fs' = foldr updateFact fs proofs
 
     removeConsumed (E Negative t) es = filter (/= E Positive t) es
     removeConsumed _ es = es
 
     tuples' = foldr removeConsumed tuples tuples
 
-    events = fsDiff fs fs' ++ tuples'
+    fs1 = foldr updateFact fs0 proofs
+    fevents = fsDiff fs0 fs1
+    -- the primary output of this function
+    events = fevents ++ tuples'
+
+    -- these are proofs that need to be recorded but aren't part of any event;
+    -- without this rule for fs0', they would be lost
+    msgs' = filter (not . (`elem` (map elabel fevents)) . mlabel) proofs
+    fs0' = foldr updateFact fs0 msgs'
 
 dependent' :: Event2 -> Provenance -> Bool
 dependent' e pr = any (check e) (matched pr)
@@ -247,11 +258,12 @@ step (s@S{queues, localDB}) =
     -- TODO upgrade to 0.5.10, use lookupMin?
     if M.size work == 0 then return Nothing else
     let (rr@(_,rule), msgs) = M.elemAt 0 work
-        dbl = look rule localDB
-        events = step2 msgs rule dbl
+        dbl1 = look rule localDB
+        (dbl2, events) = step2 msgs rule dbl1
     in do
+        mapM_ logMsg msgs
         -- eval
-        (dbl', output) <- step4 events rule dbl
+        (dbl', output) <- step4 events rule dbl2
         let s1 = s
               -- empty rule's queue
               { queues = M.insert rr [] work

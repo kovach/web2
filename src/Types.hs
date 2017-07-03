@@ -55,7 +55,7 @@ instance Show Label where
 
 nullLabel = L ""
 
--- for now, objects (indexed by int) or literal ints
+-- TODO rename constructors
 data Node = NTInt Int | NTRef Int | NTNamed String
   deriving (Eq, Ord)
 
@@ -111,6 +111,9 @@ data Provenance = Provenance
   , consumed :: Consumed
   } deriving (Eq, Show, Ord)
 
+
+nullProv :: Provenance
+nullProv = Provenance nullRule Nothing [] []
 
 ppFact (l, ns) = unwords $ [show l] ++ map show ns
 ppTuple (T{..}) = show tid++":"++ppFact (label, nodes)
@@ -230,12 +233,14 @@ epLinear _ = NonLinear
 
 data NumOp = Sum | Mul | Sub
   deriving (Eq, Show, Ord)
+
 data E = EBinOp NumOp E E
        | ELit Int
        | EVar Name
        | ENamed String
        | EHole
   deriving (Eq, Show, Ord)
+
 instance IsString E where
   fromString = EVar
 instance Num E where
@@ -300,7 +305,7 @@ ppMsg :: Msg -> String
 ppMsg (MT p t) = ppEvent (E p t)
 ppMsg (MF Positive f pr) = "+"++ppFact f++"<~"++ppMatch pr
 ppMsg (MF Negative f pr) = "-"++ppFact f++"<~"++ppMatch pr
-ppMsg (NULL mr) = "\n---\n"++show mr ++"\n---"
+ppMsg (NULL mr) = "---\n"++show mr ++"\n---"
 
 mprov (MT _ t) = source t
 mprov (MF _ _ p) = p
@@ -314,5 +319,7 @@ pad n s = s ++ replicate (n - length s) ' '
 first f (a, b) = (f a, b)
 second f (a, b) = (a, f b)
 
+clean = M.filter (not . null)
+
 toEvents :: FactState -> [Event2]
-toEvents = map (uncurry EFact) . M.toList
+toEvents = map (uncurry EFact) . M.toList . clean
