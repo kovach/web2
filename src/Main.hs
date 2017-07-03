@@ -19,10 +19,7 @@ import Reflection
 
 import Debug.Trace
 
-rootTuple = do
-  t <- makeTuple ("", []) (Provenance nullRule Nothing [] [])
-  storeTuple t
-  return t
+rootTuple = makeTuple ("", []) (Provenance nullRule Nothing [] [])
 
 data PTree = Node Bool Tuple [PTree] | RNode Tuple
 
@@ -64,6 +61,8 @@ printTree rules = p 0
       setSGR [Reset]
       mapM_ (p (i+2)) ts
 
+metaFile = "examples/analysis.arrow"
+
 -- Main function
 runProgram start_marker edgeName ruleName = do
     let prefix = "examples/"
@@ -73,6 +72,8 @@ runProgram start_marker edgeName ruleName = do
     edgeBlocks <- readDBFile edgeFile
     let edges = concat edgeBlocks
     rules <- convert <$> readRules ruleFile
+
+    metaRules <- convert <$> readRules metaFile
 
     let externalInputs = trueInputs start_marker rules edges
 
@@ -84,16 +85,25 @@ runProgram start_marker edgeName ruleName = do
           msgs <- flushEvents
           _ <- solve rules msgs
           return (t:ts, c')
+        prog2 :: M2 ([Tuple], [Msg])
         prog2 = do
           (roots, _) <- foldM prog1 ([], []) edgeBlocks
           l <- gets msgLog
           return (roots, l)
-        -- TODO remove rule params from runDB
-        ((roots, msgs), s2) = runDB (Nothing) emptyDB emptyIndex [] prog2
+        prog3 :: M2 ()
+        prog3 = do
+          mapM_ flattenRule rules
+          msgs <- flushEvents
+          _ <- solve metaRules msgs
+          return ()
+
+        ((roots, msgs), s2) = runDB (Nothing) emptyDB prog2
+        (_, s3) = runDB Nothing emptyDB prog3
         result = db s2
+        ruleEmbedding = db s3
         resultTrees = map (makeTree (removed_tuples result) (allTuples result)) roots
 
-    return (msgs, rules, externalInputs, result, resultTrees, defaultGas - gas s2)
+    return (msgs, rules, externalInputs, result, resultTrees, defaultGas - gas s2, ruleEmbedding)
 
   where
 
@@ -119,7 +129,7 @@ runProgram start_marker edgeName ruleName = do
 -- repl1 = runRepl "start_game" "graph.txt" "rules.arrow" >> return ()
 
 runTextDemo start_marker edgeFile ruleFile do_print = do
-    (msgLog, rules, externalInputs, result, resultTrees, gas) <- runProgram start_marker edgeFile ruleFile
+    (msgLog, rules, externalInputs, result, resultTrees, gas, ruleEmbedding) <- runProgram start_marker edgeFile ruleFile
 
     putStrLn "input relations:"
     mapM_ (putStrLn . ("  " ++) . show) $ inputRelations rules
@@ -140,15 +150,26 @@ runTextDemo start_marker edgeFile ruleFile do_print = do
         mapM_ (printTree rules) $ reverse resultTrees
       else return ()
 
+    -- SWITCH:
     if False then do
       putStrLn "msg log:"
       mapM_ (putStrLn . ppMsg) $ reverse msgLog
       else return ()
 
     green
-    putStrLn "fact state:"
+    putStrLn "\nfact state:"
     white
     putStrLn $ ppFS (clean $ facts result)
+
+    -- SWITCH:
+    if False then do
+      red
+      putStrLn "rule embedding:"
+      white
+      mapM_ (putStrLn . ppTuple) . (fromGraph . tuples) $ ruleEmbedding
+      putStrLn $ ppFS (clean $ facts ruleEmbedding)
+      putStrLn ""
+      else return ()
 
     putStrLn "final tuple count:"
     print $ length tupleList
@@ -158,21 +179,6 @@ runTextDemo start_marker edgeFile ruleFile do_print = do
 
     putStrLn "msgs sent:"
     print $ length msgLog
-
-    -- RIP consistency check
-    -- Update is now free to create tuples and then not add them
-    ---- random unit test
-    --let warn s = putStrLn $ "\n"++s++"\n"
-    --let alltids = sort $ map tid (tupleList ++ removed_tuples result)
-    --    -- rootTuple (tid 0) exists but isn't in db
-    --    expectedids = [0..length alltids-1]
-    --if (expectedids /= alltids)
-    --  then do
-    --    warn "tids not consistent!!"
-    --    print alltids
-    --    putStrLn "missing:"
-    --    print $ filter (not . (`elem` alltids)) expectedids
-    --  else warn "tids consistent!"
 
     return ()
 

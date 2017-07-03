@@ -1,0 +1,6 @@
+query q r, assert a r, var u q _, var u a _ ~> bound u
+assert a r, logical r, var v a _, !bound v, var-name v n ~> UNBOUND-LOGIC-VARIABLE r n
+
+#var u _ _, var-name u name, var v _ _, var-name v name, u < v ~> same-name name u v
+#rule r, logical r, assert q r, label q l ~> type l 'logical
+#query q r, linear q, label q l, type l 'logical => ERROR q

@@ -17,18 +17,16 @@ data InterpreterState = IS
   , new_unprocessed :: [Msg]
   , msgLog :: [Msg]
   -- TODO remove these two
-  , index :: Index
-  , functions :: [Rule]
   , gas :: Int
   } deriving (Eq, Show, Ord)
 
 type M2 = State InterpreterState
 
 defaultGas = 500
-emptyS2 = IS emptyDB [] [] emptyIndex [] defaultGas
-makeS2 db index fns gas = IS db [] [] index fns gas
+emptyS2 = IS emptyDB [] [] defaultGas
+makeS2 db gas = IS db [] [] gas
 
-runDB mgas db index fns m = runState m (makeS2 db index fns (fromMaybe defaultGas mgas))
+runDB mgas db m = runState m (makeS2 db (fromMaybe defaultGas mgas))
 
 useGas :: M2 ()
 useGas = modify $ \s -> s { gas = gas s - 1}
@@ -58,15 +56,22 @@ flushEvents = do
   modify $ \s -> s { new_unprocessed = [] }
   return es
 
-makeTuple :: RawTuple -> Provenance -> M2 Tuple
-makeTuple (rel, ns) p = do
+packTuple :: RawTuple -> Provenance -> M2 Tuple
+packTuple (rel, ns) p = do
   c <- gets (tuple_counter . db)
   moddb $ \s -> s { tuple_counter = c + 1 }
   let t = T { nodes = ns, label = rel, tid = c, source = p }
   return t
 
+storeTuple :: Tuple -> M2 ()
 storeTuple t = do
   moddb $ \s -> s { tuples = insertTuple t (tuples s) }
+
+makeTuple :: RawTuple -> Provenance -> M2 Tuple
+makeTuple r p = do
+  t <- packTuple r p
+  storeTuple t
+  return t
 
 scheduleAdd :: Tuple -> M2 ()
 scheduleAdd t = modify $ \s -> s { new_unprocessed = MT Positive t : new_unprocessed s }

@@ -150,7 +150,7 @@ applyMatch (prov, ctxt) = do
     applyStep :: Provenance -> Context -> Assert -> M2 Context
     applyStep prov c0 (Assert label exprs) = do
         (c1, nodes) <- foldM step (c0, []) exprs
-        t <- makeTuple (label, reverse nodes) prov
+        t <- packTuple (label, reverse nodes) prov
         scheduleAdd t
         return c1
       where
@@ -170,7 +170,8 @@ getLMatches ev ind g fs = map toMsg . concatMap step $ triggers
         Just ctxt -> concat $ do
           (ctxt, [], matched) <- solveSteps g fs (ctxt, [], [ev]) (S.toList pattern)
           return $ applyLRHS (Provenance rule (Just ev) matched [], ctxt)
-        Nothing -> error "impossible"
+        -- Fails constraint
+        Nothing -> []
     applyLRHS :: Match -> [(Fact, Provenance)]
     applyLRHS (prov, ctxt) = map step rhs
       where
