@@ -4,7 +4,7 @@ location l _ _ => empty l 'black, empty l 'white
 location l1 m n, location l2 j k, m = j, (n - k) = 1 => adjacent l1 l2, adjacent l2 l1
 location l1 m n, location l2 j k, (m - j) = 1, n = k => adjacent l1 l2, adjacent l2 l1
 
-# directed paths of the same color
+# undirected paths of the same color
 stone s l1 c, stone t l2 c, adjacent l1 l2 ~> stone-edge s t
 stone-edge s t ~> path s t
 stone-edge s t, path t u ~> path s u
@@ -14,15 +14,16 @@ stone s l c, adjacent l n, empty n c ~> liberty s
 liberty s ~> alive s
 liberty s, path s t ~> alive t
 
-
-# place a stone
-..place_stone color m n, location loc m n, op color other, ..empty loc other => make-stone loc color
-
 # death
 stone s _ _, !alive s => dying s
 dying s, ..stone s l _ => empty l 'black, empty l 'white
 
+# external input: place a stone
+..place_stone color m n, location loc m n, op color other, ..empty loc other => make-stone loc color
 ..make-stone loc color, ..empty loc color => stone s loc color
+
+# testing rule:
+#location _ m n => place_stone 'black m n
 
 # TODO ko
 # TODO prevent illegal placement
