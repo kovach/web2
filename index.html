@@ -1,0 +1,123 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+  <meta http-equiv="Content-Style-Type" content="text/css" />
+  <meta name="generator" content="pandoc" />
+  <title></title>
+  <style type="text/css">code{white-space: pre;}</style>
+  <link rel="stylesheet" href="docs/docs.css" type="text/css" />
+</head>
+<body>
+<div id="TOC">
+<ul>
+<li><a href="#introduction">Introduction</a></li>
+<li><a href="#syntax-elements">Syntax Elements</a></li>
+<li><a href="#global-state">Global State</a></li>
+<li><a href="#edges">Edges</a></li>
+<li><a href="#rules">Rules</a></li>
+<li><a href="#matching">Matching</a><ul>
+<li><a href="#edge-clauses">Edge Clauses</a></li>
+<li><a href="#constraint-clauses">Constraint clauses</a></li>
+</ul></li>
+<li><a href="#update">Update</a><ul>
+<li><a href="#imperative">Imperative</a></li>
+<li><a href="#logical">Logical</a></li>
+</ul></li>
+<li><a href="#rule-evaluation-order">Rule Evaluation Order</a></li>
+</ul>
+</div>
+<h2 id="introduction">Introduction</h2>
+<p>This is an interpreter for a rule based language.</p>
+<p>Some executable examples are listed at the end of <a href="src/Main.hs">Main.hs</a>. A REPL and web interface are in the works.</p>
+<p>This document will refer to the <a href="https://en.wikipedia.org/wiki/Go_(game)">go</a> example, defined in <a href="examples/go.arrow">go.arrow</a> and <a href="examples/go.graph">go.graph</a>.</p>
+<h2 id="syntax-elements">Syntax Elements</h2>
+<p><code>#</code> is the comment character.</p>
+<p>Reserved symbols:</p>
+<pre><code>   =&gt; ~&gt; , . .. ! _ &#39; ( ) = /= &lt; &gt; + - *</code></pre>
+<p>There are no keywords.</p>
+<h2 id="global-state">Global State</h2>
+<p>Programs operate on a database of <code>tuples</code> and <code>facts</code>. A tuple or fact is labelled. The collection of all tuples or facts with a given label form a <code>relation</code>. Each tuple or fact also contains an ordered sequence of <code>values</code>. These correspond to the columns (also called arguments or slots) of the relation. The number of slots is the <code>arity</code> of the relation; every tuple or fact of a relation must have the same arity. There are currently three types of values:</p>
+<ul>
+<li><code>int</code>: a machine integer.
+<ul>
+<li>written examples: <code>2</code>, <code>-22</code></li>
+</ul></li>
+<li><code>symbol</code>: an immutable entity with a string representation.
+<ul>
+<li>written examples: <code>'foo</code>, <code>'bar</code></li>
+</ul></li>
+<li><code>node</code>: an immutable entity taken from an unbounded ordered set.
+<ul>
+<li>no written examples. they are marked in interpreter output with <code>#</code>.</li>
+</ul></li>
+</ul>
+<p>Symbols and nodes can be bound by free variables in patterns (see Matching) and compared with the <code>=</code>, <code>/=</code>, <code>&lt;</code>, <code>&gt;</code> operators. Nodes can be freely generated (see Update below).</p>
+<h2 id="edges">Edges</h2>
+<p>When we refer to a generic tuple or fact, not caring which of the two it is, we call it an <code>edge</code>.</p>
+<h2 id="rules">Rules</h2>
+<p>A rule has two sides, syntactically separated by an arrow. Each side is a series of <code>clauses</code>. The left hand side is called the <code>pattern</code>; the right hand side is called the <code>assertion</code>.</p>
+<p>There are currently two types of rules, distinguished by their arrow character:</p>
+<ul>
+<li><code>=&gt;</code> rules are called &quot;imperative&quot; or &quot;temporal&quot;.</li>
+<li><code>~&gt;</code> rules are called &quot;logical&quot; or &quot;functional&quot;.</li>
+</ul>
+<p>Tuples are created by <code>=&gt;</code> rules, and facts asserted by <code>~&gt;</code> rules.</p>
+<p>The meaning of &quot;<code>P X =&gt; Q X</code>&quot; is roughly</p>
+<blockquote>
+<p>Whenever P is true of some variable substitution X, augment the database by adding the tuples specified by Q using the substitution X.</p>
+</blockquote>
+<p>The meaning of &quot;<code>P X ~&gt; Q X</code>&quot; is roughly</p>
+<blockquote>
+<p>Whenever P is true of some X, add the facts specified by Q, each marked by the match. Whenever a match becomes false, remove the corresponding facts.</p>
+</blockquote>
+<p>Logical rules actively maintain their matches, so they are useful for specifying dynamic properties of objects constructed with tuples.</p>
+<p>Imperative rules are necessary for interacting with external input and useful for describing events and mutations.</p>
+<h2 id="matching">Matching</h2>
+<h3 id="edge-clauses">Edge Clauses</h3>
+<p>The pattern side of a rule is primarily composed of <code>edge pattern</code> clauses. Semantically, the clauses are unordered. A clause will match either tuples or facts, based on whether its label is that of a logical or imperative relation.</p>
+<p>A generic edge matching clause looks like this:</p>
+<pre><code>relation-name var1 var2</code></pre>
+<p>The label (<code>relation-name</code>) is written first and followed by a space separated list of variables to bind the values of the edge. A variable brings the corresponding argument into scope; this scope extends across the entire rule. Reused variables indicate an equality constraint; the relations are said to be <code>joined</code>. If a particular argument is not needed, its slot can be marked with <code>_</code> in place of a variable; it will not be bound.</p>
+<p>The number of variables given must match the arity of the relation. The example above is binary (<code>var1</code> and <code>var2</code>). Tuples and facts may have arbitrary arity:</p>
+<pre><code>p0, p1 x, p2 x y, p3 x y z, ...</code></pre>
+<p>A clause which refers to a tuple relation will succeed once per matching tuple; in other words, a database may contain multiple tuples <code>p x</code> for a given x. A fact, however, is either true or false for a given binding: if <code>P</code> is the label for a unary logical relation, then <code>P x</code> either fails or succeeds once for a given x.</p>
+<p>Logical patterns can be negated. <code>!P x</code> succeeds exactly when there are no proofs of <code>P x</code> in the current database.</p>
+<p>Tuples can be <code>consumed</code> by a match. When preceded by <code>..</code>, a tuple matching clause will delete the particular tuple upon successful match of the whole pattern. Such a clause is called <code>linear</code>. From the go example:</p>
+<pre><code>dying s, ..stone s l _ =&gt; empty l &#39;black, empty l &#39;white</code></pre>
+<p>This pattern matches stones that have been marked as <code>dying</code>. It consumes their <code>stone</code> marker and marks their former location as <code>empty</code>.</p>
+<h3 id="constraint-clauses">Constraint clauses</h3>
+<p>A pattern may also contain <code>binary constraints</code>. Same-typed variables may be compared with the four (in)equality operators <code>=</code>, <code>/=</code>, <code>&lt;</code>, <code>&gt;</code>. Nodes are ordered according to their creation time. Arithmetic with <code>+</code>, <code>-</code>, <code>*</code> is also supported for integers.</p>
+<p>Any variables used in a constraint clause must be bound by some edge matching clause elsewhere in the pattern.</p>
+<h2 id="update">Update</h2>
+<h3 id="imperative">Imperative</h3>
+<p>The right hand side of a <code>=&gt;</code> rule adds tuples to the database.</p>
+<pre><code>..make-stone loc color, ..empty loc color =&gt; stone s loc color</code></pre>
+<p>This rule matches a <code>make-stone</code> instruction. The instruction carries two arguments, <code>loc</code> and <code>color</code>. These arguments are referred to in the <code>stone</code> pattern: a successful application of the rule will create a <code>stone</code> tuple with the same values that were bound by the pattern match. The rule application will also remove both tuples it matches, since their clauses are marked with the <code>..</code> linearity tag.</p>
+<p>The <code>s</code> argument on the right is not bound on the left. This indicates it should take a &quot;fresh&quot; value of <code>node</code> type. An interpreter must maintain a pool of fresh nodes values in order to evaluate these rules.</p>
+<p>Arithmetic is allowed in relation slots on the right hand side. See <a href="examples/factorial.arrow">factorial.arrow</a>.</p>
+<p>So, in general, an application of a <code>=&gt;</code> rule may</p>
+<ul>
+<li>create new tuples</li>
+<li>remove existing tuples</li>
+<li>create new node values</li>
+</ul>
+<h3 id="logical">Logical</h3>
+<pre><code>stone s l1 c, stone t l2 c, adjacent l1 l2 ~&gt; stone-edge s t
+stone-edge s t ~&gt; path s t
+stone-edge s t, path t u ~&gt; path s u</code></pre>
+<p>These three logical rules serve to compute paths between stones of the same color.</p>
+<p>Evaluation of <code>~&gt;</code> rules is similar to <code>=&gt;</code> evaluation, with these differences:</p>
+<ul>
+<li>Unbound variables on the right are not allowed.</li>
+<li>A second proof of a fact (e.g. <code>path s t</code>) does not trigger new matches; only changes in truth status trigger new matches.</li>
+<li>Facts cannot be <code>consumed</code> by a linear clause. They are removed exactly when their match becomes false.</li>
+</ul>
+<p>So, in the rules above, if a <code>stone</code> tuple, say <code>stone s _ _</code>, is consumed by some other rule, any <code>stone-edge</code> facts reliant on it are removed. The fact <code>stone-edge s t</code> will become false, and any <code>path</code> facts uniquely reliant on it will likewise be removed. A <code>path</code> with multiple proofs will not necessarily become false in this way.</p>
+<h2 id="rule-evaluation-order">Rule Evaluation Order</h2>
+<p>Rules are not generally required to be <a href="https://en.wikipedia.org/wiki/Confluence_(abstract_rewriting)">confluent</a>: the order they are applied may lead to different results. The interpreter fixes a particular rule evaluation order.</p>
+<p>At a given point in time, the interpreter maintains a database of processed edges (the <code>old-set</code>) and a collection of stacks of unprocessed edges, one per rule (the <code>new-stacks</code>). The rules are totally ordered, and control is always given to the highest priority rule with non-empty new-stack. This rule is allowed to process all of its matches: for each edge in the new-stack, all ways of binding it in the rule's pattern are attempted. New matches are recorded in an output list. Once an edge has been considered, it is moved from the new-set to the rule's local old-set. Once all of the rule's new edges are processed this way, its output list is appended to the global database of processed edges, and propagated to the new-stacks of pertinent rules.</p>
+<p>This process repeats until all new-sets are empty; this is a <code>fixpoint</code>. The algorithm is implemented <a href="src/Update.hs">here</a>.</p>
+<p>Thus, the match priority is this: given a set of new edges, a rule is not considered until a fixpoint is reached for the rules of higher priority.</p>
+</body>
+</html>

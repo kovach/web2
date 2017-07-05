@@ -26,4 +26,4 @@ dying s, ..stone s l _ => empty l 'black, empty l 'white
 #location _ m n => place-stone 'black m n
 
 # TODO ko
-# TODO prevent illegal placement
+# TODO suicide rule
