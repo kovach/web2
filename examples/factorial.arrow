@@ -1,0 +1,3 @@
+factorial i n => do-fact i 1 n
+do-fact i acc 0 => result i acc
+do-fact i acc n, n > 0 => do-fact i (acc * n) (n - 1)
