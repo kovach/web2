@@ -38,7 +38,7 @@ module Types where
 import Data.Maybe (fromJust)
 import Data.String
 import Data.List (intercalate, delete)
-import Data.Set (Set)
+import Data.Set (Set, (\\))
 import qualified Data.Set as S
 import Data.Map (Map)
 import qualified Data.Map as M
@@ -123,11 +123,6 @@ ppEvent (EFact f ps) = "(+"++show (length ps)++")"++ppFact f
 ppEvent (EFalse f) = "-"++ppFact f
 ppEvents = intercalate ", " . map ppEvent
 
-ppFS :: FactState -> String
-ppFS = unlines . map pp . M.toList
-  where
-    pp (f, ps) = unlines $ [show f ++ " : " ++ show (length ps)] ++ map (("  " ++) . ppMatch) ps
-
 ppMatch :: Provenance -> String
 ppMatch (Provenance{..}) = "("++maybe "" ppEvent tuple_src ++") "++ppEvents matched
 
@@ -175,6 +170,11 @@ type FactState = Map Fact [Provenance]
 
 emptyFS :: FactState
 emptyFS = M.empty
+
+ppFS :: FactState -> String
+ppFS = unlines . map pp . M.toList
+  where
+    pp (f, ps) = unlines $ [show f ++ " : " ++ show (length ps)] ++ map (("  " ++) . ppMatch) ps
 
 data DB = DB
   { tuples :: Graph
@@ -323,3 +323,6 @@ clean = M.filter (not . null)
 
 toEvents :: FactState -> [Event2]
 toEvents = map (uncurry EFact) . M.toList . clean
+
+diffList :: Ord a => [a] -> [a] -> [a]
+diffList a b = S.toList (S.fromList a \\ S.fromList b)

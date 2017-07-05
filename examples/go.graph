@@ -17,8 +17,8 @@ op 'white 'black
 start_game
 
 # test 1: capture
-place_stone 'black 1 1
-place_stone 'black 1 2
-place_stone 'white 2 1
+place-stone 'black 1 1
+place-stone 'black 1 2
+place-stone 'white 2 1
 
-place_stone 'white 2 2
+place-stone 'white 2 2

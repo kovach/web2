@@ -6,8 +6,8 @@ import Data.Maybe (mapMaybe)
 import Types
 import Parse
 import Parser
+import Rules
 
--- File-level parsing --
 filterComment :: String -> [(Int, String)]
 filterComment = filter (not . null . snd) . zip [1..] . map (takeWhile (/= '#')) . lines
 
@@ -21,7 +21,7 @@ filterComments = lines .> zip [1..] .> blocks .>
     nonEmpty = filter (not . null . snd)
     (.>) = flip (.)
 
--- DB text parsing
+-- DB parsing
 parseTuple :: String -> Maybe Assert
 parseTuple s =
   case words s of
@@ -36,27 +36,18 @@ readDBFile file = do
   return $ map (mapMaybe parseTuple . map snd) $ filterComments f
 
 -- Program parsing
-readRules :: FilePath -> IO [(Int, Rule)]
+type LineRule = (Int, Rule)
+
+readRules :: FilePath -> IO [LineRule]
 readRules f = do
   rs <- filterComment <$> readFile f
   return $ map (second parseLine) rs
 
-type LineRule = (Int, Rule)
-
--- Static rule checks/conversions --
-splitRules :: [LineRule] -> ([LineRule], [LineRule])
-splitRules = foldr go ([],[])
-  where
-    go r@(_, Rule _ _) (a,b) = (r:a,b)
-    go r@(_, LRule _ _) (a,b) = (a,r:b)
-
 convert :: [LineRule] -> [Rule]
 convert rs = result
   where
-    headRels (LRule _ rhs) = map assertRel rhs
-    (_, functions) = splitRules rs
     -- TODO: keep line numbers for logical rules too; print on check failure
-    heads = nub $ concatMap (headRels . snd) functions
+    heads = logicalRelations $ map snd rs
 
     result = map fix rs
 

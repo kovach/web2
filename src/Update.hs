@@ -59,19 +59,6 @@ look' k m =
     Just v -> v
     Nothing -> []
 
-fsDiff :: FactState -> FactState -> [Event2]
-fsDiff fs0 fs' = map (fix Negative) gone ++ map (fix Positive) new
-  where
-    fs = clean fs0
-    initial  = M.keysSet fs
-    -- true things that became false
-    gone = S.toList $ M.keysSet (M.filter null fs') `S.intersection` initial
-    -- things that became true
-    new = S.toList $ M.keysSet (clean fs') \\ initial
-    -- turn Fact into Event
-    fix Positive key = EFact key (look key fs')
-    fix Negative key = EFalse key
-
 fsMerge :: FactState -> FactState -> FactState
 fsMerge = M.unionWith (++)
 
@@ -86,12 +73,14 @@ updateFact (MF Positive f pr) fs = M.insertWith (++) f [pr] fs
 updateFact (MF Negative f pr) fs = M.adjust (filter (/= pr)) f fs
 updateFact _ fs = fs
 
--- nb: they are actually stacks
-enqueue :: Msg -> S -> S
-enqueue msg s@S{..} = s { queues = queues' }
+pushMsg :: Msg -> S -> S
+pushMsg msg s@S{..} = s { queues = queues' }
   where
     queues' = foldr (\r -> M.insertWith ((++)) r [msg])
                     queues (look' (mlabel msg) edges)
+
+pushMsgs :: [Msg] -> S -> S
+pushMsgs ms s = foldr pushMsg s ms
 
 step0 :: RankedRule -> Map Label [RankedRule]
 step0 r@(_, rule) = M.fromList $ zip (lhsRels rule) (repeat [r])
@@ -126,7 +115,7 @@ commitMsgs mr msgs = do
 --       ! otherwise, ordering of events is supposed to be irrelevant
 --     - step2 generates at most 1 event per fact
 initS :: [Rule] -> [Msg] -> DB -> S
-initS rs ms db = foldr enqueue s0 ms
+initS rs ms db = pushMsgs ms s0
   where
     rrs = zip [0..] rs
     s0 = S
@@ -138,6 +127,19 @@ initS rs ms db = foldr enqueue s0 ms
     ts = tuples db
     restrictFacts r@(LRule _ _) = (ts, fs, clean $ M.map (filter ((== r) . rule_src)) fs)
     restrictFacts r = (ts, fs, emptyFS)
+
+fsDiff :: FactState -> FactState -> [Event2]
+fsDiff fs0 fs' = map (fix Negative) gone ++ map (fix Positive) new
+  where
+    fs = clean fs0
+    initial  = M.keysSet fs
+    -- true things that became false
+    gone = S.toList $ M.keysSet (M.filter null fs') `S.intersection` initial
+    -- things that became true
+    new = S.toList $ M.keysSet (clean fs') \\ initial
+    -- turn Fact into Event
+    fix Positive key = EFact key (look key fs')
+    fix Negative key = EFalse key
 
 -- New Tuples (that haven't been consumed) pass through as events
 -- Proofs are combined into fs1; the diff wrt fs0 passes through as events
@@ -270,7 +272,7 @@ step (s@S{queues, localDB}) =
               -- update its local state
               , localDB = M.insert rule dbl' localDB }
         -- apply?
-        let s2 = foldr enqueue s1 output
+        let s2 = pushMsgs output s1
         return $ Just s2
   where
     -- always ok to remove empty queues

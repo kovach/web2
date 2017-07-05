@@ -143,7 +143,8 @@ applyMatch :: Match -> M2 Context
 applyMatch (prov, ctxt) = do
     let bound = consumed prov
         rhs = rhsRule $ rule_src prov
-    c <- foldM (applyStep prov) ctxt $ reverse rhs
+    c <- foldM (applyStep prov) ctxt $ rhs
+    --c <- foldM (applyStep prov) ctxt $ reverse rhs
     mapM_ scheduleDel bound
     return c
   where

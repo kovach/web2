@@ -19,11 +19,11 @@ stone s _ _, !alive s => dying s
 dying s, ..stone s l _ => empty l 'black, empty l 'white
 
 # external input: place a stone
-..place_stone color m n, location loc m n, op color other, ..empty loc other => make-stone loc color
+..place-stone color m n, location loc m n, op color other, ..empty loc other => make-stone loc color
 ..make-stone loc color, ..empty loc color => stone s loc color
 
 # testing rule:
-#location _ m n => place_stone 'black m n
+#location _ m n => place-stone 'black m n
 
 # TODO ko
 # TODO prevent illegal placement

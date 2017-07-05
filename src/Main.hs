@@ -27,7 +27,8 @@ makeTree :: [Tuple] -> [Tuple] -> Tuple -> PTree
 makeTree dead ts root@(T{})=
   let fe (E _ t) = Just t
       fe _ = Nothing
-      cs = sortOn (negate . tid) $ filter ((== (Just $ Just root)) . fmap fe . tuple_src . source) ts
+      cs = sortOn (tid) $ filter ((== (Just $ Just root)) . fmap fe . tuple_src . source) ts
+      --cs = sortOn (negate . tid) $ filter ((== (Just $ Just root)) . fmap fe . tuple_src . source) ts
   in Node (root `elem` dead) root (map (makeTree dead ts) cs)
 
 data IOMarker = Input | Output | Internal | Ignored
@@ -131,12 +132,16 @@ runProgram start_marker edgeName ruleName = do
 runTextDemo start_marker edgeFile ruleFile do_print = do
     (msgLog, rules, externalInputs, result, resultTrees, gas, ruleEmbedding) <- runProgram start_marker edgeFile ruleFile
 
+    putStrLn "imperative relations:"
+    mapM_ (putStrLn . ("  " ++) . show) $ allRelations rules `diffList` logicalRelations rules
+    putStrLn "logical relations:"
+    mapM_ (putStrLn . ("  " ++) . show) $ logicalRelations rules
     putStrLn "input relations:"
     mapM_ (putStrLn . ("  " ++) . show) $ inputRelations rules
-    putStrLn "output relations:"
-    mapM_ (putStrLn . ("  " ++) . show) $ outputRelations rules
     putStrLn "external inputs:"
     mapM_ (putStrLn . ("  " ++) . show) $ externalInputs
+    putStrLn "output relations:"
+    mapM_ (putStrLn . ("  " ++) . show) $ outputRelations rules
 
     let tupleList = fromGraph $ tuples result
 
@@ -181,6 +186,8 @@ runTextDemo start_marker edgeFile ruleFile do_print = do
     print $ length msgLog
 
     return ()
+
+runExample s = runTextDemo nullLabel (s++".graph") (s++".arrow") True
 
 p1 = runTextDemo "start_game" "card_game.graph" "card_game.arrow"
 p2 = runTextDemo "start_turn" "game2.graph" "game2.arrow"
