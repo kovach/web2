@@ -1,12 +1,14 @@
 ## Introduction
 This is an interpreter for a rule based language.
 
-Some executable examples are listed at the end of [Main.hs](src/Main.hs). A
-REPL and web interface are in the works.
+Some executable examples are listed at the end of
+[Main.hs](https://github.com/kovach/web2/blob/master/src/Main.hs). A REPL and
+web interface are in the works.
 
 This document will refer to the [go](https://en.wikipedia.org/wiki/Go_(game))
-example, defined in [go.arrow](examples/go.arrow) and
-[go.graph](examples/go.graph).
+example, defined in
+[go.arrow](https://github.com/kovach/web2/blob/master/examples/go.arrow) and
+[go.graph](https://github.com/kovach/web2/blob/master/examples/go.graph).
 
 ## Syntax Elements
 
@@ -147,7 +149,7 @@ should take a "fresh" value of `node` type. An interpreter must maintain a pool
 of fresh nodes values in order to evaluate these rules.
 
 Arithmetic is allowed in relation slots on the right hand side. See
-[factorial.arrow](examples/factorial.arrow).
+[factorial.arrow](https://github.com/kovach/web2/blob/master/examples/factorial.arrow).
 
 So, in general, an application of a `=>` rule may
 
@@ -195,7 +197,7 @@ this way, its output list is appended to the global database of processed
 edges, and propagated to the new-stacks of pertinent rules.
 
 This process repeats until all new-sets are empty; this is a `fixpoint`.
-The algorithm is implemented [here](src/Update.hs).
+The algorithm is implemented [here](https://github.com/kovach/web2/blob/master/src/Update.hs).
 
 Thus, the match priority is this: given a set of new edges, a rule is not
 considered until a fixpoint is reached for the rules of higher priority.

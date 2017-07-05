@@ -29,8 +29,8 @@
 </div>
 <h2 id="introduction">Introduction</h2>
 <p>This is an interpreter for a rule based language.</p>
-<p>Some executable examples are listed at the end of <a href="src/Main.hs">Main.hs</a>. A REPL and web interface are in the works.</p>
-<p>This document will refer to the <a href="https://en.wikipedia.org/wiki/Go_(game)">go</a> example, defined in <a href="examples/go.arrow">go.arrow</a> and <a href="examples/go.graph">go.graph</a>.</p>
+<p>Some executable examples are listed at the end of <a href="https://github.com/kovach/web2/blob/master/src/Main.hs">Main.hs</a>. A REPL and web interface are in the works.</p>
+<p>This document will refer to the <a href="https://en.wikipedia.org/wiki/Go_(game)">go</a> example, defined in <a href="https://github.com/kovach/web2/blob/master/examples/go.arrow">go.arrow</a> and <a href="https://github.com/kovach/web2/blob/master/examples/go.graph">go.graph</a>.</p>
 <h2 id="syntax-elements">Syntax Elements</h2>
 <p><code>#</code> is the comment character.</p>
 <p>Reserved symbols:</p>
@@ -95,7 +95,7 @@
 <pre><code>..make-stone loc color, ..empty loc color =&gt; stone s loc color</code></pre>
 <p>This rule matches a <code>make-stone</code> instruction. The instruction carries two arguments, <code>loc</code> and <code>color</code>. These arguments are referred to in the <code>stone</code> pattern: a successful application of the rule will create a <code>stone</code> tuple with the same values that were bound by the pattern match. The rule application will also remove both tuples it matches, since their clauses are marked with the <code>..</code> linearity tag.</p>
 <p>The <code>s</code> argument on the right is not bound on the left. This indicates it should take a &quot;fresh&quot; value of <code>node</code> type. An interpreter must maintain a pool of fresh nodes values in order to evaluate these rules.</p>
-<p>Arithmetic is allowed in relation slots on the right hand side. See <a href="examples/factorial.arrow">factorial.arrow</a>.</p>
+<p>Arithmetic is allowed in relation slots on the right hand side. See <a href="https://github.com/kovach/web2/blob/master/examples/factorial.arrow">factorial.arrow</a>.</p>
 <p>So, in general, an application of a <code>=&gt;</code> rule may</p>
 <ul>
 <li>create new tuples</li>
@@ -117,7 +117,7 @@ stone-edge s t, path t u ~&gt; path s u</code></pre>
 <h2 id="rule-evaluation-order">Rule Evaluation Order</h2>
 <p>Rules are not generally required to be <a href="https://en.wikipedia.org/wiki/Confluence_(abstract_rewriting)">confluent</a>: the order they are applied may lead to different results. The interpreter fixes a particular rule evaluation order.</p>
 <p>At a given point in time, the interpreter maintains a database of processed edges (the <code>old-set</code>) and a collection of stacks of unprocessed edges, one per rule (the <code>new-stacks</code>). The rules are totally ordered, and control is always given to the highest priority rule with non-empty new-stack. This rule is allowed to process all of its matches: for each edge in the new-stack, all ways of binding it in the rule's pattern are attempted. New matches are recorded in an output list. Once an edge has been considered, it is moved from the new-set to the rule's local old-set. Once all of the rule's new edges are processed this way, its output list is appended to the global database of processed edges, and propagated to the new-stacks of pertinent rules.</p>
-<p>This process repeats until all new-sets are empty; this is a <code>fixpoint</code>. The algorithm is implemented <a href="src/Update.hs">here</a>.</p>
+<p>This process repeats until all new-sets are empty; this is a <code>fixpoint</code>. The algorithm is implemented <a href="https://github.com/kovach/web2/blob/master/src/Update.hs">here</a>.</p>
 <p>Thus, the match priority is this: given a set of new edges, a rule is not considered until a fixpoint is reached for the rules of higher priority.</p>
 </body>
 </html>
