@@ -1,5 +1,6 @@
 -- TODO
 --  ? watch lists
+--  ! detect proof cycles; ensure the model is always minimal
 {-# LANGUAGE RecordWildCards, NamedFieldPuns #-}
 module Update where
 

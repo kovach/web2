@@ -22,7 +22,7 @@ data InterpreterState = IS
 
 type M2 = State InterpreterState
 
-defaultGas = 500
+defaultGas = 300
 emptyS2 = IS emptyDB [] [] defaultGas
 makeS2 db gas = IS db [] [] gas
 

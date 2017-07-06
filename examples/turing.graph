@@ -1,0 +1,11 @@
+# busy beaver 3, from wikipedia
+default-symbol 0
+q0 'a
+table 'a 0 'b 1 'r
+table 'b 0 'a 1 'l
+table 'c 0 'b 1 'l
+table 'a 1 'c 1 'l
+table 'b 1 'b 1 'r
+table 'c 1 'halt 1 'r
+
+start

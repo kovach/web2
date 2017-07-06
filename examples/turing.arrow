@@ -1,0 +1,10 @@
+# start with an empty tape
+start, default-symbol b, q0 q => nil n, state i 1 q n b n
+
+# should work with non-deterministic table
+state i c q l n r, table q n q' n' dir => state' i' (c + 1) q' l n' r, move i' dir
+
+move i 'l, state' i c q l n r,  nil l, default-symbol b => cons r' n r, state i c q l  b  r'
+move i 'l, state' i c q l n r, cons l n' l'             => cons r' n r, state i c q l' n' r'
+move i 'r, state' i c q l n r,  nil r, default-symbol b => cons l' n l, state i c q l' b  r
+move i 'r, state' i c q l n r, cons r n' r'             => cons l' n l, state i c q l' n' r'

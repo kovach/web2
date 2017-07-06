@@ -1,3 +1,3 @@
-This is an interpreter for a rule based language.
+an interpreter for a rule based language
 
-See documentation [here](https://kovach.github.io/web2/).
+see documentation [here](https://kovach.github.io/web2/)
