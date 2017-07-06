@@ -68,23 +68,23 @@ neg Positive = Negative
 neg Negative = Positive
 
 -- TODO rename
-data Event2 = E Polarity Tuple
-            | EFact Fact [Provenance]
-            | EFalse Fact
+data Event = E Polarity Tuple
+           | EFact Fact [Provenance]
+           | EFalse Fact
   deriving (Show, Ord)
 
-instance Eq Event2 where
+instance Eq Event where
   (E p1 t1) == (E p2 t2) = p1 == p2 && t1 == t2
   (EFact f1 _) == (EFact f2 _) = f1 == f2
   (EFalse f1) == (EFalse f2) = f1 == f2
   _ == _ = False
 
 etuple (E _ t) = t
-elabel :: Event2 -> Label
+elabel :: Event -> Label
 elabel (E _ t) = label t
 elabel (EFact (l, _) _) = l
 elabel (EFalse (l, _)) = l
-enodes :: Event2 -> [Node]
+enodes :: Event -> [Node]
 enodes (E _ t) = nodes t
 enodes (EFact (_, ns) _) = ns
 enodes (EFalse (_, ns)) = ns
@@ -92,10 +92,10 @@ epolarity (E p _) = p
 epolarity (EFact _ _) = Positive
 epolarity (EFalse _) = Negative
 
-toEvent :: Tuple -> Event2
+toEvent :: Tuple -> Event
 toEvent = E Positive
 
-type Dependency = [Event2]
+type Dependency = [Event]
 type Consumed = [Tuple]
 
 -- An instance of a match
@@ -104,7 +104,7 @@ data Provenance = Provenance
   { rule_src :: Rule
   -- The tuple that triggered this match instance
   -- Nothing for rules with empty LHS, or external inputs
-  , tuple_src :: Maybe Event2
+  , tuple_src :: Maybe Event
   -- Tuples matched by this match instance
   , matched :: Dependency
   -- Tuples removed from the world by this match instance
@@ -290,7 +290,7 @@ emptyIndex = M.empty
 
 
 type Context = [(Name, Node)]
-type Matched = [Event2]
+type Matched = [Event]
 type Bindings = (Context, Consumed, Matched)
 emptyMatchBindings = ([], [], [])
 
@@ -321,7 +321,7 @@ second f (a, b) = (a, f b)
 
 clean = M.filter (not . null)
 
-toEvents :: FactState -> [Event2]
+toEvents :: FactState -> [Event]
 toEvents = map (uncurry EFact) . M.toList . clean
 
 diffList :: Ord a => [a] -> [a] -> [a]

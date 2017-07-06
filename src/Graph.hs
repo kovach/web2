@@ -62,7 +62,7 @@ edgeMatch c vs nodes =
     matchStep c (node, (NVal v)) = if v == node then Just c else Nothing
     matchStep c (node, NHole) = Just c
 
-solvePattern :: [Event2] -> Bindings -> Linear -> [NodeVar] -> [Bindings]
+solvePattern :: [Event] -> Bindings -> Linear -> [NodeVar] -> [Bindings]
 solvePattern es (ctxt, bound, deps) linear nvs =
     let pairs =
           mapMaybe (\t -> fmap (t,) $ edgeMatch ctxt nvs (enodes t))
@@ -111,7 +111,7 @@ solveSteps :: Graph -> FactState -> Bindings -> [Query] -> [Bindings]
 solveSteps g fs c es = foldM (solveStep g fs) c es
 
 -- Main matching function --
-getMatches :: Event2 -> Index -> Graph -> FactState -> [Match]
+getMatches :: Event -> Index -> Graph -> FactState -> [Match]
 getMatches ev ind g fs = takeValid [] $ concatMap step triggers
   where
     pol = epolarity ev
@@ -160,7 +160,7 @@ applyMatch (prov, ctxt) = do
           return (c1, val:acc)
 
 -- Takes positive Tuple or pos/neg LTuple; returns new proofs
-getLMatches :: Event2 -> Index -> Graph -> FactState -> [Msg]
+getLMatches :: Event -> Index -> Graph -> FactState -> [Msg]
 getLMatches ev ind g fs = map toMsg . concatMap step $ triggers
   where
     toMsg (f, p) = MF Positive f p

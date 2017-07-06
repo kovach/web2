@@ -29,7 +29,7 @@ import Debug.Trace
 --  [1] the proof state for its input relations
 --  [2] the proof state for its output relations
 -- When a ~> rule computes new matches, or invalidates old ones, the changes
--- are immediately applied to its output FS and added to the msg output list
+-- are immediately applied to its output FS and added to the Msg output list.
 --   In particular, if those relations are also in the input set, they are not added until
 --   they are processed into Events at a later step
 type DBL = (Graph, FactState, FactState)
@@ -46,7 +46,7 @@ data S = S
   }
 
 -- inner state: (inputs, state, local table, outputs)
-type IS = ([Event2], DBL, [Msg])
+type IS = ([Event], DBL, [Msg])
 
 -- Utilities --
 
@@ -115,6 +115,7 @@ commitMsgs mr msgs = do
 --         prevents a match on a tuple that has already been consumed
 --       ! otherwise, ordering of events is supposed to be irrelevant
 --     - step2 generates at most 1 event per fact
+
 initS :: [Rule] -> [Msg] -> DB -> S
 initS rs ms db = pushMsgs ms s0
   where
@@ -129,7 +130,7 @@ initS rs ms db = pushMsgs ms s0
     restrictFacts r@(LRule _ _) = (ts, fs, clean $ M.map (filter ((== r) . rule_src)) fs)
     restrictFacts r = (ts, fs, emptyFS)
 
-fsDiff :: FactState -> FactState -> [Event2]
+fsDiff :: FactState -> FactState -> [Event]
 fsDiff fs0 fs' = map (fix Negative) gone ++ map (fix Positive) new
   where
     fs = clean fs0
@@ -145,7 +146,7 @@ fsDiff fs0 fs' = map (fix Negative) gone ++ map (fix Positive) new
 -- New Tuples (that haven't been consumed) pass through as events
 -- Proofs are combined into fs1; the diff wrt fs0 passes through as events
 -- Any other proofs (those not contributing to visible events) are added immediately to fs0
-step2 :: [Msg] -> Rule -> DBL -> (DBL, [Event2])
+step2 :: [Msg] -> Rule -> DBL -> (DBL, [Event])
 step2 msgs rule (g, fs0, me) = ((g, fs0', me), events)
   where
     split (MT p t) = Left (E p t)
@@ -167,7 +168,7 @@ step2 msgs rule (g, fs0, me) = ((g, fs0', me), events)
     msgs' = filter (not . (`elem` (map elabel fevents)) . mlabel) proofs
     fs0' = foldr updateFact fs0 msgs'
 
-dependent' :: Event2 -> Provenance -> Bool
+dependent' :: Event -> Provenance -> Bool
 dependent' e pr = any (check e) (matched pr)
   where
     check (EFalse f) (EFact f' _) | f == f' = True
@@ -175,7 +176,7 @@ dependent' e pr = any (check e) (matched pr)
     check (E p t) (E p' t') | t == t' && p == neg p' = True
     check _ _ = False
 
-positiveDependent' :: Event2 -> Msg -> Bool
+positiveDependent' :: Event -> Msg -> Bool
 positiveDependent' _ (MT Negative _) = False
 positiveDependent' _ (MF Negative _ _) = False
 positiveDependent' ev (MT _ t) = dependent' ev (source t)
@@ -201,7 +202,7 @@ splitDeps ev = partitionMap (dependent' ev)
 --      EFact: add proofs to fs
 --      EFalse: remove all proofs from fs
 
-step3 :: Event2 -> Rule -> IS -> M2 IS
+step3 :: Event -> Rule -> IS -> M2 IS
 step3 ev rule (es, (g, fs, me), out) =
   case rule of
     Rule lhs rhs -> do
@@ -246,7 +247,7 @@ step3 ev rule (es, (g, fs, me), out) =
 
 -- call step3 on each event
 -- accumulates local state changes and output msgs
-step4 :: [Event2] -> Rule -> DBL -> M2 (DBL, [Msg])
+step4 :: [Event] -> Rule -> DBL -> M2 (DBL, [Msg])
 step4 es r dbl = go (es, dbl, [])
   where
     go :: IS -> M2 (DBL, [Msg])
