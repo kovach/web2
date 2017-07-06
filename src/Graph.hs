@@ -7,13 +7,14 @@ module Graph where
 
 import Control.Monad
 import Control.Monad.State
-import Data.List
+import Data.List (group, sort)
 import qualified Data.Set as S
 import qualified Data.Map as M
 import Data.Maybe
 import Data.String
 
 import Types
+import FactIndex
 import Expr
 import Parser
 import Parse (runParser)
@@ -93,7 +94,7 @@ solveStep _ fs b@(c, bound, deps) q@(Query _ (LP polarity e ns)) =
           where
             f = EFalse (e, vs')
   where
-    es = filter ((== e) . elabel) $ toEvents fs
+    es = toEvents e fs
     raw (EFact f _) = f
 
 solveStep _ _ b@(c, _, _) (QBinOp op v1 v2) =
@@ -138,6 +139,17 @@ getMatches ev ind g fs = takeValid [] $ concatMap step triggers
       then m : takeValid (consumed pr ++ removed) ms
       else takeValid removed ms
 
+    -- Prevents any members of a match group (a set of matches from a
+    -- particular Trigger) that consume the same tuple from firing.
+    -- TODO: should this cause a runtime error?
+    removeConflicts :: [Match] -> [Match]
+    removeConflicts matches = filter matchOK matches
+      where
+        removed = concatMap (consumed . fst) matches
+        doubles = findDoubles removed
+        matchOK = not . any (`elem` doubles) . consumed . fst
+
+    findDoubles = map head . filter ((> 1) . length) . group . sort
 
 applyMatch :: Match -> M2 Context
 applyMatch (prov, ctxt) = do

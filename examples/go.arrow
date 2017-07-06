@@ -1,4 +1,9 @@
 # make the board
+width n => make-columns n
+height n => make-rows n
+make-columns n, n > 0 => col n, make-columns (n - 1)
+make-rows n, n > 0 => row n, make-rows (n - 1)
+
 row m, col n => location l m n
 location l _ _ => empty l 'black, empty l 'white
 location l1 m n, location l2 j k, m = j, (n - k) = 1 => adjacent l1 l2, adjacent l2 l1
@@ -23,7 +28,8 @@ dying s, ..stone s l _ => empty l 'black, empty l 'white
 ..make-stone loc color, ..empty loc color => stone s loc color
 
 # testing rule:
-#location _ m n => place-stone 'black m n
+board-fill, location _ m n, height max, m < max => place-stone 'black m n
+board-fill, location _ m n, height max, m = max => place-stone 'black m n
 
 # TODO ko
 # TODO suicide rule

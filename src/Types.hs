@@ -67,17 +67,26 @@ neg :: Polarity -> Polarity
 neg Positive = Negative
 neg Negative = Positive
 
--- TODO rename
 data Event = E Polarity Tuple
            | EFact Fact [Provenance]
            | EFalse Fact
-  deriving (Show, Ord)
+  deriving (Show)
 
 instance Eq Event where
   (E p1 t1) == (E p2 t2) = p1 == p2 && t1 == t2
   (EFact f1 _) == (EFact f2 _) = f1 == f2
   (EFalse f1) == (EFalse f2) = f1 == f2
   _ == _ = False
+
+instance Ord Event where
+  e1 `compare` e2 = e1' `compare` e2'
+    where
+      e1' = case e1 of
+              EFact f _ -> EFact f []
+              _ -> e1
+      e2' = case e2 of
+              EFact f _ -> EFact f []
+              _ -> e2
 
 etuple (E _ t) = t
 elabel :: Event -> Label
@@ -135,10 +144,13 @@ data Tuple
   , label :: Label
   , source :: Provenance
   , tid :: Id }
-  deriving (Show, Ord)
+  deriving (Show)
 
 instance Eq Tuple where
   t1 == t2 = tid t1 == tid t2
+
+instance Ord Tuple where
+  t1 `compare` t2 = tid t1 `compare` tid t2
 
 instance IsString Node where
   fromString = NTNamed
@@ -165,33 +177,6 @@ toGraph = foldr step M.empty
 
 fromGraph :: Graph -> [Tuple]
 fromGraph = concat . map snd . M.toList
-
-type FactState = Map Fact [Provenance]
-
-emptyFS :: FactState
-emptyFS = M.empty
-
-ppFS :: FactState -> String
-ppFS = unlines . map pp . M.toList
-  where
-    pp (f, ps) = unlines $ [show f ++ " : " ++ show (length ps)] ++ map (("  " ++) . ppMatch) ps
-
-data DB = DB
-  { tuples :: Graph
-  , facts :: FactState
-  , removed_tuples :: [Tuple] -- TODO remove?
-  , node_counter :: Count
-  , tuple_counter :: Count
-  }
-  deriving (Eq, Show, Ord)
-
-initDB g = DB { tuples = toGraph g, facts = emptyFS
-              , removed_tuples = []
-              , node_counter = 0, tuple_counter = 0}
-emptyDB = initDB []
-
-allTuples :: DB -> [Tuple]
-allTuples db = fromGraph (tuples db) ++ removed_tuples db
 
 type Name = String
 
@@ -251,13 +236,11 @@ instance Num E where
 
 -- Left-hand side of rule
 data Query =
-  Query Dot EP
-  -- | Counter [NodeVar] [Query] -- TODO implement?
   -- nb: the ordering of these constructors is significant
   --   TODO don't rely on this
+  Query Dot EP
   | QBinOp Op E E
-  -- TODO forall/unique/some/empty?
-  --      rand
+  -- TODO rand
   deriving (Eq, Show, Ord)
 
 -- Right-hand side of rule
@@ -270,7 +253,6 @@ assertRel (Assert rel _) = rel
 type LHS = [Query]
 type RHS = [Assert]
 
---type RuleId = Int
 data Rule
   = Rule { lhs :: LHS, rhs :: RHS }
   | LRule { lhs :: LHS, rhs :: RHS }
@@ -319,10 +301,19 @@ pad n s = s ++ replicate (n - length s) ' '
 first f (a, b) = (f a, b)
 second f (a, b) = (a, f b)
 
+clean :: Ord k => Map k [v] -> Map k [v]
 clean = M.filter (not . null)
-
-toEvents :: FactState -> [Event]
-toEvents = map (uncurry EFact) . M.toList . clean
 
 diffList :: Ord a => [a] -> [a] -> [a]
 diffList a b = S.toList (S.fromList a \\ S.fromList b)
+
+look k m =
+  case M.lookup k m of
+    Just v -> v
+    Nothing -> error $ "missing key: " ++ show k
+
+lookList :: Ord k => k -> Map k [v] -> [v]
+lookList k m =
+  case M.lookup k m of
+    Just v -> v
+    Nothing -> []

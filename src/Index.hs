@@ -1,5 +1,3 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TupleSections #-}
 module Index where
 
 import Data.Maybe
@@ -59,21 +57,3 @@ indexLRule rule = insertLRule rule emptyIndex
 
 indLookup sig ind | Just v <- M.lookup sig ind = v
 indLookup _ _ = []
-
-findDoubles xs = step sorted
-  where
-    sorted = sort xs
-    step [] = []
-    step [x] = []
-    step (x:y:ys) | x == y = x : step (dropWhile (== x) ys)
-    step (_:ys) = step ys
-
--- prevents any members of a match group (a set of matches from a particular
--- Trigger) that consume the same tuple from firing
--- TODO: should this cause a runtime error?
-removeConflicts :: [Match] -> [Match]
-removeConflicts matches = filter matchOK matches
-  where
-    removed = concatMap (consumed . fst) matches
-    doubles = findDoubles removed
-    matchOK = not . any (`elem` doubles) . consumed . fst

@@ -1,24 +1,18 @@
-row 1
-row 2
-col 1
-col 2
-#row 3
-#row 4
-#col 3
-#col 4
-#row 5
-#row 6
-#col 5
-#col 6
-
 op 'black 'white
 op 'white 'black
 
 start_game
 
 # test 1: capture
-place-stone 'black 1 1
-place-stone 'black 1 2
-place-stone 'white 2 1
+#width 2
+#height 2
+#place-stone 'black 1 1
+#place-stone 'black 1 2
+#place-stone 'white 2 1
+#
+#place-stone 'white 2 2
 
-place-stone 'white 2 2
+# test 2: fill the board
+width 9
+height 9
+board-fill

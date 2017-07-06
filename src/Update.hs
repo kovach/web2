@@ -15,6 +15,7 @@ import Control.Monad
 import Control.Monad.State
 
 import Types
+import FactIndex
 import Rules
 import Index
 import Monad
@@ -50,35 +51,11 @@ type IS = ([Event], DBL, [Msg])
 
 -- Utilities --
 
-look k m =
-  case M.lookup k m of
-    Just v -> v
-    Nothing -> error $ "hey: " ++ show k
-
-look' k m =
-  case M.lookup k m of
-    Just v -> v
-    Nothing -> []
-
-fsMerge :: FactState -> FactState -> FactState
-fsMerge = M.unionWith (++)
-
-partitionMap :: Ord k => (a -> Bool) -> Map k [a] -> (Map k [a], Map k [a])
-partitionMap f m = out
-  where
-    a = M.map (filter f) m
-    b = M.map (filter (not . f)) m
-    out = (clean a, clean b)
-
-updateFact (MF Positive f pr) fs = M.insertWith (++) f [pr] fs
-updateFact (MF Negative f pr) fs = M.adjust (filter (/= pr)) f fs
-updateFact _ fs = fs
-
 pushMsg :: Msg -> S -> S
 pushMsg msg s@S{..} = s { queues = queues' }
   where
     queues' = foldr (\r -> M.insertWith ((++)) r [msg])
-                    queues (look' (mlabel msg) edges)
+                    queues (lookList (mlabel msg) edges)
 
 pushMsgs :: [Msg] -> S -> S
 pushMsgs ms s = foldr pushMsg s ms
@@ -123,25 +100,13 @@ initS rs ms db = pushMsgs ms s0
     s0 = S
       { edges = step1 rrs
       , queues = M.empty
-      , localDB = M.fromList $ zip rs $ map restrictFacts rs
+      , localDB = M.fromList $ zip rs $ map fix rs
       }
     fs = facts db
     ts = tuples db
-    restrictFacts r@(LRule _ _) = (ts, fs, clean $ M.map (filter ((== r) . rule_src)) fs)
-    restrictFacts r = (ts, fs, emptyFS)
-
-fsDiff :: FactState -> FactState -> [Event]
-fsDiff fs0 fs' = map (fix Negative) gone ++ map (fix Positive) new
-  where
-    fs = clean fs0
-    initial  = M.keysSet fs
-    -- true things that became false
-    gone = S.toList $ M.keysSet (M.filter null fs') `S.intersection` initial
-    -- things that became true
-    new = S.toList $ M.keysSet (clean fs') \\ initial
-    -- turn Fact into Event
-    fix Positive key = EFact key (look key fs')
-    fix Negative key = EFalse key
+    fix r = (ts, fs, restrictFacts r fs)
+    --restrictFacts r@(LRule _ _) = (ts, fs, clean $ M.map (filter ((== r) . rule_src)) fs)
+    --restrictFacts r = (ts, fs, emptyFS)
 
 -- New Tuples (that haven't been consumed) pass through as events
 -- Proofs are combined into fs1; the diff wrt fs0 passes through as events
@@ -182,9 +147,6 @@ positiveDependent' _ (MF Negative _ _) = False
 positiveDependent' ev (MT _ t) = dependent' ev (source t)
 positiveDependent' ev (MF _ _ pr) = dependent' ev pr
 
--- nb: use below relies on calls to clean in partitionMap
-splitDeps ev = partitionMap (dependent' ev)
-
 -- Main Evaluation step --
 
 -- effects of an event:
@@ -222,9 +184,8 @@ step3 ev rule (es, (g, fs, me), out) =
         ind = indexLRule rule
         added = getLMatches ev ind g fs
         -- (proofs refuted by ev, proofs unaffected)
-        (dying, me1) = splitDeps ev me
+        (falsified, me1) = falsify ev me
         me2 = foldr updateFact me1 added
-        falsified = map (uncurry $ MF Negative) $ concatMap flatten $ M.toList dying
         new = falsified ++ added
   where
     g1 = case ev of
@@ -232,10 +193,7 @@ step3 ev rule (es, (g, fs, me), out) =
            E Negative t -> removeTuple t g
            _ -> g
 
-    fs' = case ev of
-            EFact f prs -> M.insertWith (++) f prs fs
-            EFalse f -> M.insert f [] fs
-            _ -> fs
+    fs' = updateEv ev fs
 
     -- TODO remove this from fold state
     es' = es
@@ -243,7 +201,6 @@ step3 ev rule (es, (g, fs, me), out) =
     -- Removes Positive Msgs that depend on the opposite of the current event
     out1 = filter (not . positiveDependent' ev) out
 
-    flatten (a, bs) = zip (repeat a) bs
 
 -- call step3 on each event
 -- accumulates local state changes and output msgs

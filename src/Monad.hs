@@ -9,8 +9,25 @@ import Control.Monad.State
 import qualified Data.Map as M
 
 import Types
+import FactIndex
 
 import Debug.Trace
+
+data DB = DB
+  { tuples :: Graph
+  , facts :: FactState
+  , removed_tuples :: [Tuple] -- TODO remove?
+  , node_counter :: Count
+  , tuple_counter :: Count
+  }
+
+allTuples :: DB -> [Tuple]
+allTuples db = fromGraph (tuples db) ++ removed_tuples db
+
+initDB g = DB { tuples = toGraph g, facts = emptyFS
+              , removed_tuples = []
+              , node_counter = 0, tuple_counter = 0}
+emptyDB = initDB []
 
 data InterpreterState = IS
   { db :: DB
@@ -18,7 +35,7 @@ data InterpreterState = IS
   , msgLog :: [Msg]
   -- TODO remove these two
   , gas :: Int
-  } deriving (Eq, Show, Ord)
+  }
 
 type M2 = State InterpreterState
 

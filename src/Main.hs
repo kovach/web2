@@ -9,6 +9,7 @@ import Data.List (sort, sortOn, intercalate)
 --import System.Console.Readline
 
 import Types
+import FactIndex
 import Monad
 import Convert
 import Update
@@ -16,6 +17,7 @@ import Index
 import Graph
 import Rules
 import Reflection
+
 
 import Debug.Trace
 
@@ -164,7 +166,7 @@ runTextDemo start_marker edgeFile ruleFile do_print = do
     green
     putStrLn "\nfact state:"
     white
-    putStrLn $ ppFS (clean $ facts result)
+    putStrLn $ ppFS (facts result)
 
     -- SWITCH:
     if False then do
@@ -172,7 +174,7 @@ runTextDemo start_marker edgeFile ruleFile do_print = do
       putStrLn "rule embedding:"
       white
       mapM_ (putStrLn . ppTuple) . (fromGraph . tuples) $ ruleEmbedding
-      putStrLn $ ppFS (clean $ facts ruleEmbedding)
+      putStrLn $ ppFS (facts ruleEmbedding)
       putStrLn ""
       else return ()
 
@@ -194,5 +196,5 @@ p2 = runTextDemo "start_turn" "game2.graph" "game2.arrow"
 p3 = runTextDemo nullLabel "test.graph" "test.arrow"
 p4 = runTextDemo "start_game" "go.graph" "go.arrow"
 
-main = p4 True
+main = p4 False
 mn = p4 False
