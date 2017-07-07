@@ -1,6 +1,9 @@
 -- TODO
---  issue: new tuple cannot match multiples slots of a pattern
+--  semantics issue: new tuple cannot match multiples slots of a pattern
 --    (but old tuples can)
+--
+--  make order that tuples are added/processed from RHS more consistent
+--    just need to move packTuple/scheduleAdd out of applyStep
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
 module Graph where
@@ -78,6 +81,7 @@ solveStep :: Graph -> FactState -> Bindings -> Query -> [Bindings]
 solveStep g _ b@(c, bound, deps) (Query _ (EP linear unique e vs)) =
     handleUnique $ solvePattern (map toEvent $ constrainRelation e g) b linear vs
   where
+    --TODO remove
     --handleUnique = if unique == Unique then safeInit else id
     handleUnique = id
     safeInit [] = []

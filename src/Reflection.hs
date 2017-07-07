@@ -99,3 +99,5 @@ flattenRule rule = do
   where
     qs = lhs rule
     as = rhs rule
+
+-- TODO ! reflect tuples and provenance

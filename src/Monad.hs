@@ -33,7 +33,6 @@ data InterpreterState = IS
   { db :: DB
   , new_unprocessed :: [Msg]
   , msgLog :: [Msg]
-  -- TODO remove these two
   , gas :: Int
   }
 
