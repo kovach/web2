@@ -1,4 +1,5 @@
 set -e
-cabal run main
-hp2ps -e8in -c main.hp
-vim main.prof
+stack build --profile
+stack exec -- arrow-profile
+#hp2ps -e8in -c main.hp
+vim arrow-profile.prof

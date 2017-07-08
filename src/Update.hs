@@ -37,11 +37,11 @@ type DBL = (Graph, FactState, FactState)
 
 type RankedRule = (Int, Rule)
 
--- We use queues as a priority queue
--- each rule is ranked by an Int, [0..], so `M.elemAt 0` returns the first
--- non-empty queue (see initS, step)
+-- We use `queues` as a priority queue.
+-- Each rule is ranked by an Int, so `M.elemAt 0` returns the first non-empty
+-- queue (see initS, step)
 data S = S
-  { edges :: Map Label [RankedRule]
+  { dependencies :: Map Label [RankedRule]
   , queues :: Map RankedRule [Msg]
   , localDB :: Map Rule DBL
   }
@@ -55,16 +55,10 @@ pushMsg :: Msg -> S -> S
 pushMsg msg s@S{..} = s { queues = queues' }
   where
     queues' = foldr (\r -> M.insertWith ((++)) r [msg])
-                    queues (lookList (mlabel msg) edges)
+                    queues (lookList (mlabel msg) dependencies)
 
 pushMsgs :: [Msg] -> S -> S
 pushMsgs ms s = foldr pushMsg s ms
-
-step0 :: RankedRule -> Map Label [RankedRule]
-step0 r@(_, rule) = M.fromList $ zip (lhsRels rule) (repeat [r])
-
-step1 :: [RankedRule] -> Map Label [RankedRule]
-step1 = foldr (M.unionWith (++)) M.empty . map step0
 
 -- used to update global DB
 updateDB :: Msg -> DB -> DB
@@ -81,12 +75,13 @@ commitMsgs mr msgs = do
   moddb $ const db'
   logMsg (NULL mr)
   mapM_ logMsg msgs
+  mapM_ outputMsg msgs
 
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~ --
 -- Here begins The Algorithm --
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~ --
 --   important algorithm properties:
---     - new tuple is added to a given queue at most once (by the rule which generates it) (see step)
+--     - a new tuple is added to a given queue at most once (by the rule which generates it) (see step)
 --     ! new msgs are added to the front of the "queue"
 --       - this is important only for implementing => rule consumption priority
 --         prevents a match on a tuple that has already been consumed
@@ -98,28 +93,31 @@ initS rs ms db = pushMsgs ms s0
   where
     rrs = zip [0..] rs
     s0 = S
-      { edges = step1 rrs
+      { dependencies = step1 rrs
       , queues = M.empty
-      , localDB = M.fromList $ zip rs $ map fix rs
-      }
+      , localDB = M.fromList $ zip rs $ map fix rs }
     fs = facts db
     ts = tuples db
     fix r = (ts, fs, restrictFacts r fs)
-    --restrictFacts r@(LRule _ _) = (ts, fs, clean $ M.map (filter ((== r) . rule_src)) fs)
-    --restrictFacts r = (ts, fs, emptyFS)
+
+    step0 :: RankedRule -> Map Label [RankedRule]
+    step0 r@(_, rule) = M.fromList $ zip (lhsRels rule) (repeat [r])
+
+    step1 :: [RankedRule] -> Map Label [RankedRule]
+    step1 = foldr (M.unionWith (++)) M.empty . map step0
 
 -- New Tuples (that haven't been consumed) pass through as events
 -- Proofs are combined into fs1; the diff wrt fs0 passes through as events
 -- Any other proofs (those not contributing to visible events) are added immediately to fs0
-step2 :: [Msg] -> Rule -> DBL -> (DBL, [Event])
-step2 msgs rule (g, fs0, me) = ((g, fs0', me), events)
+step2 :: [Msg] -> FactState -> (FactState, [Event])
+step2 msgs fs0 = (fs0', events)
   where
     split (MT p t) = Left (E p t)
     split f@(MF _ _ _) = Right f
     (tuples, proofs) = partitionEithers $ map split msgs
 
-    removeConsumed (E Negative t) es = filter (/= E Positive t) es
-    removeConsumed _ es = es
+    removeConsumed (E Negative t) = filter (/= E Positive t)
+    removeConsumed _ = id
 
     tuples' = foldr removeConsumed tuples tuples
 
@@ -199,6 +197,9 @@ step3 ev rule (es, (g, fs, me), out) =
     es' = es
 
     -- Removes Positive Msgs that depend on the opposite of the current event
+    -- TODO this is wrong!
+    --  if this rule is linear, we need to recover tuples that were consumed by
+    --  the invalidated match and reconsider other matches
     out1 = filter (not . positiveDependent' ev) out
 
 
@@ -209,7 +210,6 @@ step4 es r dbl = go (es, dbl, [])
   where
     go :: IS -> M2 (DBL, [Msg])
     go ([], dbl, out) = do
-      commitMsgs (Just r) out
       return (dbl, out)
     -- step3 never adds to es
     go (e:es, dbl, ts) = step3 e r (es, dbl, ts) >>= go
@@ -219,12 +219,15 @@ step (s@S{queues, localDB}) =
     -- TODO upgrade to 0.5.10, use lookupMin?
     if M.size work == 0 then return Nothing else
     let (rr@(_,rule), msgs) = M.elemAt 0 work
-        dbl1 = look rule localDB
-        (dbl2, events) = step2 msgs rule dbl1
+        dbl1@(g, fs0, me) = look rule localDB
+        (fs1, events) = step2 msgs fs0
+        dbl2 = (g, fs1, me)
     in do
         mapM_ logMsg msgs
         -- eval
         (dbl', output) <- step4 events rule dbl2
+        -- record
+        commitMsgs (Just rule) output
         let s1 = s
               -- empty rule's queue
               { queues = M.insert rr [] work
@@ -236,7 +239,6 @@ step (s@S{queues, localDB}) =
   where
     -- always ok to remove empty queues
     work = clean queues
-
 
 solve :: [Rule] -> [Msg] -> M2 S
 solve rs msgs = do
@@ -251,4 +253,3 @@ solve rs msgs = do
       case m of
         Nothing -> return s
         Just s' -> unfoldM s' f
-

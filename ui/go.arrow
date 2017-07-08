@@ -1,0 +1,11 @@
+# additional rules for Go GUI
+
+location l m n ~> elem l, x-rank l n, y-rank l m, color l 'empty, size l 9
+stone s l c, location l m n ~> elem s, x-rank s n, y-rank s m, color s c, size s 12
+
+click l 'left, location l m n => place-stone 'black m n
+click l 'right, location l m n => place-stone 'white m n
+
+# TODO string parser/value type
+#stone s _ 'black ~> color s "#000"
+#stone s _ 'white ~> color s "#fff"

@@ -13,6 +13,10 @@ start_game
 #place-stone 'white 2 2
 
 # test 2: fill the board
-width 10
-height 10
-board-fill
+#width 10
+#height 10
+#board-fill
+
+# test 3: empty board
+width 9
+height 9

@@ -2,8 +2,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import Control.Monad
-import Control.Monad.State (gets)
 import System.Console.ANSI
 import Data.List (sort, sortOn, intercalate)
 --import System.Console.Readline
@@ -11,17 +9,13 @@ import Data.List (sort, sortOn, intercalate)
 import Types
 import FactIndex
 import Monad
-import Convert
-import Update
-import Index
 import Graph
 import Rules
 import Reflection
+import Convert
 
 
 import Debug.Trace
-
-rootTuple = makeTuple ("", []) (Provenance nullRule Nothing [] [])
 
 data PTree = Node Bool Tuple [PTree] | RNode Tuple
 
@@ -64,52 +58,6 @@ printTree rules = p 0
       setSGR [Reset]
       mapM_ (p (i+2)) ts
 
-metaFile = "examples/analysis.arrow"
-
--- Main function
-runProgram start_marker edgeName ruleName = do
-    let prefix = "examples/"
-        edgeFile = prefix ++ edgeName
-        ruleFile = prefix ++ ruleName
-
-    edgeBlocks <- readDBFile edgeFile
-    let edges = concat edgeBlocks
-    rules <- convert <$> readRules ruleFile
-
-    metaRules <- convert <$> readRules metaFile
-
-    let externalInputs = trueInputs start_marker rules edges
-
-    let initMatch t edges c = (Provenance (Rule [] edges) (Just $ toEvent t) [] [], c)
-
-    let prog1 (ts, c) es = do
-          t <- rootTuple
-          c' <- applyMatch $ initMatch t es c
-          msgs <- flushEvents
-          _ <- solve rules msgs
-          return (t:ts, c')
-        prog2 :: M2 ([Tuple], [Msg])
-        prog2 = do
-          (roots, _) <- foldM prog1 ([], []) edgeBlocks
-          l <- gets msgLog
-          return (roots, l)
-        prog3 :: M2 ()
-        prog3 = do
-          mapM_ flattenRule rules
-          msgs <- flushEvents
-          _ <- solve metaRules msgs
-          return ()
-
-        ((roots, msgs), s2) = runDB (Nothing) emptyDB prog2
-        (_, s3) = runDB Nothing emptyDB prog3
-        result = db s2
-        ruleEmbedding = db s3
-        resultTrees = map (makeTree (removed_tuples result) (allTuples result)) roots
-
-    return (msgs, rules, externalInputs, result, resultTrees, defaultGas - gas s2, ruleEmbedding)
-
-  where
-
 --TODO fix
 --parseCommand str =
 --  case runParser int_ str of
@@ -132,7 +80,9 @@ runProgram start_marker edgeName ruleName = do
 -- repl1 = runRepl "start_game" "graph.txt" "rules.arrow" >> return ()
 
 runTextDemo start_marker edgeFile ruleFile do_print = do
-    (msgLog, rules, externalInputs, result, resultTrees, gas, ruleEmbedding) <- runProgram start_marker edgeFile ruleFile
+    (msgLog, rules, externalInputs, result, outputs, roots, gas, ruleEmbedding) <- runProgram start_marker edgeFile ruleFile
+
+    let resultTrees = map (makeTree (removed_tuples result) (allTuples result)) roots
 
     putStrLn "imperative relations:"
     mapM_ (putStrLn . ("  " ++) . show) $ allRelations rules `diffList` logicalRelations rules

@@ -2,6 +2,7 @@
 dist/
 tags
 main.*
+arrow-profile.*
 examples/test.arrow
 examples/test.graph
 notes

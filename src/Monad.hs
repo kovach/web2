@@ -32,6 +32,8 @@ emptyDB = initDB []
 data InterpreterState = IS
   { db :: DB
   , new_unprocessed :: [Msg]
+  , out_unprocessed :: [Msg]
+  -- TODO juse use [String] ?
   , msgLog :: [Msg]
   , gas :: Int
   }
@@ -39,9 +41,10 @@ data InterpreterState = IS
 type M2 = State InterpreterState
 
 defaultGas = 300
-emptyS2 = IS emptyDB [] [] defaultGas
-makeS2 db gas = IS db [] [] gas
+emptyS2 = IS emptyDB [] [] [] defaultGas
+makeS2 db gas = IS db [] [] [] gas
 
+runDB :: Maybe Int -> DB -> M2 a -> (a, InterpreterState)
 runDB mgas db m = runState m (makeS2 db (fromMaybe defaultGas mgas))
 
 useGas :: M2 ()
@@ -57,6 +60,9 @@ withGas f = do
 logMsg :: Msg -> M2 ()
 logMsg m = modify $ \s -> s { msgLog = m : msgLog s }
 
+outputMsg :: Msg -> M2 ()
+outputMsg m = modify $ \s -> s { out_unprocessed = m : out_unprocessed s }
+
 moddb :: (DB -> DB) -> M2 ()
 moddb f = modify $ \s -> s { db = f (db s) }
 
@@ -71,6 +77,13 @@ flushEvents = do
   es <- gets new_unprocessed
   modify $ \s -> s { new_unprocessed = [] }
   return es
+
+--TODO remove
+--flushOutput :: M2 [Msg]
+--flushOutput = do
+--  es <- gets out_unprocessed
+--  modify $ \s -> s { out_unprocessed = [] }
+--  return es
 
 packTuple :: RawTuple -> Provenance -> M2 Tuple
 packTuple (rel, ns) p = do
@@ -94,3 +107,22 @@ scheduleAdd t = modify $ \s -> s { new_unprocessed = MT Positive t : new_unproce
 
 scheduleDel :: Tuple -> M2 ()
 scheduleDel t = modify $ \s -> s { new_unprocessed = MT Negative t : new_unprocessed s }
+
+netOutput :: InterpreterState -> [Msg]
+netOutput = removeOpposites pair . out_unprocessed
+  where
+    pair (MT p t) (MT p' t') = p == neg p' && t == t'
+    pair _ _ = False
+
+removeOpposites op ms = step ms
+  where
+    seekf x [] = Nothing
+    seekf x (y:ys) | x `op` y = Just ys
+    seekf x (y:ys) = do
+      ys' <- seekf x ys
+      return (y:ys')
+    step (m:ms) =
+      case seekf m ms of
+        Nothing -> m : step ms
+        Just ms' -> step ms'
+    step [] = []

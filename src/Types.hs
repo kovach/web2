@@ -120,7 +120,6 @@ data Provenance = Provenance
   , consumed :: Consumed
   } deriving (Eq, Show, Ord)
 
-
 nullProv :: Provenance
 nullProv = Provenance nullRule Nothing [] []
 
@@ -133,7 +132,7 @@ ppEvent (EFalse f) = "-"++ppFact f
 ppEvents = intercalate ", " . map ppEvent
 
 ppMatch :: Provenance -> String
-ppMatch (Provenance{..}) = "("++maybe "" ppEvent tuple_src ++") "++ppEvents matched
+ppMatch (Provenance{..}) = "["++maybe "" ppEvent tuple_src ++"] "++ppEvents matched
 
 type RawTuple = (Label, [Node])
 type Fact = RawTuple
@@ -254,7 +253,7 @@ type LHS = [Query]
 type RHS = [Assert]
 
 data Rule
-  = Rule { lhs :: LHS, rhs :: RHS }
+  = Rule  { lhs :: LHS, rhs :: RHS }
   | LRule { lhs :: LHS, rhs :: RHS }
   deriving (Eq, Show, Ord)
 

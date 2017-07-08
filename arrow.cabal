@@ -12,17 +12,23 @@ maintainer:          dskovach@gmail.com
 -- copyright:
 category:            Language
 build-type:          Simple
-extra-source-files:  ChangeLog.md
 cabal-version:       >=1.10
 
-executable main
+library
   hs-source-dirs:      src
-  main-is:             Main.hs
-  -- exposed-modules:     Repl, Monad, Types, Graph, Index, Rules, Parser
-  other-modules:       Expr, Reflection, Parse
-  build-depends:       base >=4.9 && <4.10, random >=1.1 && <1.2, containers ==0.5.7.1 && <0.6,
+  exposed-modules:     Monad, Types, Graph, Rules, Parser, FactIndex, Update, Reflection, Convert
+  other-modules:       Expr, Parse, Index
+  build-depends:       base >=4.9 && <4.10, random >=1.1 && <1.2, containers==0.5.7.1,
                        ansi-terminal >=0.6 && <0.7, mtl
-                       -- , text, text-server
+  default-language:    Haskell2010
+  other-extensions:    TupleSections, OverloadedStrings
+  ghc-options:         -fwarn-unused-binds
+
+executable arrow-profile
+  hs-source-dirs:      test
+  main-is:             Main.hs
+  build-depends:       arrow, base >=4.9 && <4.10, random >=1.1 && <1.2, containers==0.5.7.1,
+                       ansi-terminal >=0.6 && <0.7, mtl, text
   default-language:    Haskell2010
   other-extensions:    TupleSections, OverloadedStrings
   ghc-options:         -fwarn-unused-binds
@@ -33,5 +39,7 @@ executable main
 executable server
   hs-source-dirs:     server
   main-is:            Main.hs
-  build-depends:      text-server, base >=4.8, text, containers ==0.5.7.1 && <0.6, bytestring, mtl
+  build-depends:      arrow, base >=4.8, containers==0.5.7.1, mtl,
+                      wai, wai-app-static, wai-websockets, websockets, warp,
+                      text, bytestring, aeson
   default-language:    Haskell2010
