@@ -138,8 +138,8 @@ a database; otherwise it is *false*.
 *Imperative rules* are marked with the `=>` arrow. They are free to *consume*
 events matched by their query and *construct* new events.
 
-To consume a tuple, an imperative rule marks some pattern in its query with the
-`..` marker. The pattern clause is said to be *linear*.
+To consume an event, an imperative rule marks some pattern in its query with
+the `..` marker. The pattern clause is said to be *linear*.
 
   > example [(Go):](https://github.com/kovach/web2/blob/86b7f2ff04287f57d513eb2a769067526a18f1f8/examples/go.arrow#L24)
   > ```
@@ -166,7 +166,7 @@ the query).
 The variable `s` on the right hand side is unbound. To create this tuple, the
 interpreter generates a fresh node value and binds it to that slot.
 
-Fresh nodes are guaranteed to be distinct from any other value in the database.
+Fresh nodes are guaranteed to be distinct from every other value in the database.
 
 ### Facts
 *Logical rules* are marked by the `~>` arrow. The query of a logical rule
@@ -175,7 +175,7 @@ specified by its assertion. The facts implied by a particular match of a
 logical rule are called the `consequent` of the match.  The true facts in a
 database are expected to form a minimal model for its logical rules at any
 point in time, so if some tuple used by a match later leaves the database, its
-consequent will become unsupported.
+consequent may become unsupported.
 
 For example, we can define a relation `path-to/2` for nontrivial paths in a graph:
 

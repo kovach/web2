@@ -108,7 +108,7 @@
 <p><em>Facts</em> are tuples that belong to a logical relation. They are actively added and removed so as to form a <a href="https://en.wikipedia.org/wiki/Stable_model_semantics">stable model</a> for the program's logical rules. A fact is <em>true</em> if its tuple is currently present in a database; otherwise it is <em>false</em>.</p>
 <h3 id="events">Events</h3>
 <p><em>Imperative rules</em> are marked with the <code>=&gt;</code> arrow. They are free to <em>consume</em> events matched by their query and <em>construct</em> new events.</p>
-<p>To consume a tuple, an imperative rule marks some pattern in its query with the <code>..</code> marker. The pattern clause is said to be <em>linear</em>.</p>
+<p>To consume an event, an imperative rule marks some pattern in its query with the <code>..</code> marker. The pattern clause is said to be <em>linear</em>.</p>
 <blockquote>
 <p>example <a href="https://github.com/kovach/web2/blob/86b7f2ff04287f57d513eb2a769067526a18f1f8/examples/go.arrow#L24">(Go):</a></p>
 <pre><code>dying s, ..stone s l _ =&gt; empty l &#39;black, empty l &#39;white</code></pre>
@@ -122,9 +122,9 @@
 <pre><code>..make-stone loc color, ..empty loc color =&gt; stone s loc color</code></pre>
 </blockquote>
 <p>The variable <code>s</code> on the right hand side is unbound. To create this tuple, the interpreter generates a fresh node value and binds it to that slot.</p>
-<p>Fresh nodes are guaranteed to be distinct from any other value in the database.</p>
+<p>Fresh nodes are guaranteed to be distinct from every other value in the database.</p>
 <h3 id="facts">Facts</h3>
-<p><em>Logical rules</em> are marked by the <code>~&gt;</code> arrow. The query of a logical rule defines a precondition which is sufficient to conclude some set of facts specified by its assertion. The facts implied by a particular match of a logical rule are called the <code>consequent</code> of the match. The true facts in a database are expected to form a minimal model for its logical rules at any point in time, so if some tuple used by a match later leaves the database, its consequent will become unsupported.</p>
+<p><em>Logical rules</em> are marked by the <code>~&gt;</code> arrow. The query of a logical rule defines a precondition which is sufficient to conclude some set of facts specified by its assertion. The facts implied by a particular match of a logical rule are called the <code>consequent</code> of the match. The true facts in a database are expected to form a minimal model for its logical rules at any point in time, so if some tuple used by a match later leaves the database, its consequent may become unsupported.</p>
 <p>For example, we can define a relation <code>path-to/2</code> for nontrivial paths in a graph:</p>
 <pre><code>adj-to x y ~&gt; path-to x y
 adj-to x y, path-to y z ~&gt; path-to x z</code></pre>
