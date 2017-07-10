@@ -225,11 +225,12 @@ step (s@S{queues, localDB}) =
         (dbl', output) <- step4 events rule dbl2
         -- record
         commitMsgs output
-        unless (null output) $ do
+        unless False $ do
+        --unless (null output) $ do
           logMsg "---\ninputs:"
           mapM_ (logMsg . ("  "++) . ppMsg) msgs
           logMsg (show rule)
-          mapM_ (logMsg . ("  "++) . ppMsg) msgs
+          mapM_ (logMsg . ("  "++) . ppMsg) output
           logMsg "---end---"
         let s1 = s
               -- empty rule's queue
