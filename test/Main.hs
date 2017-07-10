@@ -4,6 +4,7 @@ module Main where
 
 import System.Console.ANSI
 import Data.List (sort, sortOn, intercalate)
+import Control.Monad (unless)
 --import System.Console.Readline
 
 import Types
@@ -110,7 +111,7 @@ runTextDemo start_marker edgeFile ruleFile do_print = do
     -- SWITCH:
     if False then do
       putStrLn "msg log:"
-      mapM_ (putStrLn . ppMsg) $ reverse msgLog
+      mapM_ (putStrLn) $ reverse msgLog
       else return ()
 
     green
@@ -133,6 +134,11 @@ runTextDemo start_marker edgeFile ruleFile do_print = do
 
     putStrLn "steps used:"
     print $ gas
+
+    unless (gas < defaultGas) $ do
+      red
+      putStrLn "WARNING exhausted gas"
+      white
 
     putStrLn "msgs sent:"
     print $ length msgLog

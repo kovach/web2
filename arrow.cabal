@@ -2,7 +2,7 @@
 --  see http://haskell.org/cabal/users-guide/
 
 name:                arrow
-version:             0.1.0.0
+version:             0.2.0.0
 -- synopsis:
 -- description:
 license:             MIT
@@ -36,9 +36,10 @@ executable arrow-profile
                        -fprof-auto
                        "-with-rtsopts=-p -s -h -i0.1 -xc"
 
-executable server
+executable arrow-server
   hs-source-dirs:     server
   main-is:            Main.hs
+  other-modules:      BroadcastServer
   build-depends:      arrow, base >=4.8, containers==0.5.7.1, mtl,
                       wai, wai-app-static, wai-websockets, websockets, warp,
                       text, bytestring, aeson

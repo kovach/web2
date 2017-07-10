@@ -67,14 +67,12 @@ updateDB (MT Negative t) db = db { tuples = removeTuple t (tuples db)
                                  , removed_tuples = t : removed_tuples db }
 updateDB f db = db { facts = updateFact f (facts db) }
 
-commitMsgs :: Maybe Rule -> [Msg] -> M2 ()
-commitMsgs _ [] = return ()
-commitMsgs mr msgs = do
+commitMsgs :: [Msg] -> M2 ()
+commitMsgs [] = return ()
+commitMsgs msgs = do
   d <- gets db
   let db' = foldr updateDB d msgs
   moddb $ const db'
-  logMsg (NULL mr)
-  mapM_ logMsg msgs
   mapM_ outputMsg msgs
 
 -- ~~~~~~~~~~~~~~~~~~~~~~~~~ --
@@ -128,7 +126,7 @@ step2 msgs fs0 = (fs0', events)
 
     -- these are proofs that need to be recorded but aren't part of any event;
     -- without this rule for fs0', they would be lost
-    msgs' = filter (not . (`elem` (map elabel fevents)) . mlabel) proofs
+    msgs' = filter (not . (`elem` (map efact fevents)) . mfact) proofs
     fs0' = foldr updateFact fs0 msgs'
 
 dependent' :: Event -> Provenance -> Bool
@@ -166,7 +164,7 @@ step3 :: Event -> Rule -> IS -> M2 IS
 step3 ev rule (es, (g, fs, me), out) =
   case rule of
     Rule lhs rhs -> do
-        mapM_ applyMatch $  matches
+        mapM_ applyMatch $ matches
         new <- flushEvents
         let g2 = foldr removeConsumed g1 new
         return (es', (g2, fs', me), new ++ out1)
@@ -219,15 +217,20 @@ step (s@S{queues, localDB}) =
     -- TODO upgrade to 0.5.10, use lookupMin?
     if M.size work == 0 then return Nothing else
     let (rr@(_,rule), msgs) = M.elemAt 0 work
-        dbl1@(g, fs0, me) = look rule localDB
+        (g, fs0, me) = look rule localDB
         (fs1, events) = step2 msgs fs0
         dbl2 = (g, fs1, me)
     in do
-        mapM_ logMsg msgs
         -- eval
         (dbl', output) <- step4 events rule dbl2
         -- record
-        commitMsgs (Just rule) output
+        commitMsgs output
+        unless (null output) $ do
+          logMsg "---\ninputs:"
+          mapM_ (logMsg . ("  "++) . ppMsg) msgs
+          logMsg (show rule)
+          mapM_ (logMsg . ("  "++) . ppMsg) msgs
+          logMsg "---end---"
         let s1 = s
               -- empty rule's queue
               { queues = M.insert rr [] work
@@ -243,7 +246,9 @@ step (s@S{queues, localDB}) =
 solve :: [Rule] -> [Msg] -> M2 S
 solve rs msgs = do
     db <- gets db
-    commitMsgs Nothing msgs
+    logMsg "solve"
+    mapM_ (logMsg . ppMsg) msgs
+    commitMsgs msgs
     let state = initS rs msgs db
     unfoldM state (\s -> withGas (step s))
   where

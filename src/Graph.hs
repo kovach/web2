@@ -110,7 +110,9 @@ solveStep _ _ b@(c, _, _) (QBinOp op v1 v2) =
     op2fn QEq = (==)
     op2fn QDisEq = (/=)
     op2fn QLess = (<)
+    op2fn QLessEq = (<=)
     op2fn QMore = (>)
+    op2fn QMoreEq = (>=)
 
 solveSteps :: Graph -> FactState -> Bindings -> [Query] -> [Bindings]
 solveSteps g fs c es = foldM (solveStep g fs) c es
@@ -119,8 +121,7 @@ solveSteps g fs c es = foldM (solveStep g fs) c es
 getMatches :: Event -> Index -> Graph -> FactState -> [Match]
 getMatches ev ind g fs = takeValid [] $ concatMap step triggers
   where
-    pol = epolarity ev
-    triggers = indLookup (elabel ev, pol) ind
+    triggers = indLookup (elabel ev, epolarity ev) ind
     step :: Trigger -> [Match]
     step (linear, rule@(Rule _ rhs), p, pattern) = result
       where

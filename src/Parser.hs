@@ -20,6 +20,8 @@ hashrel_ = char '#' *> rel_
 ineq_ =
   (token (string "=") *> return QEq) <|>
   (token (string "/=") *> return QDisEq) <|>
+  (token (string "<=") *> return QLessEq) <|>
+  (token (string ">=") *> return QMoreEq) <|>
   (token (string "<") *> return QLess) <|>
   (token (string ">") *> return QMore)
 qbin_ = token $ flip QBinOp <$> token expr_ <*> ineq_ <*> token expr_

@@ -66,24 +66,38 @@ initGoProgram = do
   let (_, _, db1, msgs, _) = runProgramWithDB edgeBlocks allRules
   return (allRules, db1, msgs)
 
-handler msg s0@(State rules db0) =
+init110Program = do
+  (edgeBlocks, rules, _) <- loadProgram "110.graph" "110.arrow"
+  let allRules = rules
+  let (_, _, db1, msgs, _) = runProgramWithDB edgeBlocks allRules
+  return (allRules, db1, msgs)
+
+handler init msg s0@(State rules db0) =
   case decodeCommand msg of
     Just Reset -> do
-      (rules', db1, msgs) <- initGoProgram
+      (rules', db1, msgs) <- init
       -- TODO rename step2
       let (_, outputEvents) = step2 msgs emptyFS
-      putStrLn "got reset"
+      mapM_ (putStrLn . ppEvent) outputEvents
+      putStrLn "reset"
       return (Just (encodeEvents outputEvents), (State rules' db1))
     Just c -> do
-      putStrLn "got event"
+      putStrLn "parsed event"
       let
         (_, is) = runDB Nothing db0 $ do
-          t <- packTuple (parseCommand c) nullProv
-          let msg = MT Positive t
+          --let msg = MT Positive t
+          msg <- case c of
+                  Hover _ -> return $ MF Positive (parseCommand c) EXTERN
+                  UnHover _ -> return $ MF Negative (parseCommand c) EXTERN
+                  Click _ _ -> do
+                    t <- packTuple (parseCommand c) nullProv
+                    return $ MT Positive t
           solve rules [msg]
         outputMsgs = netOutput is
+
         (_, outputEvents) = step2 outputMsgs (facts db0)
         db1 = db is
+      --mapM_ (putStrLn . ppEvent) outputEvents
       return (Just (encodeEvents outputEvents), State rules db1)
     Nothing -> do
       putStrLn "decode failed"
@@ -92,4 +106,4 @@ handler msg s0@(State rules db0) =
 main = do
   let rules = []
       db = emptyDB
-  runServer (State rules db) handler
+  runServer (State rules db) (handler initGoProgram)

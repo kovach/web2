@@ -93,6 +93,8 @@ elabel :: Event -> Label
 elabel (E _ t) = label t
 elabel (EFact (l, _) _) = l
 elabel (EFalse (l, _)) = l
+efact :: Event -> Fact
+efact e = (elabel e, enodes e)
 enodes :: Event -> [Node]
 enodes (E _ t) = nodes t
 enodes (EFact (_, ns) _) = ns
@@ -118,7 +120,9 @@ data Provenance = Provenance
   , matched :: Dependency
   -- Tuples removed from the world by this match instance
   , consumed :: Consumed
-  } deriving (Eq, Show, Ord)
+  }
+  | EXTERN -- TODO ??
+  deriving (Eq, Show, Ord)
 
 nullProv :: Provenance
 nullProv = Provenance nullRule Nothing [] []
@@ -185,7 +189,7 @@ data NodeVar = NVal Node | NVar Name | NHole
 instance IsString NodeVar where
   fromString = NVar
 
-data Op = QEq | QDisEq | QLess | QMore
+data Op = QEq | QDisEq | QLess | QMore | QLessEq | QMoreEq
   deriving (Eq, Show, Ord)
 
 data Dot = High | Low
@@ -293,6 +297,9 @@ mprov (MF _ _ p) = p
 
 mlabel (MT _ t) = label t
 mlabel (MF _ (l, _) _) = l
+
+mfact (MT _ t) = (label t, nodes t)
+mfact (MF _ f _) = f
 
 -- Utilities
 pad n s = s ++ replicate (n - length s) ' '

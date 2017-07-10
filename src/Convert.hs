@@ -111,7 +111,7 @@ runProgramWithDB edgeBlocks rules =
           msgs <- flushEvents
           _ <- solve rules msgs
           return (t:ts, c')
-      prog2 :: M2 ([Tuple], [Msg])
+      prog2 :: M2 ([Tuple], [String])
       prog2 = do
         (roots, _) <- foldM prog1 ([], []) edgeBlocks
         l <- gets msgLog

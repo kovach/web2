@@ -34,7 +34,7 @@ data InterpreterState = IS
   , new_unprocessed :: [Msg]
   , out_unprocessed :: [Msg]
   -- TODO juse use [String] ?
-  , msgLog :: [Msg]
+  , msgLog :: [String]
   , gas :: Int
   }
 
@@ -57,7 +57,7 @@ withGas f = do
     useGas
     f
 
-logMsg :: Msg -> M2 ()
+logMsg :: String -> M2 ()
 logMsg m = modify $ \s -> s { msgLog = m : msgLog s }
 
 outputMsg :: Msg -> M2 ()
