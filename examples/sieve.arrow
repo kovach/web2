@@ -1,0 +1,10 @@
+go n, n > 1 => number n, marked n, go (n - 1)
+
+prime k, ..marked k => step k (2 * k)
+step k m,   number m => step k (k + m)
+step k m, ..marked m =>
+
+..consider n, marked n => consider (n + 1), prime n
+..consider n, number n => consider (n + 1)
+
+prime _ ~> prime-count

@@ -2,10 +2,10 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import System.Console.ANSI
 import Data.List (sort, sortOn, intercalate)
 import Control.Monad (unless)
 --import System.Console.Readline
+import System.Console.ANSI
 
 import Types
 import FactIndex
@@ -14,7 +14,6 @@ import Graph
 import Rules
 import Reflection
 import Convert
-
 
 import Debug.Trace
 
@@ -81,7 +80,8 @@ printTree rules = p 0
 -- repl1 = runRepl "start_game" "graph.txt" "rules.arrow" >> return ()
 
 runTextDemo start_marker edgeFile ruleFile do_print = do
-    (msgLog, rules, externalInputs, result, outputs, roots, gas, ruleEmbedding) <- runProgram start_marker edgeFile ruleFile
+    let prefix s = "examples/" ++ s
+    (msgLog, rules, externalInputs, result, outputs, roots, gas, ruleEmbedding) <- runProgram start_marker (prefix edgeFile) (prefix ruleFile)
 
     let resultTrees = map (makeTree (removed_tuples result) (allTuples result)) roots
 
@@ -141,7 +141,7 @@ runTextDemo start_marker edgeFile ruleFile do_print = do
       white
 
     putStrLn "msgs sent:"
-    print $ length msgLog
+    print $ length outputs
 
     return ()
 
@@ -153,4 +153,3 @@ p3 = runTextDemo nullLabel "test.graph" "test.arrow"
 p4 = runTextDemo "start_game" "go.graph" "go.arrow"
 
 main = p4 False
-mn = p4 False

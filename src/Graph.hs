@@ -119,7 +119,7 @@ solveSteps g fs c es = foldM (solveStep g fs) c es
 
 -- Main matching function --
 getMatches :: Event -> Index -> Graph -> FactState -> [Match]
-getMatches ev ind g fs = takeValid [] $ concatMap step triggers
+getMatches ev ind g fs = takeValid [] . concatMap step $ triggers
   where
     triggers = indLookup (elabel ev, epolarity ev) ind
     step :: Trigger -> [Match]
@@ -131,7 +131,8 @@ getMatches ev ind g fs = takeValid [] $ concatMap step triggers
           b <- solvePattern [ev] b0 (epLinear p) (epNodes p)
           -- match remaining clauses
           solveSteps g fs b (S.toList pattern)
-        toMatch (ctxt, consumed, matched) = (Provenance rule (Just ev) matched consumed, ctxt)
+        toMatch (ctxt, consumed, matched) =
+          (Provenance rule (Just ev) matched consumed, ctxt)
         matches = map toMatch cs
         result = case linear of
                     Linear -> removeConflicts matches

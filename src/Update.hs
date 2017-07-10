@@ -19,7 +19,7 @@ import FactIndex
 import Rules
 import Index
 import Monad
-import Graph
+import Graph (getMatches, applyMatch, getLMatches)
 
 import Debug.Trace
 

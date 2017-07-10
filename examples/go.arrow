@@ -25,7 +25,7 @@ dying s, ..stone s l _ => empty l 'black, empty l 'white
 
 # external input: place a stone
 .place-stone color m n, location loc m n, op color other, ..empty loc other => make-stone loc color
-..make-stone loc color, ..empty loc color => stone s loc color
+.make-stone loc color, ..empty loc color => stone s loc color
 
 # performance testing rule:
 board-fill, location _ m n, height max, m < max => place-stone 'black m n

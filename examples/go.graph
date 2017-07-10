@@ -6,6 +6,7 @@ start_game
 # test 1: capture
 #width 2
 #height 2
+#
 #place-stone 'black 1 1
 #place-stone 'black 1 2
 #place-stone 'white 2 1
@@ -15,8 +16,9 @@ start_game
 # test 2: fill the board
 #width 10
 #height 10
+#
 #board-fill
 
-# test 3: empty board
+# default: empty 9x9 board
 width 9
 height 9

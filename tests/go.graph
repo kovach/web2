@@ -1,0 +1,13 @@
+op 'black 'white
+op 'white 'black
+
+start_game
+
+width 2
+height 2
+
+place-stone 'black 1 1
+place-stone 'black 1 2
+place-stone 'white 2 1
+
+place-stone 'white 2 2

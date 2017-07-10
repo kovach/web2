@@ -24,6 +24,7 @@ filterComment = filter (not . null . snd) . zip [1..] . map (takeWhile (/= '#'))
 
 filterComments = lines .> zip [1..] .> blocks .>
                  map (map (second $ takeWhile (/= '#')) .> nonEmpty)
+                 .> filter (not . null)
   where
     blocks [] = []
     blocks xs = let (x, r) = span (not . null . snd) xs in x : blocks (st r)
@@ -87,11 +88,8 @@ runProgram start_marker edgeName ruleName = do
 
     return (msgs, rules, externalInputs, result, outputs, roots, gas, ruleEmbedding)
 
-loadProgram edgeName ruleName = do
-    let prefix = "examples/"
-        edgeFile = prefix ++ edgeName
-        ruleFile = prefix ++ ruleName
-        metaFile = "examples/analysis.arrow"
+loadProgram edgeFile ruleFile = do
+    let metaFile = "examples/analysis.arrow"
 
     edgeBlocks <- readDBFile edgeFile
     rules <- readRules ruleFile

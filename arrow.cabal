@@ -36,6 +36,16 @@ executable arrow-profile
                        -fprof-auto
                        "-with-rtsopts=-p -s -h -i0.1 -xc"
 
+test-suite unit-tests
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      tests
+  main-is:             Main.hs
+  build-depends:       arrow, base >=4.9 && <4.10, random >=1.1 && <1.2, containers==0.5.7.1, ansi-terminal >=0.6 && <0.7
+  default-language:    Haskell2010
+  other-extensions:    TupleSections, OverloadedStrings
+
+
+
 executable arrow-server
   hs-source-dirs:     server
   main-is:            Main.hs
