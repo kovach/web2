@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="docs/docs.css" type="text/css" />
 </head>
 <body>
+<div class=date>modified: July 10, 2017</div>
 <div id="TOC">
 <ul>
 <li><a href="#introduction">Introduction</a></li>
@@ -40,7 +41,7 @@
 <p>An <em>integer</em> is a sequence of digits, possibly preceded by a hyphen to indicate a negative number.</p>
 <p>An <em>identifier</em> is a letter followed by a sequence of alphanumeric characters, hyphens, underscores, or single quotes.</p>
 <p>The following are recognized symbols:</p>
-<pre><code>   =&gt; ~&gt; , . .. ! _ ( ) = /= &lt; &gt; + - *</code></pre>
+<pre><code>   =&gt; ~&gt; , . .. ! _ ( ) = /= &lt; &gt; &lt;= &gt;= + - *</code></pre>
 <p>There are no keywords.</p>
 <h1 id="data-model">Data Model</h1>
 <p>Programs operate on a database of <em>relations</em>. Each relation has a name called its <em>label</em> and a number called its <em>arity</em>. A relation comprises a set of <em>tuples</em>. The elements of a tuple are called <em>values</em>, and the size of a tuple is its relation's arity.</p>
@@ -59,7 +60,7 @@
 <li><code>symbol</code>: an entity with a string representation (<code>'foo</code>)</li>
 <li><code>node</code>: an interpreter-generated entity (printed as <code>#2</code>, for example)</li>
 </ul>
-<p>Values can be compared with the <code>=</code>, <code>/=</code>, <code>&lt;</code>, <code>&gt;</code> operators. Nodes cannot be represented in a program, but they can be created by imperative rules. Nodes are ordered by creation time.</p>
+<p>Values can be compared with the <code>=</code>, <code>/=</code>, <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code> operators. Nodes cannot be represented in a program, but they can be created by imperative rules. Nodes are ordered by creation time.</p>
 <h1 id="rules">Rules</h1>
 <p>A rule has two sides, the <em>query</em> and the <em>assertion</em>. They are separated by either the logical arrow <code>~&gt;</code> or the imperative arrow <code>=&gt;</code>; this marks the rule type. In either case, the query and assertion are both a series of <code>clauses</code> separated by commas.</p>
 <p>A query represents a pattern matching procedure. If the procedure can be successfully applied to the database, the rule is said to <em>match</em>, and the assertion indicates a certain transformation to perform. Query matches are computed the same way for either rule type.</p>
@@ -100,7 +101,7 @@
 </ul>
 <h3 id="constraints">Constraints</h3>
 <ul>
-<li><code>x = y</code>, <code>x /= y</code>, <code>x &lt; y</code>, and <code>x &gt; y</code> are constraints, with <code>x</code> and <code>y</code> values, algebraic expressions, or identifiers. Identifiers must be bound elsewhere in the query, and a constraint matches if the inequality holds. Algebraic expressions consist of <code>+</code>, <code>-</code>, and <code>*</code>, and they apply only to integers. See <a href="https://github.com/kovach/web2/blob/master/examples/factorial.arrow">factorial.arrow</a> for an example of arithmetic.</li>
+<li><code>x = y</code>, <code>x /= y</code>, <code>x &lt; y</code>, <code>x &lt;= y</code>, <code>x &gt; y</code>, and <code>x &gt;= y</code> are constraints, with <code>x</code> and <code>y</code> values, algebraic expressions, or identifiers. Identifiers must be bound elsewhere in the query, and a constraint matches if the inequality holds. Algebraic expressions consist of <code>+</code>, <code>-</code>, and <code>*</code>, and they apply only to integers. See <a href="https://github.com/kovach/web2/blob/master/examples/factorial.arrow">factorial.arrow</a> for an example of arithmetic.</li>
 </ul>
 <h2 id="assertions">Assertions</h2>
 <p>The effect of a rule match is to change the database by adding or removing certain tuples named by the rule.</p>

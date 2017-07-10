@@ -29,7 +29,7 @@ characters, hyphens, underscores, or single quotes.
 The following are recognized symbols:
 
 ```
-   => ~> , . .. ! _ ( ) = /= < > + - *
+   => ~> , . .. ! _ ( ) = /= < > <= >= + - *
 ```
 
 There are no keywords.
@@ -62,9 +62,9 @@ There are currently three types of values:
   - `symbol`: an entity with a string representation (`'foo`)
   - `node`: an interpreter-generated entity (printed as `#2`, for example)
 
-Values can be compared with the `=`, `/=`, `<`, `>` operators.  Nodes cannot be
-represented in a program, but they can be created by imperative rules. Nodes
-are ordered by creation time.
+Values can be compared with the `=`, `/=`, `<`, `>`, `<=`, `>=` operators.
+Nodes cannot be represented in a program, but they can be created by imperative
+rules. Nodes are ordered by creation time.
 
 # Rules
 A rule has two sides, the *query* and the *assertion*. They are separated by
@@ -111,11 +111,11 @@ relation.
 
 ### Constraints
 
-- `x = y`, `x /= y`, `x < y`, and `x > y` are constraints, with `x` and `y`
-  values, algebraic expressions, or identifiers.  Identifiers must be bound
-  elsewhere in the query, and a constraint matches if the inequality holds.
-  Algebraic expressions consist of `+`, `-`, and `*`, and they apply only to
-  integers.  See
+- `x = y`, `x /= y`, `x < y`, `x <= y`, `x > y`, and `x >= y` are constraints,
+  with `x` and `y` values, algebraic expressions, or identifiers.  Identifiers
+  must be bound elsewhere in the query, and a constraint matches if the
+  inequality holds.  Algebraic expressions consist of `+`, `-`, and `*`, and
+  they apply only to integers.  See
   [factorial.arrow](https://github.com/kovach/web2/blob/master/examples/factorial.arrow)
   for an example of arithmetic.
 

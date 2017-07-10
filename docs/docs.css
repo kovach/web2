@@ -24,3 +24,9 @@ pre {
   padding: 8px;
 	background: #f0f0f0;
 }
+
+.date {
+  font-weight: bold;
+  color: #d38;
+  margin: 10px;
+}

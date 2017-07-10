@@ -1,2 +1,2 @@
 index.html: index.md
-	pandoc --toc index.md -o ../index.html -c docs/docs.css
+	pandoc --template=template.html --toc index.md -o ../index.html -c docs/docs.css -V date="`date +\"%B %e, %Y\"`"
