@@ -1,0 +1,10 @@
+op 'black 'white
+op 'white 'black
+
+start_game
+
+# fill the board
+width 10
+height 10
+
+board-fill
