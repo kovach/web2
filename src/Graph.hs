@@ -50,9 +50,11 @@ applyLookup (NVar n) c = do
 applyLookup NHole c = do
   v <- freshNode
   return (v, c)
+applyLookup (NVal v) c = return (v, c)
 
 -- process all unification instances for a given tuple
 edgeMatch :: Context -> [NodeVar] -> [Node] -> Maybe Context
+-- TODO check this statically
 edgeMatch c vs nodes | length nodes /= length vs = error $ "relation/pattern arity mismatch! tuple involved:" ++ show nodes
 edgeMatch c vs nodes =
     foldM matchStep c $ zip nodes vs
@@ -79,13 +81,12 @@ solvePattern es (ctxt, bound, deps) linear nvs =
 
 solveStep :: Graph -> FactState -> Bindings -> Query -> [Bindings]
 solveStep g _ b@(c, bound, deps) (Query _ (EP linear unique e vs)) =
-    handleUnique $ solvePattern (map toEvent $ constrainRelation e g) b linear vs
+    solvePattern (map toEvent $ constrainRelation e g) b linear vs
   where
     --TODO remove
     --handleUnique = if unique == Unique then safeInit else id
-    handleUnique = id
-    safeInit [] = []
-    safeInit (x:_) = [x]
+    --safeInit [] = []
+    --safeInit (x:_) = [x]
 
 solveStep _ fs b@(c, bound, deps) q@(Query _ (LP polarity e ns)) =
   case polarity of
@@ -100,6 +101,7 @@ solveStep _ fs b@(c, bound, deps) q@(Query _ (LP polarity e ns)) =
   where
     es = toEvents e fs
     raw (EFact f _) = f
+    raw _ = error "raw expects EFact"
 
 solveStep _ _ b@(c, _, _) (QBinOp op v1 v2) =
     case (matchLookup (reduce c v1) c, matchLookup (reduce c v2) c) of
@@ -133,6 +135,7 @@ getMatches ev rule g fs = takeValid [] . map toMatch . go $ triggers
 
     pat (_,_,p,_) = p
 
+    stepn [] = [] -- shouldn't happen
     stepn (t@(_,_,p,pattern):ts) = bindings
       where
         -- 1. Partition the query into
@@ -149,7 +152,7 @@ getMatches ev rule g fs = takeValid [] . map toMatch . go $ triggers
         bindings = do
           b1 <- foldM (\b (Query _ p) ->
                         solvePattern [ev] b (epLinear p) (epNodes p)) b0 p1
-          solveSteps g fs b1 (S.toList p2)
+          solveSteps g fs b1 (S.toAscList p2)
 
     toMatch (ctxt, consumed, matched) =
       (Provenance rule (Just ev) matched consumed, ctxt)

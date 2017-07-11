@@ -73,7 +73,7 @@ freshNode :: M2 Node
 freshNode = do
   c <- gets (node_counter . db)
   moddb $ \s -> s { node_counter = c + 1 }
-  return (NTRef c)
+  return (NNode c)
 
 flushEvents :: M2 [Msg]
 flushEvents = do
@@ -123,6 +123,7 @@ removeOpposites ms = fix s ++ proofs
     split f@(MF _ _ _) = Right f
     (tuples, proofs) = partitionEithers $ map split ms
     op (MT p t) = MT (neg p) t
+    op _ = error "op expects MT"
 
     fix s = S.toList $ foldr annihilate (S.fromList tuples) tuples
 

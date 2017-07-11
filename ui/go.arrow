@@ -1,10 +1,26 @@
-# additional rules for Go GUI
+# rules for game start
+choose e 'black ~> elem e, color e 'black, x-rank e 1, y-rank e 1, size e 22
+choose e 'white ~> elem e, color e 'white, x-rank e 2, y-rank e 1, size e 22
 
-location l m n ~> elem l, x-rank l n, y-rank l m, color l 'empty, size l 9
-stone s l c, location l m n ~> elem s, x-rank s n, y-rank s m, color s c, size s 12
+create-game => choose a 'black, choose b 'white
 
-click l 'left, location l m n => place-stone 'black m n
-click l 'right, location l m n => place-stone 'white m n
+click id e _, ..choose e c => player id c
+
+player p1 'black, player p2 'white => begin-game, turn 'black
+
+begin-game => width 9, height 9
+
+
+# rules for Go GUI
+
+location l m n ~> elem l, x-rank l n, y-rank l (m+1), color l 'empty, size l 9
+stone s l c, location l m n ~> elem s, x-rank s n, y-rank s (m+1), color s c, size s 12
+
+.click p l 'left, location l m n, player p color, turn color => place-stone color m n
+
+.make-stone _ color, ..turn color, op color other => turn other
+
+elem l1, elem l2, adjacent l1 l2 ~> line-to l1 l2
 
 # TODO string parser/value type
 #stone s _ 'black ~> color s "#000"

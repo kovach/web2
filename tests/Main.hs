@@ -52,12 +52,13 @@ runTest (label, rules, input, output) = do
           , steps_used = gas
           , msgs_sent = length outputs
           }
+  putStrLn ("\ntest case: " ++ label)
   if (t == output)
     then do
-      putStrLn ("\nsuccess on case: " ++ label)
+      putStrLn ("success: " ++ label)
       return True
     else do
-      putStrLn ("\nfailure on case: " ++ label ++ "\noutput:")
+      putStrLn ("failure: " ++ label ++ "\noutput:")
       print t
       putStrLn "expected:"
       print output

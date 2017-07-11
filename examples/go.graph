@@ -1,24 +1,6 @@
 op 'black 'white
 op 'white 'black
 
-start_game
-
-# test 1: capture
-#width 2
-#height 2
-#
-#place-stone 'black 1 1
-#place-stone 'black 1 2
-#place-stone 'white 2 1
-#
-#place-stone 'white 2 2
-
-# test 2: fill the board
-#width 10
-#height 10
-#
-#board-fill
-
 # default: empty 9x9 board
 width 9
 height 9

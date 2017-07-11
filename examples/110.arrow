@@ -21,5 +21,6 @@ mk-elem id t p 0 ~> mk-elem-color id t p 'black
 mk-elem id t p 1 ~> mk-elem-color id t p 'white
 mk-elem-color id t p col ~> elem id, x-rank id (p+1), y-rank id t, color id col, size id 6
 
-.click v 'left,  ..ival v _ => ival v 1
-.click v 'right, ..ival v _ => ival v 0
+# TODO: there is a bug here when `.` is used?
+..click _ v _,  ..ival v 1 => ival v 0
+..click _ v _,  ..ival v 0 => ival v 1

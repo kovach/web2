@@ -103,6 +103,7 @@ evKey ev =
 updateFact :: Msg -> FactState -> FactState
 updateFact (MF Positive f pr) s = updateAdd f pr s
 updateFact (MF Negative f pr) s = updateRem f pr s
+updateFact _ s = s
 
 updateAdd f pr (FS ind fs) = (FS m1 m2)
   where

@@ -17,14 +17,13 @@ import Convert
 
 import Debug.Trace
 
-data PTree = Node Bool Tuple [PTree] | RNode Tuple
+data PTree = Node Bool Tuple [PTree]
 
 makeTree :: [Tuple] -> [Tuple] -> Tuple -> PTree
 makeTree dead ts root@(T{})=
   let fe (E _ t) = Just t
       fe _ = Nothing
-      cs = sortOn (tid) $ filter ((== (Just $ Just root)) . fmap fe . tuple_src . source) ts
-      --cs = sortOn (negate . tid) $ filter ((== (Just $ Just root)) . fmap fe . tuple_src . source) ts
+      cs = sortOn tid $ filter ((== (Just $ Just root)) . fmap fe . tuple_src . source) ts
   in Node (root `elem` dead) root (map (makeTree dead ts) cs)
 
 data IOMarker = Input | Output | Internal | Ignored
@@ -152,4 +151,6 @@ p2 = runTextDemo "start_turn" "game2.graph" "game2.arrow"
 p3 = runTextDemo nullLabel "test.graph" "test.arrow"
 p4 = runTextDemo "start_game" "go.graph" "go.arrow"
 
-main = runTextDemo "start_game" "go_stress.graph" "go.arrow" False
+main = do
+  putStrLn "starting test"
+  runTextDemo "start_game" "go_stress.graph" "go.arrow" False

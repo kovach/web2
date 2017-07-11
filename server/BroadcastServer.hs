@@ -32,7 +32,7 @@ data SS a = SS
 
 initSS a = SS { count = 0, clients = [], world = a }
 
-type Handler a = Data -> a -> IO (Maybe Data, a)
+type Handler a = Id -> Data -> a -> IO (Maybe Data, a)
 type Data = ByteString
 
 broadcast :: Id -> Data -> [Client] -> IO ()
@@ -41,18 +41,19 @@ broadcast id msg clients = do
   where
     send (id', conn) = WS.sendTextData conn msg
 
-sendData :: Id -> Data -> MVar (SS a) -> IO ()
-sendData id text state = do
-  SS {clients = cs} <- readMVar state
-  let Just conn = lookup id cs
-  WS.sendTextData conn text
+-- TODO delete?
+--sendData :: Id -> Data -> MVar (SS a) -> IO ()
+--sendData id text state = do
+--  SS {clients = cs} <- readMVar state
+--  let Just conn = lookup id cs
+--  WS.sendTextData conn text
 
 talk :: Id -> WS.Connection -> MVar (SS t) -> Handler t -> IO ()
 talk id conn state handler = forever $ do
   msg <- WS.receiveData conn
   unless noDebug $ T.putStrLn $ "got: " `mappend` (T.toStrict $ T.decodeUtf8 $ msg)
   SS {clients = cs, world = a} <- readMVar state
-  (m, a') <- handler msg a
+  (m, a') <- handler id msg a
   modifyMVar_ state $ \s -> return $ s {world = a'}
   maybe (return ()) (\m -> broadcast id m cs) m
 

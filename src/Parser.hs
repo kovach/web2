@@ -1,3 +1,6 @@
+-- TODO
+-- string parser
+--  will have to fix filterComment(s) in Convert
 module Parser where
 
 import Data.Char (isSpace)
@@ -11,7 +14,7 @@ comma_ = tstr ","
 symbol_ = char '\'' *> (many (digit <|> alpha <|> anyChar "_-"))
 identifier = (:) <$> alpha <*> many (digit <|> alpha <|> anyChar "_-'")
 hole_ = token $ char '_'
-q_ = (NVal <$> ((NTNamed <$> symbol_) <|> (NTInt <$> int_)))
+q_ = (NVal <$> ((NSymbol <$> symbol_) <|> (NInt <$> int_)))
      <|> (NVar <$> identifier)
      <|> (pure NHole <* hole_)
 rel_ = token $ L <$> identifier

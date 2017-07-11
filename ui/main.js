@@ -1,8 +1,11 @@
+/* GLOBAL STATE */
+var objects = {};
 var sock;
+var max_rank = {x: 0, y: 0};
 
+/* PARAMETERS */
 var radius = 12;
 var boardMargin = 8;
-
 var bdim = 9;
 
 var initSock = function() {
@@ -23,6 +26,14 @@ var initSock = function() {
     //  console.log("hey: ", obj);
     //});
 
+    console.log("msgs received: ", msgs.length);
+
+    //if (msgs.length < 10) {
+    //  _.each(msgs, function(obj) {
+    //    console.log(obj);
+    //  });
+    //}
+
     _.each(msgs, parseTuple);
 
     return;
@@ -35,15 +46,21 @@ var sym = function(str) {
     "contents": str
   };
 }
-var buttonVal = function(i) {
-  return {0:sym("left"), 2:sym("right")}[i] || sym("other");
+var buttonVal = function(code) {
+  switch (code) {
+    case 0:
+      return sym("left");
+    case 2:
+      return sym("right");
+    default:
+      return sym("other");
+  }
 }
 
 var clickCommand = function(id, button) {
   return JSON.stringify({
     "tag": "Click",
-    "ref": { "tag": "NTRef", "contents": id },
-    // TODO check
+    "ref": id,
     "button": buttonVal(button)
   });
 }
@@ -68,8 +85,6 @@ var resetCommand = function() {
   });
 }
 
-var objects = {};
-
 var hasKeys = function(ks, obj) {
   return _.every(ks, function(k) { return k in obj; });
 }
@@ -82,27 +97,46 @@ var get_svg = function() {
   return get("svg-main");
 }
 
+var setObjAttributes = function(obj) {
+  if (defined(obj)) {
+    var e = obj.elem;
+    // TODO: ? use w = get_svg().width.baseVal;
+    var w = 600;
+    var margin = 3*2*radius;
+    var xmax = max_rank["x"];
+    var ymax = max_rank["y"];
+    var xincr = xmax > 1 ? (w-2*margin) / (xmax - 1) : 0;
+    var yincr = ymax > 1 ? (w-2*margin) / (ymax - 1) : 0 ;
+    e.setAttribute("cx", (obj["x"]-1)*xincr + margin);
+    e.setAttribute("cy", (obj["y"]-1)*yincr + margin);
+    e.setAttribute("fill", obj["color"]);
+    e.setAttribute("r", obj["size"]);
+    e.setAttribute("visibility", "visible");
+  }
+}
+
 var set = function(id, k, v) {
+  id = JSON.stringify(id);
   if (!objects[id]) {
     objects[id] = {};
   }
 
   var obj = objects[id];
   obj[k] = v;
+  setObjAttributes(obj);
+}
 
-  var e = obj.elem;
-  if (defined(obj)) {
-    // TODO: ? use w = get_svg().width.baseVal;
-    var w = 600;
-    var off = 10*radius;
-    var incr = (w-2*off) / (bdim - 1);
-    e.setAttribute("cx", (obj["x"]-1)*incr + off);
-    e.setAttribute("cy", (obj["y"]-1)*incr + off);
-    e.setAttribute("fill", obj["color"]);
-    e.setAttribute("r", obj["size"]);
-    e.setAttribute("visibility", "visible");
+var update_rank = function(r, v) {
+  if (v > max_rank[r]) {
+    max_rank[r] = v;
+    _.each(objects, function(obj, id) {
+      if (defined(obj)) {
+        setObjAttributes(obj);
+      }
+    });
   }
 }
+
 var parseTuple = function(t) {
 
   var sign = t[0] === "Positive" ? true : false;
@@ -111,39 +145,41 @@ var parseTuple = function(t) {
 
   switch (label) {
     case "elem":
-      var id = nodes[0].contents;
+      var id = nodes[0];
       if (sign) {
-        //console.log("make elem");
         var elem = mkToken(id, sock);
         set(id, "elem", elem);
         set(id, "size", 0);
       } else {
-        //console.log("remove elem");
-        var elem = objects[id].elem;
+        var elem = objects[JSON.stringify(id)].elem;
         elem.parentNode.removeChild(elem);
       }
       break;
     case "x-rank":
-      var id = nodes[0].contents;
+      var id = nodes[0];
       var n = nodes[1].contents;
+      update_rank("x", n);
       set(id, "x", n);
       break;
     case "y-rank":
-      var id = nodes[0].contents;
+      var id = nodes[0];
       var n = nodes[1].contents;
+      update_rank("y", n);
       set(id, "y", n);
       break;
     case "line-to":
       var id1 = nodes[0].contents;
       var id2 = nodes[1].contents;
+      var elem = mkLine();
+      // TODO set endpoints
       break;
     case "color":
-      var id = nodes[0].contents;
+      var id = nodes[0];
       var color = nodes[1].contents;
-      set(id, "color", color === "black" ? "#444" : color === "empty" ? "#eb6" : "#ddd");
+      set(id, "color", color === "black" ? "#444" : color === "empty" ? "transparent" : "#ddd");
       break;
     case "size":
-      var id = nodes[0].contents;
+      var id = nodes[0];
       var r = nodes[1].contents;
       set(id, "size", r);
       break;

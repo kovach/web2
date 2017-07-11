@@ -10,6 +10,8 @@
 -- scoped relations
 --   when combining blocks of code, need to control sharing
 --   might want to hide/rename tuples
+--   might compartmentalize mutation
+--     blocks see distinct copies of an event; .. consumes local copy
 --   ? might want to separately rename tuple patterns based on side of rule they appear on
 --     allow new rules to mediate between the two
 --
@@ -27,10 +29,11 @@
 --     could implement other reductions, like (map into Int, +);
 --       then the maintenance system in Update becomes an incremental function evaluator
 --
--- parsing: block patterns
+-- syntax: block patterns
 --   allow a lhs/rhs to be split up across multiple lines when enclosed by [ ]
---   could (sort of) replace .graph file with a series of ` => [...]` rules at head of rule file
+--   could (sort of) replace .graph file with a series of ` => [...]` rules in rule file
 
+-- TODO reorg Event/Msg/Tuple/Fact types?
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Types where
@@ -56,7 +59,7 @@ instance Show Label where
 nullLabel = L ""
 
 -- TODO rename constructors
-data Node = NTInt Int | NTRef Int | NTNamed String
+data Node = NInt Int | NNode Int | NSymbol String | NString String
   deriving (Eq, Ord)
 
 type Id = Int
@@ -89,6 +92,7 @@ instance Ord Event where
               _ -> e2
 
 etuple (E _ t) = t
+etuple _ = error "etuple expects E Event"
 elabel :: Event -> Label
 elabel (E _ t) = label t
 elabel (EFact (l, _) _) = l
@@ -110,6 +114,7 @@ type Dependency = [Event]
 type Consumed = [Tuple]
 
 -- An instance of a match
+-- TODO include context bindings?
 data Provenance = Provenance
   -- The rule of this match
   { rule_src :: Rule
@@ -121,7 +126,7 @@ data Provenance = Provenance
   -- Tuples removed from the world by this match instance
   , consumed :: Consumed
   }
-  | EXTERN -- TODO ??
+  | Extern [Int] -- TODO ??
   deriving (Eq, Show, Ord)
 
 nullProv :: Provenance
@@ -137,6 +142,7 @@ ppEvents = intercalate ", " . map ppEvent
 
 ppMatch :: Provenance -> String
 ppMatch (Provenance{..}) = "["++maybe "" ppEvent tuple_src ++"] "++ppEvents matched
+ppMatch (Extern ids) = "[EXTERN: "++show ids++"]"
 
 type RawTuple = (Label, [Node])
 type Fact = RawTuple
@@ -156,12 +162,13 @@ instance Ord Tuple where
   t1 `compare` t2 = tid t1 `compare` tid t2
 
 instance IsString Node where
-  fromString = NTNamed
+  fromString = NSymbol
 
 instance Show Node where
-  show (NTInt i) = show i
-  show (NTRef i) = "#"++show i
-  show (NTNamed s) = "'"++s
+  show (NInt i) = show i
+  show (NNode i) = "#"++show i
+  show (NSymbol s) = "'"++s
+  show (NString s) = show s
 
 type Count = Int
 
@@ -226,6 +233,7 @@ data E = EBinOp NumOp E E
        | ELit Int
        | EVar Name
        | ENamed String
+       | EString String
        | EHole
   deriving (Eq, Show, Ord)
 
@@ -236,10 +244,13 @@ instance Num E where
   (+) = EBinOp Sum
   (*) = EBinOp Mul
   (-) = EBinOp Sub
+  abs _ = error "abs not implemented for Num E"
+  signum  _ = error "signum not implemented for Num E"
 
 -- Left-hand side of rule
 data Query =
   -- nb: the ordering of these constructors is significant
+  --     (S.toAscList in getMatches in Graph)
   --   TODO don't rely on this
   Query Dot EP
   | QBinOp Op E E
@@ -273,7 +284,6 @@ type Trigger = (Linear, Rule, Query, Pattern)
 type Index = Map Signature [Trigger]
 emptyIndex = M.empty
 
-
 type Context = [(Name, Node)]
 type Matched = [Event]
 type Bindings = (Context, Consumed, Matched)
@@ -283,14 +293,13 @@ type Match = (Provenance, Context)
 
 -- TODO remove NULL?
 --   or change msgLog type in Monad
-data Msg = MT Polarity Tuple | MF Polarity Fact Provenance | NULL (Maybe Rule)
+data Msg = MT Polarity Tuple | MF Polarity Fact Provenance
   deriving (Eq, Show, Ord)
 
 ppMsg :: Msg -> String
 ppMsg (MT p t) = ppEvent (E p t)
 ppMsg (MF Positive f pr) = "+"++ppFact f++"<~"++ppMatch pr
 ppMsg (MF Negative f pr) = "-"++ppFact f++"<~"++ppMatch pr
-ppMsg (NULL mr) = "---\n"++show mr ++"\n---"
 
 mprov (MT _ t) = source t
 mprov (MF _ _ p) = p

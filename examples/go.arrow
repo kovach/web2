@@ -1,8 +1,8 @@
 # make the board
-width n => make-columns n
-height n => make-rows n
-make-columns n, n > 0 => col n, make-columns (n - 1)
-make-rows n, n > 0 => row n, make-rows (n - 1)
+width n  => make-cs n
+height n => make-rs n
+make-cs n, n > 0 => col n, make-cs (n - 1)
+make-rs n, n > 0 => row n, make-rs (n - 1)
 
 row m, col n => location l m n
 location l _ _ => empty l 'black, empty l 'white

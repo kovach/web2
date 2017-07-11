@@ -25,7 +25,7 @@ import Debug.Trace
 import Data.Aeson
 import GHC.Generics
 
-data Command = Reset
+data Command = Reset | Connect
              | Hover {ref :: Node} | UnHover {ref :: Node}
              | Click {button :: Node, ref :: Node}
   deriving (Generic, Show)
@@ -45,9 +45,9 @@ instance FromJSON Command where
 
 decodeCommand = decode
 
-parseCommand (Hover n) = ("hover", [n])
-parseCommand (UnHover n) = ("unhover", [n])
-parseCommand (Click {button, ref}) = ("click", [ref, button])
+parseCommand id (Hover n) = ("hover", [NInt id, n])
+parseCommand id (UnHover n) = ("unhover", [NInt id, n])
+parseCommand id (Click {button, ref}) = ("click", [NInt id, ref, button])
 
 convert :: Event -> Maybe (Polarity, Label, [Node])
 convert (E p T{..}) = Just (p, label, nodes)
@@ -59,26 +59,30 @@ encodeEvents = encode . mapMaybe convert
 
 data State = State [Rule] DB
 
+initGoProgram :: IO ([Rule], DB, [Msg])
 initGoProgram = do
-  (edgeBlocks, rules, _) <- loadProgram "go.graph" "go.arrow"
+  (edgeBlocks, rules, _) <- loadProgram "server/go.graph" "examples/go.arrow"
   uiRules <- readRules "ui/go.arrow"
   let allRules = rules ++ uiRules
   let (_, _, db1, msgs, _) = runProgramWithDB edgeBlocks allRules
   return (allRules, db1, msgs)
 
+init110Program :: IO ([Rule], DB, [Msg])
 init110Program = do
-  (edgeBlocks, rules, _) <- loadProgram "110.graph" "110.arrow"
+  (edgeBlocks, rules, _) <- loadProgram "examples/110.graph" "examples/110.arrow"
   let allRules = rules
   let (_, _, db1, msgs, _) = runProgramWithDB edgeBlocks allRules
   return (allRules, db1, msgs)
 
-handler init msg s0@(State rules db0) =
+makeDB = initGoProgram
+
+handler connId msg s0@(State rules db0) =
   case decodeCommand msg of
     Just Reset -> do
-      (rules', db1, msgs) <- init
+      (rules', db1, msgs) <- makeDB
       -- TODO rename step2
       let (_, outputEvents) = step2 msgs emptyFS
-      mapM_ (putStrLn . ppEvent) outputEvents
+      --mapM_ (putStrLn . ppEvent) outputEvents
       putStrLn "reset"
       return (Just (encodeEvents outputEvents), (State rules' db1))
     Just c -> do
@@ -87,10 +91,10 @@ handler init msg s0@(State rules db0) =
         (_, is) = runDB Nothing db0 $ do
           --let msg = MT Positive t
           msg <- case c of
-                  Hover _ -> return $ MF Positive (parseCommand c) EXTERN
-                  UnHover _ -> return $ MF Negative (parseCommand c) EXTERN
+                  Hover _ -> return $ MF Positive (parseCommand connId c) (Extern [])
+                  UnHover _ -> return $ MF Negative (parseCommand connId c) (Extern [])
                   Click _ _ -> do
-                    t <- packTuple (parseCommand c) nullProv
+                    t <- packTuple (parseCommand connId c) nullProv
                     return $ MT Positive t
           solve rules [msg]
         outputMsgs = netOutput is
@@ -106,4 +110,5 @@ handler init msg s0@(State rules db0) =
 main = do
   let rules = []
       db = emptyDB
-  runServer (State rules db) (handler initGoProgram)
+  putStrLn "server starting"
+  runServer (State rules db) handler

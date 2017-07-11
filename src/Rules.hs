@@ -37,8 +37,8 @@ trueInputs l rules init = filter (not . (`elem` initRels)) $ inputRelations rule
   where
     initRels = takeWhile (/= l) (map assertRel init)
 
-logicalRelations = nub . concatMap headRels . filter isLRule
+logicalRelations :: [Rule] -> [Label]
+logicalRelations = nub . concatMap getLRHS
   where
-    headRels (LRule _ rhs) = map assertRel rhs
-    isLRule (LRule _ _) = True
-    isLRule _ = False
+    getLRHS (LRule _ rhs) = map assertRel rhs
+    getLRHS _ = []
