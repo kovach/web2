@@ -17,7 +17,7 @@ actions :: DB -> Index -> Label -> [RawTuple]
 actions db ind label = concatMap step triggers
   where
     triggers = indLookup (label, Positive) ind
-    step  (_, _, (EP _ _ rel vs), pattern) = actions
+    step  (_, _, Query _ (EP _ _ rel vs), pattern) = actions
       where
         bindings = solveSteps (tuples db) (facts db) emptyMatchBindings (S.toList pattern)
         -- TODO a rule with a free variable in a user-action should cause an error

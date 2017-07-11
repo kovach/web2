@@ -7,6 +7,9 @@ import Data.String
 import Control.Monad
 import Control.Monad.State
 import qualified Data.Map as M
+import Data.Set (Set)
+import qualified Data.Set as S
+import Data.Either (partitionEithers)
 
 import Types
 import FactIndex
@@ -109,20 +112,19 @@ scheduleDel :: Tuple -> M2 ()
 scheduleDel t = modify $ \s -> s { new_unprocessed = MT Negative t : new_unprocessed s }
 
 netOutput :: InterpreterState -> [Msg]
-netOutput = removeOpposites pair . out_unprocessed
-  where
-    pair (MT p t) (MT p' t') = p == neg p' && t == t'
-    pair _ _ = False
+netOutput = removeOpposites . out_unprocessed
 
-removeOpposites op ms = step ms
+-- TODO check this
+--   esp proofs
+removeOpposites ms = fix s ++ proofs
   where
-    seekf x [] = Nothing
-    seekf x (y:ys) | x `op` y = Just ys
-    seekf x (y:ys) = do
-      ys' <- seekf x ys
-      return (y:ys')
-    step (m:ms) =
-      case seekf m ms of
-        Nothing -> m : step ms
-        Just ms' -> step ms'
-    step [] = []
+    s = S.fromList tuples
+    split (MT p t) = Left (MT p t)
+    split f@(MF _ _ _) = Right f
+    (tuples, proofs) = partitionEithers $ map split ms
+    op (MT p t) = MT (neg p) t
+
+    fix s = S.toList $ foldr annihilate (S.fromList tuples) tuples
+
+    annihilate t s | op t `S.member` s = S.delete t (S.delete (op t) s)
+    annihilate _ s = s

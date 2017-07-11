@@ -269,7 +269,7 @@ rhsRule (LRule _ r) = r
 
 type Signature = (Label, Polarity)
 type Pattern = Set Query
-type Trigger = (Linear, Rule, EP, Pattern)
+type Trigger = (Linear, Rule, Query, Pattern)
 type Index = Map Signature [Trigger]
 emptyIndex = M.empty
 

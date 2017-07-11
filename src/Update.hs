@@ -19,7 +19,7 @@ import FactIndex
 import Rules
 import Index
 import Monad
-import Graph (getMatches, applyMatch, getLMatches)
+import Graph (getMatches, applyMatch, applyLRHS)
 
 import Debug.Trace
 
@@ -126,7 +126,8 @@ step2 msgs fs0 = (fs0', events)
 
     -- these are proofs that need to be recorded but aren't part of any event;
     -- without this rule for fs0', they would be lost
-    msgs' = filter (not . (`elem` (map efact fevents)) . mfact) proofs
+    msgs' = filter (not . (`elem` (map elabel fevents)) . mlabel) proofs
+    --msgs' = filter (not . (`elem` (map efact fevents)) . mfact) proofs
     fs0' = foldr updateFact fs0 msgs'
 
 dependent' :: Event -> Provenance -> Bool
@@ -169,21 +170,20 @@ step3 ev rule (es, (g, fs, me), out) =
         let g2 = foldr removeConsumed g1 new
         return (es', (g2, fs', me), new ++ out1)
       where
-        ind = makeIndex [rule]
-        matches = getMatches ev ind g fs
         removeConsumed (MT Negative t) g = removeTuple t g
         removeConsumed _ g = g
 
     LRule lhs rhs -> do
         return (es', (g1, fs', me2), new ++ out1)
       where
-        ind = indexLRule rule
-        added = getLMatches ev ind g fs
+        added = concatMap applyLRHS matches
         -- (proofs refuted by ev, proofs unaffected)
         (falsified, me1) = falsify ev me
         me2 = foldr updateFact me1 added
         new = falsified ++ added
   where
+    matches = getMatches ev rule g fs
+
     g1 = case ev of
            E Positive t -> insertTuple t g
            E Negative t -> removeTuple t g

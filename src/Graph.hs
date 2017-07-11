@@ -118,25 +118,41 @@ solveSteps :: Graph -> FactState -> Bindings -> [Query] -> [Bindings]
 solveSteps g fs c es = foldM (solveStep g fs) c es
 
 -- Main matching function --
-getMatches :: Event -> Index -> Graph -> FactState -> [Match]
-getMatches ev ind g fs = takeValid [] . concatMap step $ triggers
+getMatches :: Event -> Rule -> Graph -> FactState -> [Match]
+getMatches ev rule g fs = takeValid [] . map toMatch . go $ triggers
   where
-    triggers = indLookup (elabel ev, epolarity ev) ind
-    step :: Trigger -> [Match]
-    step (linear, rule@(Rule _ rhs), p, pattern) = result
+    triggers = indLookup (elabel ev, epolarity ev) (indexRule rule)
+
+    pow [] = [[]]
+    pow (x@(Linear, _, _, _):xs) = pow xs ++ [[x]]
+    pow (x:xs) = p ++ map (x:) p
+      where p = pow xs
+
+    -- tail drops the [] case
+    go = concatMap stepn . tail . pow
+
+    pat (_,_,p,_) = p
+
+    stepn (t@(_,_,p,pattern):ts) = bindings
       where
-        cs = do
-          let b0 = emptyMatchBindings
-          -- bind new tuple to identified clause
-          b <- solvePattern [ev] b0 (epLinear p) (epNodes p)
-          -- match remaining clauses
-          solveSteps g fs b (S.toList pattern)
-        toMatch (ctxt, consumed, matched) =
-          (Provenance rule (Just ev) matched consumed, ctxt)
-        matches = map toMatch cs
-        result = case linear of
-                    Linear -> removeConflicts matches
-                    NonLinear -> matches
+        -- 1. Partition the query into
+        --      p1: some non-empty subset of patterns that may match the current event
+        --          (computed already by pow)
+        --      p2: the rest
+        -- 2. Unify every pattern in p1 against ev alone
+        -- 3. Unify p2 against g/fs
+        ps = map pat ts
+        p1 = p : ps
+        p2 = foldr S.delete pattern ps
+
+        b0 = emptyMatchBindings
+        bindings = do
+          b1 <- foldM (\b (Query _ p) ->
+                        solvePattern [ev] b (epLinear p) (epNodes p)) b0 p1
+          solveSteps g fs b1 (S.toList p2)
+
+    toMatch (ctxt, consumed, matched) =
+      (Provenance rule (Just ev) matched consumed, ctxt)
 
     takeValid :: Consumed -> [Match] -> [Match]
     takeValid _ [] = []
@@ -145,17 +161,31 @@ getMatches ev ind g fs = takeValid [] . concatMap step $ triggers
       then m : takeValid (consumed pr ++ removed) ms
       else takeValid removed ms
 
+    -- checks to see if the tuples a match depends on have been consumed by an earlier match
+    matchValid :: Dependency -> Consumed -> Bool
+    matchValid deps ts = not $ any (`elem` ts) (mapMaybe fromEvent deps)
+      where
+        fromEvent (E _ t) = Just t
+        fromEvent _ = Nothing
+
+    -- Disabling this for now: I don't like how its behavior is so closely tied
+    -- to the order that step3 processes events. It would be more reasonable at
+    -- the level of step4. How to implement that may be more clear once the
+    -- `out1` problem is resolved.
+    --
+    -- Instead, the "first" match will always win out, consuming the tuple.
+    -- Order of matches within a call to `solve` still generally unspecified.
+    --
     -- Prevents any members of a match group (a set of matches from a
     -- particular Trigger) that consume the same tuple from firing.
     -- TODO: should this cause a runtime error?
-    removeConflicts :: [Match] -> [Match]
-    removeConflicts matches = filter matchOK matches
-      where
-        removed = concatMap (consumed . fst) matches
-        doubles = findDoubles removed
-        matchOK = not . any (`elem` doubles) . consumed . fst
-
-    findDoubles = map head . filter ((> 1) . length) . group . sort
+    --removeConflicts :: [Match] -> [Match]
+    --removeConflicts matches = filter matchOK matches
+    --  where
+    --    removed = concatMap (consumed . fst) matches
+    --    doubles = findDoubles removed
+    --    matchOK = not . any (`elem` doubles) . consumed . fst
+    --    findDoubles = map head . filter ((> 1) . length) . group . sort
 
 applyMatch :: Match -> M2 Context
 applyMatch (prov, ctxt) = do
@@ -177,35 +207,15 @@ applyMatch (prov, ctxt) = do
           (val, c1) <- applyLookup (reduce c0 expr) c0
           return (c1, val:acc)
 
--- Takes positive Tuple or pos/neg LTuple; returns new proofs
-getLMatches :: Event -> Index -> Graph -> FactState -> [Msg]
-getLMatches ev ind g fs = map toMsg . concatMap step $ triggers
+applyLRHS :: Match -> [Msg]
+applyLRHS (prov, ctxt) = map (toMsg . step) rhs
   where
     toMsg (f, p) = MF Positive f p
-    triggers = indLookup (elabel ev, epolarity ev) ind
-    step :: Trigger -> [(Fact, Provenance)]
-    step (linear, rule, lp, pattern) =
-      case edgeMatch [] (epNodes lp) (enodes ev) of
-        Just ctxt -> concat $ do
-          (ctxt, [], matched) <- solveSteps g fs (ctxt, [], [ev]) (S.toList pattern)
-          return $ applyLRHS (Provenance rule (Just ev) matched [], ctxt)
-        -- Fails constraint
-        Nothing -> []
-    applyLRHS :: Match -> [(Fact, Provenance)]
-    applyLRHS (prov, ctxt) = map step rhs
-      where
-        rule@(LRule _ rhs) = rule_src prov
-        step (Assert l es) = ((l, map (simpleLookup rule ctxt) es), prov)
+    rule@(LRule _ rhs) = rule_src prov
+    step (Assert l es) = ((l, map (simpleLookup rule ctxt) es), prov)
 
-        simpleLookup :: Rule -> Context -> E -> Node
-        simpleLookup rule c e =
-          case matchLookup (reduce c e) c of
-            Nothing -> error $ "Right-hand side of functional rule cannot contain holes or unbound variables. Offending expression: " ++ show e ++ "\n  in rule\n" ++ show rule
-            Just n -> n
-
--- checks to see if the tuples a match depends on have been consumed by an earlier match
-matchValid :: Dependency -> Consumed -> Bool
-matchValid deps ts = not $ any (`elem` ts) (mapMaybe fromEvent deps)
-  where
-    fromEvent (E _ t) = Just t
-    fromEvent _ = Nothing
+    simpleLookup :: Rule -> Context -> E -> Node
+    simpleLookup rule c e =
+      case matchLookup (reduce c e) c of
+        Nothing -> error $ "Right-hand side of functional rule cannot contain holes or unbound variables. Offending expression: " ++ show e ++ "\n  in rule\n" ++ show rule
+        Just n -> n

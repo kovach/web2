@@ -35,7 +35,7 @@ insertRule rule@(Rule lhs _) ind =
     pattern = S.fromList lhs
     step q@(Query _ ep) ind =
       M.insertWith (++) (epLabel ep, epSign ep)
-                        [(linear, rule, ep, S.delete q pattern)] ind
+                        [(linear, rule, q, S.delete q pattern)] ind
     step _ ind = ind
     -- TODO remove?
     linear = if not . null . linearClauses $ lhs then Linear else NonLinear
@@ -46,7 +46,7 @@ insertLRule rule@(LRule lhs _) ind =
   where
     pattern = S.fromList lhs
     step q@(Query _ ep) ind =
-      M.insertWith (++) (epLabel ep, epSign ep) [(NonLinear, rule, ep, S.delete q pattern)] ind
+      M.insertWith (++) (epLabel ep, epSign ep) [(NonLinear, rule, q, S.delete q pattern)] ind
     step _ ind = ind
 
 makeIndex :: [Rule] -> Index
@@ -54,6 +54,13 @@ makeIndex = foldr insertRule emptyIndex
 
 indexLRule :: Rule -> Index
 indexLRule rule = insertLRule rule emptyIndex
+
+indexRule :: Rule -> Index
+indexRule rule =
+  case rule of
+    r@(LRule _ _) -> indexLRule rule
+    _ -> makeIndex [rule]
+
 
 indLookup sig ind | Just v <- M.lookup sig ind = v
 indLookup _ _ = []

@@ -152,4 +152,4 @@ p2 = runTextDemo "start_turn" "game2.graph" "game2.arrow"
 p3 = runTextDemo nullLabel "test.graph" "test.arrow"
 p4 = runTextDemo "start_game" "go.graph" "go.arrow"
 
-main = p4 False
+main = runTextDemo "start_game" "go_stress.graph" "go.arrow" False

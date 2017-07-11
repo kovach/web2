@@ -1,3 +1,4 @@
+-- TODO use a unit test framework
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
@@ -51,16 +52,19 @@ runTest (label, rules, input, output) = do
           , steps_used = gas
           , msgs_sent = length outputs
           }
-  if (t == output) then return True else do
-    putStrLn ("\nfailure on case: " ++ label ++ "\noutput:")
-    print t
-    putStrLn "expected:"
-    print output
-    return False
+  if (t == output)
+    then do
+      putStrLn ("\nsuccess on case: " ++ label)
+      return True
+    else do
+      putStrLn ("\nfailure on case: " ++ label ++ "\noutput:")
+      print t
+      putStrLn "expected:"
+      print output
+      return False
 
 tests = and <$> mapM runTest testCases
 
--- TODO use a unit test framework?
 main = do
   okay <- tests
   if okay then return () else exitFailure
