@@ -148,7 +148,6 @@ positiveDependent' ev (MF _ _ pr) = dependent' ev pr
 
 -- effects of an event:
 --   "negative":
---      for E Negative, remove E Positive from es
 --      remove (positive) dependents from out
 --      for LRule, remove dependents from me
 --        triggers output
@@ -196,8 +195,11 @@ step3 ev rule (es, (g, fs, me), out) =
 
     -- Removes Positive Msgs that depend on the opposite of the current event
     -- TODO this is wrong!
-    --  if this rule is linear, we need to recover tuples that were consumed by
-    --  the invalidated match and reconsider other matches
+    --  if the invalidated match consumed a tuple, it needs to be un-consumed,
+    --    and potential matches depending on it need to be considered
+    --  one approach is to ensure a "safe" ordering of incoming tuples, prioritizing "deletion"
+    --    but it's tricky if rule references `p x` and `!p y`
+    --  another is to insert the un-consumed tuples into the work queue
     out1 = filter (not . positiveDependent' ev) out
 
 
@@ -225,8 +227,7 @@ step (s@S{queues, localDB}) =
         (dbl', output) <- step4 events rule dbl2
         -- record
         commitMsgs output
-        unless False $ do
-        --unless (null output) $ do
+        unless (null output) $ do
           logMsg "---\ninputs:"
           mapM_ (logMsg . ("  "++) . ppMsg) msgs
           logMsg (show rule)

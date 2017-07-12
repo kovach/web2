@@ -27,7 +27,8 @@ import GHC.Generics
 
 data Command = Reset | Connect
              | Hover {ref :: Node} | UnHover {ref :: Node}
-             | Click {button :: Node, ref :: Node}
+             | Click {ref :: Node, button :: Node}
+             | Key {ref :: Node, key :: Node}
   deriving (Generic, Show)
 deriving instance Generic Label
 deriving instance Generic Node
@@ -47,7 +48,10 @@ decodeCommand = decode
 
 parseCommand id (Hover n) = ("hover", [NInt id, n])
 parseCommand id (UnHover n) = ("unhover", [NInt id, n])
-parseCommand id (Click {button, ref}) = ("click", [NInt id, ref, button])
+parseCommand id (Click {ref, button}) = ("click", [NInt id, ref, button])
+parseCommand id (Key {ref, key}) = ("key-press", [key, NInt id, ref])
+parseCommand _ Reset = error "unimplemented"
+parseCommand _ Connect = error "unimplemented"
 
 convert :: Event -> Maybe (Polarity, Label, [Node])
 convert (E p T{..}) = Just (p, label, nodes)
@@ -74,6 +78,13 @@ init110Program = do
   let (_, _, db1, msgs, _) = runProgramWithDB edgeBlocks allRules
   return (allRules, db1, msgs)
 
+initEditorProgram :: IO ([Rule], DB, [Msg])
+initEditorProgram = do
+  (edgeBlocks, rules, _) <- loadProgram "ui/editor.graph" "ui/editor.arrow"
+  let allRules = rules
+  let (_, _, db1, msgs, _) = runProgramWithDB edgeBlocks allRules
+  return (allRules, db1, msgs)
+
 makeDB = initGoProgram
 
 handler connId msg s0@(State rules db0) =
@@ -90,12 +101,17 @@ handler connId msg s0@(State rules db0) =
       let
         (_, is) = runDB Nothing db0 $ do
           --let msg = MT Positive t
+          let fact = parseCommand connId c
           msg <- case c of
-                  Hover _ -> return $ MF Positive (parseCommand connId c) (Extern [])
-                  UnHover _ -> return $ MF Negative (parseCommand connId c) (Extern [])
+                  Hover _ -> return $ MF Positive fact (Extern [])
+                  UnHover _ -> return $ MF Negative fact (Extern [])
                   Click _ _ -> do
-                    t <- packTuple (parseCommand connId c) nullProv
+                    t <- packTuple fact nullProv
                     return $ MT Positive t
+                  Key _ _ -> do
+                    t <- packTuple fact nullProv
+                    return $ MT Positive t
+                  _ -> error "unhandled"
           solve rules [msg]
         outputMsgs = netOutput is
 

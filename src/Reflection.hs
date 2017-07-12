@@ -15,6 +15,7 @@
 --     literal l q n
 --     hole q n
 --
+-- TODO:
 -- 2. tuple syntax:
 --   label
 --   node
@@ -71,6 +72,7 @@ attributes n db = filter ok . fromGraph $ tuples db
 -- Reflection --
 -- ~~~~~~~~~~ --
 
+makeT :: Label -> [Node] -> M2 ()
 makeT f p = do
   t <- packTuple (f, p) nullProv
   scheduleAdd t
@@ -133,9 +135,6 @@ flattenRule rule = do
     case rule of
       Rule _ _ -> makeT "imperative" [r]
       LRule _ _ -> makeT "logical" [r]
-    return ()
   where
     qs = lhs rule
     as = rhs rule
-
--- TODO ! reflect tuples and provenance

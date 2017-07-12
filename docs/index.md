@@ -5,7 +5,7 @@ This is an interpreter for a rule based language. A REPL and web interface are
 in the works.
 
 Some executable examples are listed at the end of
-[Main.hs](https://github.com/kovach/web2/blob/master/src/Main.hs).
+[Main.hs](https://github.com/kovach/web2/blob/master/test/Main.hs).
 
 This document will refer to the [Go](https://en.wikipedia.org/wiki/Go_(game))
 example, defined in
@@ -17,16 +17,25 @@ example, defined in
 A *comment* starts with the `#` character and ends at the end of a
 line.
 
-A *symbol* is a sequence of alphanumeric characters, underscores, or hyphens
-after a single `'` character.  For instance, `'apple` or `'ripe_banana22`.
+A *name* is a sequence of unicode characters not including whitespace or any of
+the forbidden characters:
 
-An *integer* is a sequence of digits, possibly preceded by a hyphen
+```
+#",.;@()[]{}!
+```
+
+An *identifier* is any name, **except** the forbidden names `~>` and `=>`.
+
+A *symbol literal* is a single `'` character followed by a name.  For instance,
+`'apple` or `'ripe_banana22`.
+
+An *integer literal* is a sequence of digits, possibly preceded by a hyphen
 to indicate a negative number.
 
-An *identifier* is a letter followed by a sequence of alphanumeric
-characters, hyphens, underscores, or single quotes.
+A *string literal* is a sequence of characters or escape sequences surrounded
+by double quote (`"`) characters. Multi-line strings are not supported.
 
-The following are recognized symbols:
+The following are special sequences, recognized either as operators or delimiters:
 
 ```
    => ~> , . .. ! _ ( ) = /= < > <= >= + - *
@@ -56,10 +65,11 @@ logical relation are called *facts*, and the tuples of an imperative relation
 are called *events*. They are interpreted differently and computed by
 different rule types, described later.
 
-There are currently three types of values:
+There are four types of values:
 
   - `int`: a machine integer (`7`, `-22`)
-  - `symbol`: an entity with a string representation (`'foo`)
+  - `string`: a string literal (`"hi there"`, `"\"answer\""`)
+  - `symbol`: an entity with a string representation (`'foo-bar`)
   - `node`: an interpreter-generated entity (printed as `#2`, for example)
 
 Values can be compared with the `=`, `/=`, `<`, `>`, `<=`, `>=` operators.
@@ -111,13 +121,17 @@ relation.
 
 ### Constraints
 
-- `x = y`, `x /= y`, `x < y`, `x <= y`, `x > y`, and `x >= y` are constraints,
-  with `x` and `y` values, algebraic expressions, or identifiers.  Identifiers
-  must be bound elsewhere in the query, and a constraint matches if the
-  inequality holds.  Algebraic expressions consist of `+`, `-`, and `*`, and
-  they apply only to integers.  See
-  [factorial.arrow](https://github.com/kovach/web2/blob/master/examples/factorial.arrow)
-  for an example of arithmetic.
+`x = y`, `x /= y`, `x < y`, `x <= y`, `x > y`, and `x >= y` are constraints,
+with `x` and `y` *algebraic expressions*.  An algebraic expression is either a
+number literal, a variable identifier bound to a number, or a parenthesized
+arithmetic operation (`+`, `-`, and `*` are allowed).
+
+Variables must be bound elsewhere in the query, and a constraint matches if
+the inequality holds.
+
+See
+[factorial.arrow](https://github.com/kovach/web2/blob/master/examples/factorial.arrow)
+for an example.
 
 ## Assertions
 

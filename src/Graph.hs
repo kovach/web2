@@ -19,8 +19,6 @@ import Data.String
 import Types
 import FactIndex
 import Expr
-import Parser
-import Parse (runParser)
 import Monad
 import Index
 

@@ -2,7 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import Data.List (sort, sortOn, intercalate)
+import Data.List (sortOn)
 import Control.Monad (unless)
 --import System.Console.Readline
 import System.Console.ANSI
@@ -10,21 +10,17 @@ import System.Console.ANSI
 import Types
 import FactIndex
 import Monad
-import Graph
 import Rules
-import Reflection
 import Convert
 
-import Debug.Trace
-
-data PTree = Node Bool Tuple [PTree]
+data PTree = TreeNode Bool Tuple [PTree]
 
 makeTree :: [Tuple] -> [Tuple] -> Tuple -> PTree
 makeTree dead ts root@(T{})=
   let fe (E _ t) = Just t
       fe _ = Nothing
       cs = sortOn tid $ filter ((== (Just $ Just root)) . fmap fe . tuple_src . source) ts
-  in Node (root `elem` dead) root (map (makeTree dead ts) cs)
+  in TreeNode (root `elem` dead) root (map (makeTree dead ts) cs)
 
 data IOMarker = Input | Output | Internal | Ignored
   deriving (Eq, Show, Ord)
@@ -48,7 +44,7 @@ printTree rules = p 0
     is = inputRelations rules
     os = outputRelations rules
     as = allRelations rules
-    p i (Node dead t ts) = do
+    p i (TreeNode dead t ts) = do
       putStr $ replicate (i-1) ' '
       setSGR [SetColor Foreground Dull Red]
       putStr $ if dead then "_" else " "
@@ -144,6 +140,8 @@ runTextDemo start_marker edgeFile ruleFile do_print = do
 
     return ()
 
+-- e.g. `runExample "turing"`
+runExample :: FilePath -> IO ()
 runExample s = runTextDemo nullLabel (s++".graph") (s++".arrow") True
 
 p1 = runTextDemo "start_game" "card_game.graph" "card_game.arrow"

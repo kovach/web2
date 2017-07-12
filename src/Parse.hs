@@ -4,11 +4,11 @@ module Parse where
 import Control.Arrow (first)
 import Data.List (foldl')
 
-data ParseEither str e a =
-  ParseEither { runParser :: str -> Either (e, str) (a, str) }
+data ParseEither i e a =
+  ParseEither { runParser :: i -> Either (e, i) (a, i) }
 
 type Error = String
-type Parser a = ParseEither String Error a
+type Parser = ParseEither String Error
 
 instance Functor (ParseEither str e) where
   fmap f p = ParseEither $ (fmap $ first f) . runParser p
@@ -27,30 +27,31 @@ instance Monad (ParseEither str e) where
     runParser (f val) s1
 
 -- full backtracking
-(<|>) :: Parser a -> Parser a -> Parser a
+(<|>) :: ParseEither i e a -> ParseEither i e a -> ParseEither i e a
 a <|> b = ParseEither $ \s ->
   case runParser a s of
     Left _ -> runParser b s
     Right v -> return v
 
-failure :: String -> Parser a
+failure :: Error -> ParseEither i Error a
 failure str = ParseEither (\s -> Left (str, s))
 
-assert :: Bool -> String -> Parser ()
+assert :: Bool -> String -> ParseEither i Error ()
 assert bool str =
   if bool then return () else failure str
 
-many, many1 :: Parser a -> Parser [a]
+many, many1 :: ParseEither i e a -> ParseEither i e [a]
 many p = many1 p <|> return []
 many1 p = (:) <$> p <*> many p
 many_ p = return () <* many p
 many1_ p = return () <* many1 p
 
-sepBy, sepBy1 :: Parser s -> Parser a -> Parser [a]
+sepBy, sepBy1 :: ParseEither i e s -> ParseEither i e a -> ParseEither i e [a]
 sepBy1 sep p =
    (:) <$> p <*> ((sep *> sepBy1 sep p)  <|> return [])
 sepBy sep p = sepBy1 sep p <|> return []
 
+-- Typical String parsers
 anyChar :: String -> Parser Char
 anyChar str = foldr (<|>) (failure $ "expected one of: " ++ str) (map char str)
 
@@ -76,7 +77,6 @@ ws1 = many1_ (anyChar " \t")
 flex = many_ (anyChar " \t\n")
 flex1 = many1_ (anyChar " \t\n")
 
--- Typical parsers
 identifier :: Parser String
 identifier = (:) <$> alpha <*> many (digit <|> alpha <|> anyChar "_")
 

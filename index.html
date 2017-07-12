@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="docs/docs.css" type="text/css" />
 </head>
 <body>
-<div class=date>modified: July 10, 2017</div>
+<div class=date>modified: July 12, 2017</div>
 <div id="TOC">
 <ul>
 <li><a href="#introduction">Introduction</a></li>
@@ -33,14 +33,17 @@
 <h1 id="introduction">Introduction</h1>
 <p><a href="https://github.com/kovach/web2" class="uri">https://github.com/kovach/web2</a></p>
 <p>This is an interpreter for a rule based language. A REPL and web interface are in the works.</p>
-<p>Some executable examples are listed at the end of <a href="https://github.com/kovach/web2/blob/master/src/Main.hs">Main.hs</a>.</p>
+<p>Some executable examples are listed at the end of <a href="https://github.com/kovach/web2/blob/master/test/Main.hs">Main.hs</a>.</p>
 <p>This document will refer to the <a href="https://en.wikipedia.org/wiki/Go_(game)">Go</a> example, defined in <a href="https://github.com/kovach/web2/blob/master/examples/go.arrow">go.arrow</a> and <a href="https://github.com/kovach/web2/blob/master/examples/go.graph">go.graph</a>.</p>
 <h1 id="syntax-elements">Syntax Elements</h1>
 <p>A <em>comment</em> starts with the <code>#</code> character and ends at the end of a line.</p>
-<p>A <em>symbol</em> is a sequence of alphanumeric characters, underscores, or hyphens after a single <code>'</code> character. For instance, <code>'apple</code> or <code>'ripe_banana22</code>.</p>
-<p>An <em>integer</em> is a sequence of digits, possibly preceded by a hyphen to indicate a negative number.</p>
-<p>An <em>identifier</em> is a letter followed by a sequence of alphanumeric characters, hyphens, underscores, or single quotes.</p>
-<p>The following are recognized symbols:</p>
+<p>A <em>name</em> is a sequence of unicode characters not including whitespace or any of the forbidden characters:</p>
+<pre><code>#&quot;,.;@()[]{}!</code></pre>
+<p>An <em>identifier</em> is any name, <strong>except</strong> the forbidden names <code>~&gt;</code> and <code>=&gt;</code>.</p>
+<p>A <em>symbol literal</em> is a single <code>'</code> character followed by a name. For instance, <code>'apple</code> or <code>'ripe_banana22</code>.</p>
+<p>An <em>integer literal</em> is a sequence of digits, possibly preceded by a hyphen to indicate a negative number.</p>
+<p>A <em>string literal</em> is a sequence of characters or escape sequences surrounded by double quote (<code>&quot;</code>) characters. Multi-line strings are not supported.</p>
+<p>The following are special sequences, recognized either as operators or delimiters:</p>
 <pre><code>   =&gt; ~&gt; , . .. ! _ ( ) = /= &lt; &gt; &lt;= &gt;= + - *</code></pre>
 <p>There are no keywords.</p>
 <h1 id="data-model">Data Model</h1>
@@ -54,10 +57,11 @@
 <p><code>adj-to 2 7</code>.</p>
 </blockquote>
 <p>There are two types of relations: <em>logical</em> and <em>imperative</em>. The tuples in a logical relation are called <em>facts</em>, and the tuples of an imperative relation are called <em>events</em>. They are interpreted differently and computed by different rule types, described later.</p>
-<p>There are currently three types of values:</p>
+<p>There are four types of values:</p>
 <ul>
 <li><code>int</code>: a machine integer (<code>7</code>, <code>-22</code>)</li>
-<li><code>symbol</code>: an entity with a string representation (<code>'foo</code>)</li>
+<li><code>string</code>: a string literal (<code>&quot;hi there&quot;</code>, <code>&quot;\&quot;answer\&quot;&quot;</code>)</li>
+<li><code>symbol</code>: an entity with a string representation (<code>'foo-bar</code>)</li>
 <li><code>node</code>: an interpreter-generated entity (printed as <code>#2</code>, for example)</li>
 </ul>
 <p>Values can be compared with the <code>=</code>, <code>/=</code>, <code>&lt;</code>, <code>&gt;</code>, <code>&lt;=</code>, <code>&gt;=</code> operators. Nodes cannot be represented in a program, but they can be created by imperative rules. Nodes are ordered by creation time.</p>
@@ -100,9 +104,9 @@
 <li><p><code>!r x1 ... xn</code>, when r is a logical relation, matches exactly when there are no proofs of the fact present. It requires that the variables be bound elsewhere by the query.</p></li>
 </ul>
 <h3 id="constraints">Constraints</h3>
-<ul>
-<li><code>x = y</code>, <code>x /= y</code>, <code>x &lt; y</code>, <code>x &lt;= y</code>, <code>x &gt; y</code>, and <code>x &gt;= y</code> are constraints, with <code>x</code> and <code>y</code> values, algebraic expressions, or identifiers. Identifiers must be bound elsewhere in the query, and a constraint matches if the inequality holds. Algebraic expressions consist of <code>+</code>, <code>-</code>, and <code>*</code>, and they apply only to integers. See <a href="https://github.com/kovach/web2/blob/master/examples/factorial.arrow">factorial.arrow</a> for an example of arithmetic.</li>
-</ul>
+<p><code>x = y</code>, <code>x /= y</code>, <code>x &lt; y</code>, <code>x &lt;= y</code>, <code>x &gt; y</code>, and <code>x &gt;= y</code> are constraints, with <code>x</code> and <code>y</code> <em>algebraic expressions</em>. An algebraic expression is either a number literal, a variable identifier bound to a number, or a parenthesized arithmetic operation (<code>+</code>, <code>-</code>, and <code>*</code> are allowed).</p>
+<p>Variables must be bound elsewhere in the query, and a constraint matches if the inequality holds.</p>
+<p>See <a href="https://github.com/kovach/web2/blob/master/examples/factorial.arrow">factorial.arrow</a> for an example.</p>
 <h2 id="assertions">Assertions</h2>
 <p>The effect of a rule match is to change the database by adding or removing certain tuples named by the rule.</p>
 <p><em>Events</em> are tuples that belong to an imperative relation; they can be created or consumed by imperative rules. Each has a unique, hidden timestamp that identifies it.</p>

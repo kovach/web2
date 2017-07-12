@@ -24,4 +24,5 @@ reduce :: Context -> E -> NodeVar
 reduce _ EHole = NHole
 reduce _ (EVar n) = NVar n
 reduce _ (ENamed n) = NVal (NSymbol n)
+reduce _ (EString n) = NVal (NString n)
 reduce c e = NVal . NInt $ reduce1 c e

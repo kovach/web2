@@ -4,8 +4,6 @@ module Convert
   , loadProgram, runProgramWithDB
   ) where
 
-import Data.List (nub, groupBy)
-import Data.Maybe (mapMaybe)
 import Control.Monad.State (gets)
 import Control.Monad (foldM)
 
@@ -13,47 +11,26 @@ import Types
 import Parse
 import Parser
 import Rules
--- for runProgram:
 import Monad
 import Graph
 import Update
 import Reflection
 
-filterComment :: String -> [(Int, String)]
-filterComment = filter (not . null . snd) . zip [1..] . map (takeWhile (/= '#')) . lines
-
-filterComments = lines .> zip [1..] .> blocks .>
-                 map (map (second $ takeWhile (/= '#')) .> nonEmpty)
-                 .> filter (not . null)
-  where
-    blocks [] = []
-    blocks xs = let (x, r) = span (not . null . snd) xs in x : blocks (st r)
-    st [] = []
-    st (_:a) = a
-    nonEmpty = filter (not . null . snd)
-    (.>) = flip (.)
-
 -- DB parsing
-parseTuple :: String -> Maybe Assert
-parseTuple s =
-  case words s of
-    _ -> case runParser rquery_ s of
-           Left e -> error $ "error parsing graph file: " ++ show e
-           Right (a, "") -> Just a
-           _ -> error "error parsing graph file."
-
 readDBFile :: FilePath -> IO [[Assert]]
 readDBFile file = do
   f <- readFile file
-  return $ map (mapMaybe parseTuple . map snd) $ filterComments f
+  case parseTupleFile f of
+    Right v -> return v
+    Left err -> error $ "error parsing graph file:\n" ++ err
 
 -- Program parsing
-type LineRule = (Int, Rule)
-
 readRules :: FilePath -> IO [Rule]
 readRules f = do
-  rs <- filterComment <$> readFile f
-  return $ convert $ map (second parseLine) rs
+  rs <- readFile f
+  case parseRuleFile rs of
+    Right rs -> return $ convert rs
+    Left err -> error $ err
 
 convert :: [LineRule] -> [Rule]
 convert rs = result
