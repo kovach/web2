@@ -38,15 +38,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Types where
 
-import Data.Maybe (fromJust)
 import Data.String
 import Data.List (intercalate, delete)
 import Data.Set (Set, (\\))
 import qualified Data.Set as S
 import Data.Map (Map)
 import qualified Data.Map as M
-
-import Debug.Trace
 
 newtype Label = L String
   deriving (Eq, Ord)

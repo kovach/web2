@@ -8,12 +8,9 @@ import Control.Exception (finally)
 import Data.ByteString.Lazy (ByteString)
 import Control.Concurrent (MVar, newMVar, modifyMVar_, readMVar)
 
-import Data.Text (Text)
-import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified Data.Text.Lazy.Encoding as T
 import qualified Data.Text.Lazy as T
-import qualified Data.ByteString.Lazy (ByteString)
 
 import qualified Network.WebSockets as WS
 import Network.Wai (Application)

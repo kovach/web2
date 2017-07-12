@@ -1,6 +1,5 @@
 module Expr where
 
-import Data.String
 import Types
 
 bop2fn Sum = (+)

@@ -1,16 +1,10 @@
 module Index where
 
 import Data.Maybe
-import Data.Set (Set)
 import qualified Data.Set as S
-import Data.Map (Map)
 import qualified Data.Map as M
-import Data.List (sort, sortOn)
-
-import Data.Char
 
 import Types
-import Expr
 
 dotClauses :: Rule -> LHS
 dotClauses (LRule _ _) = []

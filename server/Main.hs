@@ -7,20 +7,15 @@ module Main where
 import Types
 import FactIndex (emptyFS)
 import Monad
-import Graph
 import Update
 import Convert
 
-import Data.Set (Set)
-import Data.Maybe (mapMaybe)
-import qualified Data.Set as S
-
-import qualified Data.ByteString.Lazy as T (ByteString, pack, unpack, intercalate, append)
-import qualified Data.Text.Lazy.Encoding as T (encodeUtf8)
-
 import BroadcastServer
 
-import Debug.Trace
+import Data.Maybe (mapMaybe)
+
+import qualified Data.ByteString.Lazy as T (ByteString)
+
 
 import Data.Aeson
 import GHC.Generics

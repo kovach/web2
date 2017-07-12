@@ -8,7 +8,6 @@ import Control.Monad.State (gets)
 import Control.Monad (foldM)
 
 import Types
-import Parse
 import Parser
 import Rules
 import Monad

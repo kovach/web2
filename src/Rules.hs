@@ -1,7 +1,6 @@
 module Rules where
 
 import Types
-import Expr
 import Data.Maybe (mapMaybe)
 import Data.List (nub)
 

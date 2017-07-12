@@ -1,20 +1,13 @@
 {-# LANGUAGE RecordWildCards #-}
 module Monad where
 
-import Data.List
 import Data.Maybe
-import Data.String
-import Control.Monad
 import Control.Monad.State
-import qualified Data.Map as M
-import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Either (partitionEithers)
 
 import Types
 import FactIndex
-
-import Debug.Trace
 
 data DB = DB
   { tuples :: Graph

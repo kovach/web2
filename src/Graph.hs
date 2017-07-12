@@ -9,20 +9,16 @@
 module Graph where
 
 import Control.Monad
-import Control.Monad.State
 import Data.List (group, sort)
 import qualified Data.Set as S
 import qualified Data.Map as M
 import Data.Maybe
-import Data.String
 
 import Types
 import FactIndex
 import Expr
 import Monad
 import Index
-
-import Debug.Trace
 
 assert :: Bool -> a -> [a]
 assert True a = [a]

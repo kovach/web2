@@ -40,11 +40,9 @@ module Reflection where
 
 import Control.Monad
 import Data.Maybe
-import Data.Set (Set)
-import qualified Data.Set as S
+import qualified Data.Set as S (toList)
 
 import Types
-import Expr
 import Monad
 import Graph
 import Index

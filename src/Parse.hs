@@ -2,7 +2,6 @@
 module Parse where
 
 import Control.Arrow (first)
-import Data.List (foldl')
 
 data ParseEither i e a =
   ParseEither { runParser :: i -> Either (e, i) (a, i) }

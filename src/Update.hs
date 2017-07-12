@@ -6,10 +6,6 @@ module Update where
 
 import Data.Map (Map)
 import qualified Data.Map as M
-import Data.Set (Set, (\\))
-import qualified Data.Set as S
-import Data.List (nub, partition, intercalate)
-import Data.Maybe
 import Data.Either (partitionEithers)
 import Control.Monad
 import Control.Monad.State
@@ -17,7 +13,6 @@ import Control.Monad.State
 import Types
 import FactIndex
 import Rules
-import Index
 import Monad
 import Graph (getMatches, applyMatch, applyLRHS)
 
