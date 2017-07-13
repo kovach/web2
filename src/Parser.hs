@@ -1,3 +1,7 @@
+-- TODO
+--   add more identifier examples to documentation, e.g.
+--     x+3 間 что rel/n
+--   and clarify how variables and unification work in section on patterns
 module Parser
   (rquery_, isComment
   , LineRule, parseRuleFile

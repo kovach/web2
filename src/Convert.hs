@@ -35,15 +35,17 @@ convert :: [LineRule] -> [Rule]
 convert rs = result
   where
     -- TODO: keep line numbers for logical rules too; print on check failure
-    heads = logicalRelations $ map snd rs
+    logRels = logicalRelations $ map snd rs
+    impRels = allRelations (map snd rs) `diffList` logRels
 
     result = map fix rs
 
-    convertq (line, rule) q@(Query d ep@(EP Linear _ l ns)) | l `elem` heads = error $ "Rules may not consume logical tuples. error on line " ++ show line ++ ":\n" ++ show rule
-    convertq _ (Query d ep@(EP _ _ l ns)) | l `elem` heads = Query d (LP Positive l ns)
+    convertq (line, rule) q@(Query d ep@(EP Linear _ l ns)) | l `elem` logRels = error $ "Rules may not consume logical tuples. error on line " ++ show line ++ ":\n" ++ show rule
+    convertq _ (Query d ep@(EP _ _ l ns)) | l `elem` logRels = Query d (LP Positive l ns)
+    convertq (line, _) (Query d lp@(LP _ l ns)) | l `elem` impRels = error $ "Cannot negate event relation: "++show l ++ ". error on line " ++ show line ++ "."
     convertq _ q = q
 
-    check (line, rule) (Assert l _) | l `elem` heads = error $ "Event rule (=>) may not assert logical tuple. error on line " ++ show line ++ ":\n" ++ show rule
+    check (line, rule) (Assert l _) | l `elem` logRels = error $ "Event rule (=>) may not assert logical tuple. error on line " ++ show line ++ ":\n" ++ show rule
     check _ a = a
 
     fix r@(_, Rule lhs rhs) = Rule (map (convertq r) lhs) (map (check r) rhs)

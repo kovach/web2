@@ -33,7 +33,6 @@
 --   allow a lhs/rhs to be split up across multiple lines when enclosed by [ ]
 --   could (sort of) replace .graph file with a series of ` => [...]` rules in rule file
 
--- TODO reorg Event/Msg/Tuple/Fact types?
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Types where
@@ -88,22 +87,6 @@ instance Ord Event where
               EFact f _ -> EFact f []
               _ -> e2
 
-etuple (E _ t) = t
-etuple _ = error "etuple expects E Event"
-elabel :: Event -> Label
-elabel (E _ t) = label t
-elabel (EFact (l, _) _) = l
-elabel (EFalse (l, _)) = l
-efact :: Event -> Fact
-efact e = (elabel e, enodes e)
-enodes :: Event -> [Node]
-enodes (E _ t) = nodes t
-enodes (EFact (_, ns) _) = ns
-enodes (EFalse (_, ns)) = ns
-epolarity (E p _) = p
-epolarity (EFact _ _) = Positive
-epolarity (EFalse _) = Negative
-
 toEvent :: Tuple -> Event
 toEvent = E Positive
 
@@ -128,18 +111,6 @@ data Provenance = Provenance
 
 nullProv :: Provenance
 nullProv = Provenance nullRule Nothing [] []
-
-ppFact (l, ns) = unwords $ [show l] ++ map show ns
-ppTuple (T{..}) = show tid++":"++ppFact (label, nodes)
-ppEvent (E Positive t) = "+"++ppTuple t
-ppEvent (E Negative t) = "-"++ppTuple t
-ppEvent (EFact f ps) = "(+"++show (length ps)++")"++ppFact f
-ppEvent (EFalse f) = "-"++ppFact f
-ppEvents = intercalate ", " . map ppEvent
-
-ppMatch :: Provenance -> String
-ppMatch (Provenance{..}) = "["++maybe "" ppEvent tuple_src ++"] "++ppEvents matched
-ppMatch (Extern ids) = "[EXTERN: "++show ids++"]"
 
 type RawTuple = (Label, [Node])
 type Fact = RawTuple
@@ -208,20 +179,6 @@ data EP
   = EP Linear Unique Label [NodeVar]
   | LP Polarity Label [NodeVar]
   deriving (Eq, Show, Ord)
-
-epLabel :: EP -> Label
-epLabel (EP _ _ l _) = l
-epLabel (LP _ l _) = l
-
-epSign EP{} = Positive
-epSign (LP p _ _) = p
-
-epNodes :: EP -> [NodeVar]
-epNodes (EP _ _ _ ns) = ns
-epNodes (LP _ _ ns) = ns
-
-epLinear (EP l _ _ _) = l
-epLinear _ = NonLinear
 
 data NumOp = Sum | Mul | Sub
   deriving (Eq, Show, Ord)
@@ -293,19 +250,6 @@ type Match = (Provenance, Context)
 data Msg = MT Polarity Tuple | MF Polarity Fact Provenance
   deriving (Eq, Show, Ord)
 
-ppMsg :: Msg -> String
-ppMsg (MT p t) = ppEvent (E p t)
-ppMsg (MF Positive f pr) = "+"++ppFact f++"<~"++ppMatch pr
-ppMsg (MF Negative f pr) = "-"++ppFact f++"<~"++ppMatch pr
-
-mprov (MT _ t) = source t
-mprov (MF _ _ p) = p
-
-mlabel (MT _ t) = label t
-mlabel (MF _ (l, _) _) = l
-
-mfact (MT _ t) = (label t, nodes t)
-mfact (MF _ f _) = f
 
 -- Utilities
 pad n s = s ++ replicate (n - length s) ' '
@@ -329,3 +273,54 @@ lookList k m =
   case M.lookup k m of
     Just v -> v
     Nothing -> []
+
+-- Accessors
+-- TODO reorg Event/Msg/Tuple/Fact types?
+etuple (E _ t) = t
+etuple _ = error "etuple expects E Event"
+elabel :: Event -> Label
+elabel (E _ t) = label t
+elabel (EFact (l, _) _) = l
+elabel (EFalse (l, _)) = l
+efact :: Event -> Fact
+efact e = (elabel e, enodes e)
+enodes :: Event -> [Node]
+enodes (E _ t) = nodes t
+enodes (EFact (_, ns) _) = ns
+enodes (EFalse (_, ns)) = ns
+epolarity (E p _) = p
+epolarity (EFact _ _) = Positive
+epolarity (EFalse _) = Negative
+
+mprov (MT _ t) = source t
+mprov (MF _ _ p) = p
+mlabel (MT _ t) = label t
+mlabel (MF _ (l, _) _) = l
+mfact (MT _ t) = (label t, nodes t)
+mfact (MF _ f _) = f
+
+epLabel :: EP -> Label
+epLabel (EP _ _ l _) = l
+epLabel (LP _ l _) = l
+epSign EP{} = Positive
+epSign (LP p _ _) = p
+epNodes :: EP -> [NodeVar]
+epNodes (EP _ _ _ ns) = ns
+epNodes (LP _ _ ns) = ns
+epLinear (EP l _ _ _) = l
+epLinear _ = NonLinear
+
+ppFact (l, ns) = unwords $ [show l] ++ map show ns
+ppTuple (T{..}) = show tid++":"++ppFact (label, nodes)
+ppEvent (E Positive t) = "+"++ppTuple t
+ppEvent (E Negative t) = "-"++ppTuple t
+ppEvent (EFact f ps) = "(+"++show (length ps)++")"++ppFact f
+ppEvent (EFalse f) = "-"++ppFact f
+ppEvents = intercalate ", " . map ppEvent
+ppMatch :: Provenance -> String
+ppMatch (Provenance{..}) = "["++maybe "" ppEvent tuple_src ++"] "++ppEvents matched
+ppMatch (Extern ids) = "[EXTERN: "++show ids++"]"
+ppMsg :: Msg -> String
+ppMsg (MT p t) = ppEvent (E p t)
+ppMsg (MF Positive f pr) = "+"++ppFact f++"<~"++ppMatch pr
+ppMsg (MF Negative f pr) = "-"++ppFact f++"<~"++ppMatch pr

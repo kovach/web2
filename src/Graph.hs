@@ -1,7 +1,4 @@
 -- TODO
---  semantics issue: new tuple cannot match multiples slots of a pattern
---    (but old tuples can)
---
 --  make order that tuples are added/processed from RHS more consistent
 --    just need to move packTuple/scheduleAdd out of applyStep
 {-# LANGUAGE RecordWildCards #-}
@@ -47,10 +44,10 @@ applyLookup NHole c = do
 applyLookup (NVal v) c = return (v, c)
 
 -- process all unification instances for a given tuple
-edgeMatch :: Context -> [NodeVar] -> [Node] -> Maybe Context
+edgeMatch :: Label -> Context -> [NodeVar] -> [Node] -> Maybe Context
 -- TODO check this statically
-edgeMatch c vs nodes | length nodes /= length vs = error $ "relation/pattern arity mismatch! tuple involved:" ++ show nodes
-edgeMatch c vs nodes =
+edgeMatch l c vs nodes | length nodes /= length vs = error $ "relation/pattern arity mismatch! tuple involved: " ++ unwords (show l : (map show nodes))
+edgeMatch _ c vs nodes =
     foldM matchStep c $ zip nodes vs
   where
     -- process one variable unification instance on the LHS
@@ -62,10 +59,11 @@ edgeMatch c vs nodes =
     matchStep c (node, (NVal v)) = if v == node then Just c else Nothing
     matchStep c (node, NHole) = Just c
 
-solvePattern :: [Event] -> Bindings -> Linear -> [NodeVar] -> [Bindings]
-solvePattern es (ctxt, bound, deps) linear nvs =
+-- Label passed only for arity error reporting
+solvePattern :: Label -> [Event] -> Bindings -> Linear -> [NodeVar] -> [Bindings]
+solvePattern l es (ctxt, bound, deps) linear nvs =
     let pairs =
-          mapMaybe (\t -> fmap (t,) $ edgeMatch ctxt nvs (enodes t))
+          mapMaybe (\t -> fmap (t,) $ edgeMatch l ctxt nvs (enodes t))
           . filter (not . (`elem` (map toEvent bound)))
           $ es
     in do
@@ -75,7 +73,7 @@ solvePattern es (ctxt, bound, deps) linear nvs =
 
 solveStep :: Graph -> FactState -> Bindings -> Query -> [Bindings]
 solveStep g _ b@(c, bound, deps) (Query _ (EP linear unique e vs)) =
-    solvePattern (map toEvent $ constrainRelation e g) b linear vs
+    solvePattern e (map toEvent $ constrainRelation e g) b linear vs
   where
     --TODO remove
     --handleUnique = if unique == Unique then safeInit else id
@@ -84,13 +82,14 @@ solveStep g _ b@(c, bound, deps) (Query _ (EP linear unique e vs)) =
 
 solveStep _ fs b@(c, bound, deps) q@(Query _ (LP polarity e ns)) =
   case polarity of
-    Positive -> solvePattern es b NonLinear ns
+    Positive -> solvePattern e es b NonLinear ns
     Negative ->
       let vs = mapM (\n -> matchLookup n c) ns in
       case vs of
         Nothing -> error $ "negation queries must refer to bound values:\n" ++ show q
-        Just vs' -> assert (not $ (e, vs') `elem` (map raw es)) (c, bound, f : deps)
+        Just vs' -> assert noProof (c, bound, f : deps)
           where
+            noProof = not $ (e, vs') `elem` (map raw es)
             f = EFalse (e, vs')
   where
     es = toEvents e fs
@@ -145,7 +144,7 @@ getMatches ev rule g fs = takeValid [] . map toMatch . go $ triggers
         b0 = emptyMatchBindings
         bindings = do
           b1 <- foldM (\b (Query _ p) ->
-                        solvePattern [ev] b (epLinear p) (epNodes p)) b0 p1
+                        solvePattern (elabel ev) [ev] b (epLinear p) (epNodes p)) b0 p1
           solveSteps g fs b1 (S.toAscList p2)
 
     toMatch (ctxt, consumed, matched) =
@@ -167,8 +166,7 @@ getMatches ev rule g fs = takeValid [] . map toMatch . go $ triggers
 
     -- Disabling this for now: I don't like how its behavior is so closely tied
     -- to the order that step3 processes events. It would be more reasonable at
-    -- the level of step4. How to implement that may be more clear once the
-    -- `out1` problem is resolved.
+    -- the level of step4.
     --
     -- Instead, the "first" match will always win out, consuming the tuple.
     -- Order of matches within a call to `solve` still generally unspecified.
