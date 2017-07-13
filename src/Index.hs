@@ -13,6 +13,10 @@ dotClauses (Rule lhs _) = mapMaybe isdot lhs
     isdot q@(Query High _) = Just q
     isdot _ = Nothing
 
+isLinear :: Rule -> Bool
+isLinear (Rule lhs _) = not . null . linearClauses $ lhs
+isLinear _ = False
+
 linearClauses :: LHS -> LHS
 linearClauses = mapMaybe islinear
   where

@@ -1,4 +1,6 @@
 -- TODO use a unit test framework
+-- TODO
+--   check for multiple deletion
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
@@ -24,7 +26,7 @@ testCases =
   [ ("go-2x2-capture", "examples/go.arrow", "tests/go.graph",
       TO { tuple_count = 48
          , steps_used = 69
-         , msgs_sent = 87
+         , msgs_sent = 85
          } )
   , ("sieve_50", "examples/sieve.arrow", "tests/sieve.graph",
       TO { tuple_count = 194
@@ -40,6 +42,11 @@ testCases =
       TO { tuple_count = 53
          , steps_used = 54
          , msgs_sent = 626
+         } )
+  , ("anti_check", "tests/antipode.arrow", "tests/antipode.graph",
+      TO { tuple_count = 9
+         , steps_used = 6
+         , msgs_sent = 11
          } )
   ]
 

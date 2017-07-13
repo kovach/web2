@@ -36,7 +36,7 @@ executable arrow-profile
   ghc-options:         -fwarn-unused-binds
                        -O2
                        -fprof-auto
-                       "-with-rtsopts=-p -s -h -i0.1 -xc"
+                       "-with-rtsopts=-p -s -h -i0.1"
 
 test-suite unit-tests
   type:                exitcode-stdio-1.0

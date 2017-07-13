@@ -4,7 +4,9 @@
 {-# LANGUAGE RecordWildCards, NamedFieldPuns #-}
 module Update where
 
+import Data.List (partition, nub)
 import Data.Map (Map)
+import Data.Maybe (mapMaybe)
 import qualified Data.Map as M
 import Data.Either (partitionEithers)
 import Control.Monad
@@ -13,6 +15,7 @@ import Control.Monad.State
 import Types
 import FactIndex
 import Rules
+import Index (isLinear)
 import Monad
 import Graph (getMatches, applyMatch, applyLRHS)
 
@@ -32,6 +35,13 @@ type DBL = (Graph, FactState, FactState)
 
 type RankedRule = (Int, Rule)
 
+-- Things we just want to compute once
+data RuleFlags = RF
+  { ruleLinear :: Bool
+  , ruleHasPair :: Bool
+  , prioritySig :: [Signature]
+  }
+
 -- We use `queues` as a priority queue.
 -- Each rule is ranked by an Int, so `M.elemAt 0` returns the first non-empty
 -- queue (see initS, step)
@@ -39,6 +49,7 @@ data S = S
   { dependencies :: Map Label [RankedRule]
   , queues :: Map RankedRule [Msg]
   , localDB :: Map Rule DBL
+  , flags :: Map Rule RuleFlags
   }
 
 -- inner state: (inputs, state, local table, outputs)
@@ -81,6 +92,12 @@ commitMsgs msgs = do
 --       ! otherwise, ordering of events is supposed to be irrelevant
 --     - step2 generates at most 1 event per fact
 
+
+hasAntipodePair :: Eq a => [(a, Polarity)] -> Bool
+hasAntipodePair [] = False
+hasAntipodePair ((l,p):rest) | (l, neg p) `elem` rest = True
+hasAntipodePair (_:rest) = hasAntipodePair rest
+
 initS :: [Rule] -> [Msg] -> DB -> S
 initS rs ms db = pushMsgs ms s0
   where
@@ -88,10 +105,21 @@ initS rs ms db = pushMsgs ms s0
     s0 = S
       { dependencies = step1 rrs
       , queues = M.empty
-      , localDB = M.fromList $ zip rs $ map fix rs }
+      , localDB = M.fromList $ zip rs $ map fix rs
+      , flags = M.fromList $ map ruleFlags rs }
     fs = facts db
     ts = tuples db
     fix r = (ts, fs, restrictFacts r fs)
+
+    ruleFlags rule = (rule, rf)
+      where
+        opposites = nub $ mapMaybe op (lhs rule)
+        rf = RF { ruleLinear = linear, ruleHasPair = dangerous, prioritySig = opposites }
+        op (Query _ p) = Just (epLabel p, neg (epSign p))
+        op _ = Nothing
+        linear = isLinear rule
+        -- such rules need an extra check in step3
+        dangerous = hasAntipodePair opposites
 
     step0 :: RankedRule -> Map Label [RankedRule]
     step0 r@(_, rule) = M.fromList $ zip (lhsRels rule) (repeat [r])
@@ -99,7 +127,7 @@ initS rs ms db = pushMsgs ms s0
     step1 :: [RankedRule] -> Map Label [RankedRule]
     step1 = foldr (M.unionWith (++)) M.empty . map step0
 
--- New Tuples (that haven't been consumed) pass through as events
+-- New tuples (that haven't been consumed) pass through as events
 -- Proofs are combined into fs1; the diff wrt fs0 passes through as events
 -- Any other proofs (those not contributing to visible events) are added immediately to fs0
 step2 :: [Msg] -> FactState -> (FactState, [Event])
@@ -116,15 +144,15 @@ step2 msgs fs0 = (fs0', events)
 
     fs1 = foldr updateFact fs0 proofs
     fevents = fsDiff fs0 fs1
-    -- the primary output of this function
+    -- primary output of this function
     events = fevents ++ tuples'
 
-    -- these are proofs that need to be recorded but aren't part of any event;
-    -- without this rule for fs0', they would be lost
+    -- These are proofs that need to be recorded but aren't part of any event;
+    -- without this rule for fs0', they would be lost.
     msgs' = filter (not . (`elem` (map elabel fevents)) . mlabel) proofs
-    --msgs' = filter (not . (`elem` (map efact fevents)) . mfact) proofs
     fs0' = foldr updateFact fs0 msgs'
 
+-- Returns true if pr assumes anything *counter to* e
 dependent' :: Event -> Provenance -> Bool
 dependent' e pr = any (check e) (matched pr)
   where
@@ -132,12 +160,6 @@ dependent' e pr = any (check e) (matched pr)
     check (EFact f _) (EFalse f') | f == f' = True
     check (E p t) (E p' t') | t == t' && p == neg p' = True
     check _ _ = False
-
-positiveDependent' :: Event -> Msg -> Bool
-positiveDependent' _ (MT Negative _) = False
-positiveDependent' _ (MF Negative _ _) = False
-positiveDependent' ev (MT _ t) = dependent' ev (source t)
-positiveDependent' ev (MF _ _ pr) = dependent' ev pr
 
 -- Main Evaluation step --
 
@@ -155,28 +177,39 @@ positiveDependent' ev (MF _ _ pr) = dependent' ev pr
 --      EFact: add proofs to fs
 --      EFalse: remove all proofs from fs
 
-step3 :: Event -> Rule -> IS -> M2 IS
-step3 ev rule (es, (g, fs, me), out) =
+step3 :: Bool -> Event -> Rule -> IS -> M2 IS
+step3 marked ev rule (es, (g, fs, me), out) =
   case rule of
     Rule lhs rhs -> do
-        mapM_ applyMatch $ matches
+        mapM_ applyMatch matches2
         new <- flushEvents
         let g2 = foldr removeConsumed g1 new
-        return (es', (g2, fs', me), new ++ out1)
+        return (es', (g2, fs', me), new ++ out)
       where
         removeConsumed (MT Negative t) g = removeTuple t g
         removeConsumed _ g = g
 
     LRule lhs rhs -> do
-        return (es', (g1, fs', me2), new ++ out1)
+        return (es', (g1, fs', me2), new ++ out)
       where
-        added = concatMap applyLRHS matches
+        added = concatMap applyLRHS matches2
         -- (proofs refuted by ev, proofs unaffected)
         (falsified, me1) = falsify ev me
         me2 = foldr updateFact me1 added
         new = falsified ++ added
   where
-    matches = getMatches ev rule g fs
+    matches1 = getMatches ev rule g fs
+    matches2 =
+      if marked
+           -- if the match depends on both (p x) and (!p x), filter it out
+      then filter consistent .
+           -- if a rule is not marked, its input events have been ordered such
+           -- that this filter is unecessary
+           -- small optimization: only needs to be done on "high" prefix of input events
+           --
+           -- if a later event rejects the match, filter it out:
+           filter (\m -> not $ any (rejects m) es') $ matches1
+      else matches1
 
     g1 = case ev of
            E Positive t -> insertTuple t g
@@ -188,39 +221,31 @@ step3 ev rule (es, (g, fs, me), out) =
     -- TODO remove this from fold state
     es' = es
 
-    -- Removes Positive Msgs that depend on the opposite of the current event
-    -- TODO this is wrong!
-    --  if the invalidated match consumed a tuple, it needs to be un-consumed,
-    --    and potential matches depending on it need to be considered
-    --  one approach is to ensure a "safe" ordering of incoming tuples, prioritizing "deletion"
-    --    but it's tricky if rule references `p x` and `!p y`
-    --  another is to insert the un-consumed tuples into the work queue
-    out1 = filter (not . positiveDependent' ev) out
+    rejects (pr, _) ev = dependent' ev pr
 
+    -- TODO this should be done in Graph
+    consistent (pr, _) = not . hasAntipodePair . map fix . matched $ pr
+      where
+        fix e = (efact e, epolarity e)
 
 -- call step3 on each event
 -- accumulates local state changes and output msgs
-step4 :: [Event] -> Rule -> DBL -> M2 (DBL, [Msg])
-step4 es r dbl = go (es, dbl, [])
+step4 :: Bool -> [Event] -> Rule -> DBL -> M2 (DBL, [Msg])
+step4 marked es r dbl = go (es, dbl, [])
   where
     go :: IS -> M2 (DBL, [Msg])
     go ([], dbl, out) = do
       return (dbl, out)
     -- step3 never adds to es
-    go (e:es, dbl, ts) = step3 e r (es, dbl, ts) >>= go
+    go (e:es, dbl, ts) = step3 marked e r (es, dbl, ts) >>= go
 
 step :: S -> M2 (Maybe S)
-step (s@S{queues, localDB}) =
+step (s@S{queues, localDB, flags}) =
     -- TODO upgrade to 0.5.10, use lookupMin?
-    if M.size work == 0 then return Nothing else
-    let (rr@(_,rule), msgs) = M.elemAt 0 work
-        (g, fs0, me) = look rule localDB
-        (fs1, events) = step2 msgs fs0
-        dbl2 = (g, fs1, me)
-    in do
+    if M.size work == 0 then return Nothing else do
         -- eval
-        (dbl', output) <- step4 events rule dbl2
-        -- record
+        (dbl', output) <- step4 dangerous events1 rule dbl2
+        -- add to primary record, external output
         commitMsgs output
         unless (null output) $ do
           logMsg "---\ninputs:"
@@ -229,16 +254,35 @@ step (s@S{queues, localDB}) =
           mapM_ (logMsg . ("  "++) . ppMsg) output
           logMsg "---end---"
         let s1 = s
-              -- empty rule's queue
+              -- empty the queue
               { queues = M.insert rr [] work
               -- update its local state
               , localDB = M.insert rule dbl' localDB }
-        -- apply?
+        -- add to queues
         let s2 = pushMsgs output s1
         return $ Just s2
   where
     -- always ok to remove empty queues
     work = clean queues
+
+    -- Prepare for step4
+    (rr@(_,rule), msgs) = M.elemAt 0 work -- laziness
+    (g, fs0, me) = look rule localDB
+    (fs1, events0) = step2 msgs fs0
+    dbl2 = (g, fs1, me)
+    (dangerous, events1) = reorderEvents events0
+
+    -- We reorder inputs, putting events that could cause
+    -- matches to fail first. This prevents spurious matches.
+    -- This is impossible when `ruleHasPair` is True. An extra check in step3
+    -- handles it.
+    reorderEvents es =
+      case M.lookup rule flags of
+        Just (RF {ruleLinear, ruleHasPair, prioritySig}) ->
+          let (high, low) = partition ((`elem` prioritySig) . toSig) es
+          in (ruleHasPair, high ++ low)
+        _ -> error $ "missing RuleFlags map data for rule:\n  " ++ show rule
+    toSig e = (elabel e, epolarity e)
 
 solve :: [Rule] -> [Msg] -> M2 S
 solve rs msgs = do
