@@ -1,12 +1,10 @@
 -- TODO
---  make order that tuples are added/processed from RHS more consistent
---    just need to move packTuple/scheduleAdd out of applyStep
+--   index Graph
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
 module Graph where
 
 import Control.Monad
-import Data.List (group, sort)
 import qualified Data.Set as S
 import qualified Data.Map as M
 import Data.Maybe
@@ -74,11 +72,6 @@ solvePattern l es (ctxt, bound, deps) linear nvs =
 solveStep :: Graph -> FactState -> Bindings -> Query -> [Bindings]
 solveStep g _ b@(c, bound, deps) (Query _ (EP linear unique e vs)) =
     solvePattern e (map toEvent $ constrainRelation e g) b linear vs
-  where
-    --TODO remove
-    --handleUnique = if unique == Unique then safeInit else id
-    --safeInit [] = []
-    --safeInit (x:_) = [x]
 
 solveStep _ fs b@(c, bound, deps) q@(Query _ (LP polarity e ns)) =
   case polarity of
@@ -182,35 +175,34 @@ getMatches ev rule g fs = takeValid [] . map toMatch . go $ triggers
     --    matchOK = not . any (`elem` doubles) . consumed . fst
     --    findDoubles = map head . filter ((> 1) . length) . group . sort
 
-applyMatch :: Match -> M2 Context
+applyLookups c es = second reverse <$> foldM step (c, []) es
+  where
+    step (c0, acc) expr = do
+      (val, c1) <- applyLookup (reduce c0 expr) c0
+      return (c1, val:acc)
+
+applyMatch :: Match -> M2 ([Msg], Context)
 applyMatch (prov, ctxt) = do
-    let bound = consumed prov
-        rhs = rhsRule $ rule_src prov
-    c <- foldM (applyStep prov) ctxt $ rhs
-    --c <- foldM (applyStep prov) ctxt $ reverse rhs
-    mapM_ scheduleDel bound
-    return c
+    (ms, c) <- foldM applyStep ([], ctxt) $ rhs
+    return (reverse ms ++ removed, c)
   where
-    applyStep :: Provenance -> Context -> Assert -> M2 Context
-    applyStep prov c0 (Assert label exprs) = do
-        (c1, nodes) <- foldM step (c0, []) exprs
-        t <- packTuple (label, reverse nodes) prov
-        scheduleAdd t
-        return c1
-      where
-        step (c0, acc) expr = do
-          (val, c1) <- applyLookup (reduce c0 expr) c0
-          return (c1, val:acc)
+    removed = map (MT Negative) $ consumed prov
+    rhs = rhsRule $ rule_src prov
 
-applyLRHS :: Match -> [Msg]
-applyLRHS (prov, ctxt) = map (toMsg . step) rhs
+    applyStep :: ([Msg], Context) -> Assert -> M2 ([Msg], Context)
+    applyStep (ms, c0) (Assert label exprs) = do
+        (c1, nodes) <- applyLookups c0 exprs
+        t <- packTuple (label, nodes) prov
+        --scheduleAdd t
+        return (MT Positive t : ms, c1)
+
+applyLRHS :: Match -> M2 ([Msg], Context)
+applyLRHS (prov, ctxt) = do
+  (ms, c) <- foldM fix ([], ctxt) rhs
+  return (reverse ms, c)
   where
-    toMsg (f, p) = MF Positive f p
-    rule@(LRule _ rhs) = rule_src prov
-    step (Assert l es) = ((l, map (simpleLookup rule ctxt) es), prov)
+    fix (ms, c0) (Assert l es) = do
+      (c1, nodes) <- applyLookups c0 es
+      return (MF Positive (l, nodes) prov : ms, c1)
 
-    simpleLookup :: Rule -> Context -> E -> Node
-    simpleLookup rule c e =
-      case matchLookup (reduce c e) c of
-        Nothing -> error $ "Right-hand side of functional rule cannot contain holes or unbound variables. Offending expression: " ++ show e ++ "\n  in rule\n" ++ show rule
-        Just n -> n
+    rhs = rhsRule $ rule_src prov

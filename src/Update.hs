@@ -180,9 +180,9 @@ dependent' e pr = any (check e) (matched pr)
 step3 :: Bool -> Event -> Rule -> IS -> M2 IS
 step3 marked ev rule (es, (g, fs, me), out) =
   case rule of
+    -- TODO combine branches
     Rule lhs rhs -> do
-        mapM_ applyMatch matches2
-        new <- flushEvents
+        new <- concat . map fst <$> mapM applyMatch matches2
         let g2 = foldr removeConsumed g1 new
         return (es', (g2, fs', me), new ++ out)
       where
@@ -190,24 +190,23 @@ step3 marked ev rule (es, (g, fs, me), out) =
         removeConsumed _ g = g
 
     LRule lhs rhs -> do
+        added <- concat . map fst <$> mapM applyLRHS matches2
+        let me2 = foldr updateFact me1 added
+        let new = falsified ++ added
         return (es', (g1, fs', me2), new ++ out)
       where
-        added = concatMap applyLRHS matches2
         -- (proofs refuted by ev, proofs unaffected)
         (falsified, me1) = falsify ev me
-        me2 = foldr updateFact me1 added
-        new = falsified ++ added
   where
     matches1 = getMatches ev rule g fs
     matches2 =
+      -- If a rule is not marked, the first filter is irrelevant, and its input
+      -- events have been ordered such that the second filter is unecessary.
       if marked
-           -- if the match depends on both (p x) and (!p x), filter it out
+           -- If the match depends on both (p x) and (!p x), filter it out:
       then filter consistent .
-           -- if a rule is not marked, its input events have been ordered such
-           -- that this filter is unecessary
-           -- small optimization: only needs to be done on "high" prefix of input events
-           --
-           -- if a later event rejects the match, filter it out:
+           -- small optimization: only needs to be done on "high" prefix of input events.
+           -- If a later event rejects the match, filter it out:
            filter (\m -> not $ any (rejects m) es') $ matches1
       else matches1
 
@@ -220,6 +219,7 @@ step3 marked ev rule (es, (g, fs, me), out) =
 
     -- TODO remove this from fold state
     es' = es
+    -- TODO also remove out from fold state?
 
     rejects (pr, _) ev = dependent' ev pr
 

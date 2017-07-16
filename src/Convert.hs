@@ -1,10 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Convert
   ( readRules, readDBFile, runProgram
-  , loadProgram, runProgramWithDB
-  ) where
+  , loadProgram, runProgramWithDB, programWithDB
+  , runAnalysis
+  )
+  where
 
-import Control.Monad.State (gets)
 import Control.Monad (foldM)
 
 import Types
@@ -28,11 +29,11 @@ readRules :: FilePath -> IO [Rule]
 readRules f = do
   rs <- readFile f
   case parseRuleFile rs of
-    Right rs -> return $ convert rs
+    Right rs -> return $ convertRules rs
     Left err -> error $ err
 
-convert :: [LineRule] -> [Rule]
-convert rs = result
+convertRules :: [LineRule] -> [Rule]
+convertRules rs = result
   where
     -- TODO: keep line numbers for logical rules too; print on check failure
     logRels = logicalRelations $ map snd rs
@@ -40,67 +41,66 @@ convert rs = result
 
     result = map fix rs
 
-    convertq (line, rule) q@(Query d ep@(EP Linear _ l ns)) | l `elem` logRels = error $ "Rules may not consume logical tuples. error on line " ++ show line ++ ":\n" ++ show rule
+    convertq (line, rule) q@(Query d ep@(EP Linear _ l ns)) | l `elem` logRels =
+      error $ "Rules may not consume logical tuples. error on line " ++ show line ++ ":\n" ++ show rule
     convertq _ (Query d ep@(EP _ _ l ns)) | l `elem` logRels = Query d (LP Positive l ns)
-    convertq (line, _) (Query d lp@(LP _ l ns)) | l `elem` impRels = error $ "Cannot negate event relation: "++show l ++ ". error on line " ++ show line ++ "."
+    convertq (line, _) (Query d lp@(LP _ l ns)) | l `elem` impRels =
+      error $ "Cannot negate event relation: "++show l ++ ". error on line " ++ show line ++ "."
     convertq _ q = q
 
-    check (line, rule) (Assert l _) | l `elem` logRels = error $ "Event rule (=>) may not assert logical tuple. error on line " ++ show line ++ ":\n" ++ show rule
+    check (line, rule) (Assert l _) | l `elem` logRels =
+      error $ "Event rule (=>) may not assert logical tuple. error on line " ++ show line ++ ":\n" ++ show rule
     check _ a = a
 
     fix r@(_, Rule lhs rhs) = Rule (map (convertq r) lhs) (map (check r) rhs)
     -- TODO important: all variables in the rhs must be bound in the lhs
     fix r@(_, LRule lhs rhs) = LRule (map (convertq r) lhs) rhs
 
--- Program execution
--- Main function
--- TODO don't return huge tuple
-runProgram start_marker edgeName ruleName = do
-    (edgeBlocks, rules, metaRules) <- loadProgram edgeName ruleName
+-- 1. treats the input RHS as a set of tuples to add
+-- 2. adds them, possibly extending context c
+-- 3. solves for consequences, using rules
+-- 4. returns extended context and a "root cause" tuple
+processInputTuples :: [Rule] -> Context -> RHS -> M2 (Tuple, Context)
+processInputTuples rules c es = do
+  let initMatch t edges c = (Provenance (Rule [] edges) (Just $ toEvent t) [] [], c)
+  root <- makeTuple ("", []) externProv
+  (msgs, c') <- applyMatch $ initMatch root es c
+  --msgs <- flushEvents
+  _ <- solve rules msgs
+  return (root, c')
 
-    let edges = concat edgeBlocks
-    let externalInputs = trueInputs start_marker rules edges
+-- returns a "root" tuple that can be used to access the results of each
+-- block of edges.
+programWithDB :: [RHS] -> [Rule] -> M2 [Tuple]
+programWithDB edgeBlocks rules = prog2
+    where
+      prog1 (ts, c) es = do
+        (t, c') <- processInputTuples rules c es
+        return (t:ts, c)
 
-    let (msgs, roots, result, outputs, gas) = runProgramWithDB edgeBlocks rules
-    let ruleEmbedding = runAnalysis rules metaRules
+      prog2 :: M2 [Tuple]
+      prog2 = fst <$> foldM prog1 ([], []) edgeBlocks
 
-    return (msgs, rules, externalInputs, result, outputs, roots, gas, ruleEmbedding)
+runProgramWithDB e r = runDB (Nothing) emptyDB $ programWithDB e r
 
+loadProgram :: FilePath -> FilePath -> IO ([RHS], [Rule])
 loadProgram edgeFile ruleFile = do
-    let metaFile = "examples/analysis.arrow"
-
     edgeBlocks <- readDBFile edgeFile
     rules <- readRules ruleFile
 
-    metaRules <- readRules metaFile
+    return (edgeBlocks, rules)
 
-    return (edgeBlocks, rules, metaRules)
+-- Program execution
+-- Main function
+runProgram :: FilePath -> FilePath -> IO ([Tuple], [Rule], InterpreterState)
+runProgram edgeName ruleName = do
+    (edgeBlocks, rules) <- loadProgram edgeName ruleName
+    let (roots, s) = runProgramWithDB edgeBlocks rules
+    return (roots, rules, s)
 
-
-runProgramWithDB edgeBlocks rules =
-    let
-      initMatch t edges c = (Provenance (Rule [] edges) (Just $ toEvent t) [] [], c)
-      rootTuple = makeTuple ("", []) (Provenance nullRule Nothing [] [])
-      prog1 (ts, c) es = do
-          t <- rootTuple
-          c' <- applyMatch $ initMatch t es c
-          msgs <- flushEvents
-          _ <- solve rules msgs
-          return (t:ts, c')
-      prog2 :: M2 ([Tuple], [String])
-      prog2 = do
-        (roots, _) <- foldM prog1 ([], []) edgeBlocks
-        l <- gets msgLog
-        return (roots, l)
-
-      ((roots, msgs), s2) = runDB (Nothing) emptyDB prog2
-
-      result = db s2
-      outputs = netOutput s2
-    in (msgs, roots, result, outputs, defaultGas - gas s2)
-
-runAnalysis rules metaRules =
-  let
+runAnalysis :: [Rule] -> [Rule] -> M2 ()
+runAnalysis rules metaRules = prog3
+  where
     prog3 :: M2 ()
     prog3 = do
       mapM_ flattenRule rules
@@ -108,7 +108,4 @@ runAnalysis rules metaRules =
       _ <- solve metaRules msgs
       return ()
 
-    (_, s3) = runDB Nothing emptyDB prog3
-
-    ruleEmbedding = db s3
-  in ruleEmbedding
+    --(_, s3) = runDB Nothing emptyDB prog3

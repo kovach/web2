@@ -19,7 +19,7 @@ makeTree :: [Tuple] -> [Tuple] -> Tuple -> PTree
 makeTree dead ts root@(T{})=
   let fe (E _ t) = Just t
       fe _ = Nothing
-      cs = sortOn tid $ filter ((== (Just $ Just root)) . fmap fe . tuple_src . source) ts
+      cs = sortOn tid $ filter ((== (Just $ Just root)) . fmap fe . tuple_cause . source) ts
   in TreeNode (root `elem` dead) root (map (makeTree dead ts) cs)
 
 data IOMarker = Input | Output | Internal | Ignored
@@ -76,7 +76,11 @@ printTree rules = p 0
 
 runTextDemo start_marker edgeFile ruleFile do_print = do
     let prefix s = "examples/" ++ s
-    (msgLog, rules, externalInputs, result, outputs, roots, gas, ruleEmbedding) <- runProgram start_marker (prefix edgeFile) (prefix ruleFile)
+    (roots, rules, s) <- runProgram (prefix edgeFile) (prefix ruleFile)
+    let gasUsed = defaultGas - gas s
+    let result = db s
+    let logged = msgLog s
+    let outputs = netOutput s
 
     let resultTrees = map (makeTree (removed_tuples result) (allTuples result)) roots
 
@@ -86,8 +90,8 @@ runTextDemo start_marker edgeFile ruleFile do_print = do
     mapM_ (putStrLn . ("  " ++) . show) $ logicalRelations rules
     putStrLn "input relations:"
     mapM_ (putStrLn . ("  " ++) . show) $ inputRelations rules
-    putStrLn "external inputs:"
-    mapM_ (putStrLn . ("  " ++) . show) $ externalInputs
+    --putStrLn "external inputs:"
+    --mapM_ (putStrLn . ("  " ++) . show) $ externalInputs
     putStrLn "output relations:"
     mapM_ (putStrLn . ("  " ++) . show) $ outputRelations rules
 
@@ -106,7 +110,7 @@ runTextDemo start_marker edgeFile ruleFile do_print = do
     -- SWITCH:
     if False then do
       putStrLn "msg log:"
-      mapM_ (putStrLn) $ reverse msgLog
+      mapM_ (putStrLn) $ reverse logged
       else return ()
 
     green
@@ -115,22 +119,22 @@ runTextDemo start_marker edgeFile ruleFile do_print = do
     putStrLn $ ppFS (facts result)
 
     -- SWITCH:
-    if False then do
-      red
-      putStrLn "rule embedding:"
-      white
-      mapM_ (putStrLn . ppTuple) . (fromGraph . tuples) $ ruleEmbedding
-      putStrLn $ ppFS (facts ruleEmbedding)
-      putStrLn ""
-      else return ()
+    --if False then do
+    --  red
+    --  putStrLn "rule embedding:"
+    --  white
+    --  mapM_ (putStrLn . ppTuple) . (fromGraph . tuples . db) $ ruleEmbedding
+    --  putStrLn $ ppFS (facts $ db ruleEmbedding)
+    --  putStrLn ""
+    --  else return ()
 
     putStrLn "final tuple count:"
     print $ length tupleList
 
     putStrLn "steps used:"
-    print $ gas
+    print $ gasUsed
 
-    unless (gas < defaultGas) $ do
+    unless (gasUsed < defaultGas) $ do
       red
       putStrLn "WARNING exhausted gas"
       white

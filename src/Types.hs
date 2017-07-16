@@ -75,8 +75,13 @@ data Provenance = Provenance
   | Extern [Int] -- TODO ??
   deriving (Eq, Show, Ord)
 
+tuple_cause p@(Provenance{}) = tuple_src p
+tuple_cause (Extern _) = Nothing
+
 nullProv :: Provenance
 nullProv = Provenance nullRule Nothing [] []
+
+externProv = Extern []
 
 type RawTuple = (Label, [Node])
 type Fact = RawTuple
@@ -290,3 +295,4 @@ ppMsg :: Msg -> String
 ppMsg (MT p t) = ppEvent (E p t)
 ppMsg (MF Positive f pr) = "+"++ppFact f++"<~"++ppMatch pr
 ppMsg (MF Negative f pr) = "-"++ppFact f++"<~"++ppMatch pr
+ppTupleProv (T{..}) = show tid++":"++ppFact (label, nodes)++"{"++ppMatch source++"}"

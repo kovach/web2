@@ -1,11 +1,12 @@
 -- TODO use a unit test framework
--- TODO
---   check for multiple deletion
+--      check for multiple deletion
+--      check size of FactState
+--      validate actual output
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
 import Types
-import Monad (tuples)
+import Monad
 import Convert (runProgram)
 
 import Control.Monad (unless)
@@ -53,10 +54,13 @@ testCases =
 
 runTest :: TestCase -> IO Bool
 runTest (label, rules, input, output) = do
-  (_, _, _, result, outputs, _, gas, _) <- runProgram "" input rules
+  (_, _, s) <- runProgram input rules
+  let result = db s
+      outputs = netOutput s
+      steps = defaultGas - gas s
   let t = TO
           { tuple_count = length (fromGraph (tuples result))
-          , steps_used = gas
+          , steps_used = steps
           , msgs_sent = length outputs
           }
   putStrLn ("\ntest case: " ++ label)
