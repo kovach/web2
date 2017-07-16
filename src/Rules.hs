@@ -1,8 +1,10 @@
 module Rules where
 
-import Types
 import Data.Maybe (mapMaybe)
 import Data.List (nub)
+
+import Types
+import Parser (LineRule)
 
 lhsRels, rhsRels :: Rule -> [Label]
 lhsRels = nub . mapMaybe l . lhs
@@ -41,3 +43,52 @@ logicalRelations = nub . concatMap getLRHS
   where
     getLRHS (LRule _ rhs) = map assertRel rhs
     getLRHS _ = []
+
+labelAssertArity :: Assert -> Assert
+labelAssertArity (Assert (L s) ns) = Assert (LA s (length ns)) ns
+labelAssertArity a = a
+labelRHSArity = map labelAssertArity
+
+labelQueryArity :: Query -> Query
+labelQueryArity (Query d p) = Query d (fix p)
+  where
+    fix (EP lin u (L l) ns) = EP lin u (LA l (length ns)) ns
+    fix (LP pol (L l) ns) = LP pol (LA l (length ns)) ns
+    fix p = p
+labelQueryArity q = q
+labelLHSArity = map labelQueryArity
+
+-- "Type inference"
+convertRules :: [LineRule] -> [Rule]
+convertRules rs = result
+  where
+    -- NOTE:
+    --   relation/n is given the same type, "logical" or "event", for all n
+    logRels = logicalRelations $ map snd rs
+    impRels = allRelations (map snd rs) `diffList` logRels
+
+    result = map fix rs
+
+    convertq (line, rule) q@(Query d ep@(EP Linear _ l ns)) | l `elem` logRels =
+      error $ "Rules may not consume logical tuples. error on line " ++ show line ++ ":\n" ++ show rule
+    convertq _ (Query d ep@(EP _ _ l ns)) | l `elem` logRels = Query d (LP Positive l ns)
+    convertq (line, _) (Query d lp@(LP _ l ns)) | l `elem` impRels =
+      error $ "Cannot negate event relation: "++show l ++ ". error on line " ++ show line ++ "."
+    convertq _ q = q
+
+    check (line, rule@(Rule _ _)) (Assert l _) | l `elem` logRels =
+      error $ "Event rule (=>) may not assert logical tuple. error on line " ++ show line ++ ":\n" ++ show rule
+    check (line, rule@(LRule _ _)) (Assert l _) | l `elem` impRels =
+      error $ "Logical rule (~>) may not assert event tuple. error on line " ++ show line ++ ":\n" ++ show rule
+    check _ a = a
+
+    fix r@(_, rule) = result
+      where
+        result = case rule of
+                   Rule _ _ -> Rule lhs rhs
+                   LRule _ _ -> LRule lhs rhs
+        lhs' = map (convertq r) (lhsRule rule)
+        rhs' = map (check r) (rhsRule rule)
+
+        lhs = labelLHSArity lhs'
+        rhs = labelRHSArity rhs'

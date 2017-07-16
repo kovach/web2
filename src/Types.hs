@@ -10,13 +10,14 @@ import qualified Data.Set as S
 import Data.Map (Map)
 import qualified Data.Map as M
 
-newtype Label = L String
+data Label = L String | LA String Int
   deriving (Eq, Ord)
 
 instance IsString Label where
   fromString = L
 instance Show Label where
   show (L s) = s
+  show (LA s a) = s++"/"++show a
 
 nullLabel = L ""
 
@@ -199,6 +200,9 @@ data Rule
 
 nullRule :: Rule
 nullRule = Rule [] []
+
+lhsRule (Rule r _) = r
+lhsRule (LRule r _) = r
 
 rhsRule (Rule _ r) = r
 rhsRule (LRule _ r) = r
