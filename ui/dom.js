@@ -3,6 +3,14 @@ var append = function(a, b) {
   return a;
 }
 
+var setFontSize = function(size) {
+  var fix = function(el) {
+    el.style.fontSize = size;
+  }
+  document.getElementsByClassName("editor").each(fix);
+  document.getElementsByClassName("node").each(fix);
+}
+
 var mkText = function(str, elem) {
   var t = document.createTextNode(str);
   if (elem)
@@ -10,12 +18,27 @@ var mkText = function(str, elem) {
   return t;
 }
 
-var mkEditor = function(str, id, other) {
-  var el = document.createElement('textarea');
-  el.placeholder= str;
-  //TODO move
-  //el.addEventListener('keydown', editorHandler(sock, id));
+// TODO codemirror
+var mkEditor = function(str, id, sock, special_key_handler, other) {
+  var el = document.createElement("textarea");
+  el.setAttribute("id", JSON.stringify(id));
+  el.setAttribute("tabindex", 0);
+  el.className = "editor";
+  el.innerHTML= str;
+  el.addEventListener("keydown", special_key_handler(el, id, sock));
+  addClickHandlers(el, id, sock);
+  if (other)
+    append(el, other);
+  return el;
+}
 
+var mkNode = function(str, id, sock, special_key_handler, other) {
+  var el = document.createElement("div");
+  el.setAttribute("id", JSON.stringify(id));
+  el.setAttribute("tabindex", 0);
+  el.className = "node";
+  el.innerHTML = str;
+  addClickHandlers(el, id, sock);
   if (other)
     append(el, other);
   return el;
@@ -39,25 +62,19 @@ var mkLine = function() {
 var mkToken = function(id, sock) {
   var el = mkCircle();
   el.setAttribute("visibility", "hidden");
-  el.addEventListener("click", function(ev) {
-    sock.send(clickCommand(id, ev.button));
-  });
-  el.addEventListener("contextmenu", function(ev) {
-    ev.stopPropagation();
-    ev.preventDefault();
-    sock.send(clickCommand(id, ev.button));
-  });
+  addClickHandlers(el, id, sock);
   el.addEventListener("mouseover", function() {
     //TODO
-    //sock.send(overCommand(id));
+    //overCommand(id);
   });
   el.addEventListener("mouseout", function() {
     //TODO
-    //sock.send(outCommand(id));
+    //outCommand(id);
   });
 
   return el;
 }
+
 var mkBox = function(str, id, other) {
   var el = document.createElement('div');
   el.classList.add('box');
@@ -65,17 +82,38 @@ var mkBox = function(str, id, other) {
   mkText(str, el);
   if (other)
     append(el, other);
-  el.addEventListener('onmouseenter', function() {
+  el.addEventListener("mouseover", function() {
   });
-  el.addEventListener('onmouseleave', function() {
+  el.addEventListener("mouseleave", function() {
   });
   return el;
 }
 
-var create = function(type, id) {
-  var el = document.createElement(type);
-  el.id = id;
-  return el;
+var addClickHandlers = function(el, id, sock) {
+  el.addEventListener("click", function(ev) {
+    clickCommand(id, ev.button);
+    ev.stopPropagation();
+  });
+  el.addEventListener("contextmenu", function(ev) {
+    ev.stopPropagation();
+    ev.preventDefault();
+    clickCommand(id, ev.button);
+  });
+}
+
+var insertPositional = function(childID, child, par, rank) {
+  var done = _.find(par.children, function(c) {
+    if (!c.hasAttribute("rank")) {
+      return false;
+    }
+    if (c.getAttribute("rank") > rank) {
+      par.insertBefore(child, c)
+      return true
+    }
+  });
+  if (!done) {
+    par.appendChild(child);
+  }
 }
 
 var get = function(id) {

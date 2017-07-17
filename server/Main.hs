@@ -47,6 +47,7 @@ convert (E p T{..}) = Just (p, label, nodes)
 convert (EFact (label, nodes) _) = Just (Positive, label, nodes)
 convert (EFalse (label, nodes))  = Just (Negative, label, nodes)
 
+-- TODO remove arity tags?
 encodeEvents :: [Event] -> T.ByteString
 encodeEvents = encode . mapMaybe convert
 
@@ -77,18 +78,14 @@ initEditorProgram :: IO ([Rule], DB, [Msg])
 initEditorProgram = do
   editDB    <- readDBFile "ui/editor/editor.graph"
   editRules <- readRules "ui/editor/editor.arrow"
-  --objRules  <- readRules "ui/editor/editor.arrow"
-  objRules  <- readRules "ui/editor/test.arrow"
-  metaRules <- readRules "ui/editor/creation.arrow"
-  --let analysis  = runAnalysis objRules metaRules
-  --    (_, init) = runProgramWithDB editDB editRules
-  --mapM_ (putStrLn . ppMsg) (netOutput init)
+  objRules  <- readRules "ui/editor/editor.arrow"
+  --objRules  <- readRules "ui/editor/test.arrow"
+  let allRules = editRules
   let prog = do
-        --runAnalysis objRules metaRules
-        mapM_ flattenRule objRules
-        --ms <- flushOutput
-        programWithDB editDB (editRules++metaRules)
-        --solve editRules ms
+        flattenRules objRules
+        ms <- flushEvents
+        programWithDB editDB allRules
+        solve allRules ms
   let (_, s) = runDB Nothing emptyDB prog
   mapM_ (putStrLn . ppTupleProv) (fromGraph . tuples $ db s)
   return (editRules, db s, netOutput s)
@@ -100,21 +97,23 @@ noDebug = True
 handler connId msg s0@(State rules db0) =
   case decodeCommand msg of
     Just Reset -> do
+      putStrLn "reset"
       (rules', db1, msgs) <- makeDB
-      -- TODO rename step2
+      -- TODO only send relevant tuples
       let (_, outputEvents) = step2 msgs emptyFS
       --mapM_ (putStrLn . ppEvent) outputEvents
-      putStrLn "reset"
       return (Just (encodeEvents outputEvents), (State rules' db1))
-    Just Connect -> error "not implemented"
+    Just Connect -> do
+      putStrLn "not implemented"
+      return (Nothing, s0)
     Just RawTuple{rawLabel, rawNodes} -> do
       putStrLn "parsed event"
       let
         (_, is) = runDB Nothing db0 $ do
-          t <- packTuple (rawLabel, NInt connId : rawNodes) (Extern [])
+          let ns = NInt connId : rawNodes
+              l = LA (lstring rawLabel) (length ns)
+          t <- packTuple (l, ns) (Extern [])
           let msg = MT Positive t
-                  --Hover _ -> return $ MF Positive fact (Extern [])
-                  --UnHover _ -> return $ MF Negative fact (Extern [])
           solve rules [msg]
         outputMsgs = netOutput is
 

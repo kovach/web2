@@ -21,7 +21,6 @@ readDBFile :: FilePath -> IO [[Assert]]
 readDBFile file = do
   f <- readFile file
   case parseTupleFile f of
-    --Right v -> return $ v
     Right v -> return $ map labelRHSArity v
     Left err -> error $ "error parsing graph file:\n" ++ err
 
@@ -42,7 +41,6 @@ processInputTuples rules c es = do
   let initMatch t edges c = (Provenance (Rule [] edges) (Just $ toEvent t) [] [], c)
   root <- makeTuple ("", []) externProv
   (msgs, c') <- applyMatch $ initMatch root es c
-  --msgs <- flushEvents
   _ <- solve rules msgs
   return (root, c')
 
@@ -80,9 +78,7 @@ runAnalysis rules metaRules = prog3
   where
     prog3 :: M2 ()
     prog3 = do
-      mapM_ flattenRule rules
+      flattenRules rules
       msgs <- flushEvents
       _ <- solve metaRules msgs
       return ()
-
-    --(_, s3) = runDB Nothing emptyDB prog3

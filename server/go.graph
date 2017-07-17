@@ -3,4 +3,3 @@ op 'white 'black
 
 # invoke ui/go rules
 create-game
-

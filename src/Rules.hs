@@ -10,7 +10,6 @@ lhsRels, rhsRels :: Rule -> [Label]
 lhsRels = nub . mapMaybe l . lhs
   where
     l (Query _ ep) = Just (epLabel ep)
-    -- l (Counter _ _) = error "unimplemented!"
     l _ = Nothing
 rhsRels = nub . map assertRel . rhs
 
@@ -62,8 +61,9 @@ labelLHSArity = map labelQueryArity
 convertRules :: [LineRule] -> [Rule]
 convertRules rs = result
   where
-    -- NOTE:
+    -- NOTE!
     --   relation/n is given the same type, "logical" or "event", for all n
+    --   TODO bad convention?
     logRels = logicalRelations $ map snd rs
     impRels = allRelations (map snd rs) `diffList` logRels
 
@@ -72,8 +72,8 @@ convertRules rs = result
     convertq (line, rule) q@(Query d ep@(EP Linear _ l ns)) | l `elem` logRels =
       error $ "Rules may not consume logical tuples. error on line " ++ show line ++ ":\n" ++ show rule
     convertq _ (Query d ep@(EP _ _ l ns)) | l `elem` logRels = Query d (LP Positive l ns)
-    convertq (line, _) (Query d lp@(LP _ l ns)) | l `elem` impRels =
-      error $ "Cannot negate event relation: "++show l ++ ". error on line " ++ show line ++ "."
+    convertq (line, rule) (Query d lp@(LP _ l ns)) | l `elem` impRels =
+      error $ "Cannot negate event relation: "++show l ++ ". error on line " ++ show line ++ ":\n" ++ show rule
     convertq _ q = q
 
     check (line, rule@(Rule _ _)) (Assert l _) | l `elem` logRels =

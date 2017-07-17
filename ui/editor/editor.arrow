@@ -1,0 +1,38 @@
+# helper
+n i v p r ~> text-node i v, parent i p r
+# top level rule containers
+rule r rank ~> n i "" "rules" rank, of i r, n q "" i 1, n a "" i 3, class i "rule", class q "query", class a "assert", query-node q r, assert-node a r
+
+# decorators
+imperative r, of p r ~> text-node i "=>", parent i p 2, class i "sep"
+logical    r, of p r ~> text-node i "~>", parent i p 2, class i "sep"
+linear q,     of p q ~> text-node i "..", parent i p -1, class i "label"
+negated q,    of p q ~> text-node i "!",  parent i p -1, class i "label"
+
+# rule components
+string l ~> is-string l
+var v q n, of p q, var-name v str ~> text-node i str, parent i p n, class i "var"
+literal l q n, is-string l, of p q ~> text-node i ("\"" ++ (l ++ "\"")), parent i p n, class i "literal"
+literal l q n, !is-string l, of p q ~> text-node i l, parent i p n, class i "literal"
+pattern q r, query-node p r, label q l ~> text-node i "", of i q, parent i p, text-node il l, parent il i 0, class il "label"
+assert q r, assert-node p r, label q l ~> text-node i "", of i q, parent i p, text-node il l, parent il i 0, class il "label"
+
+#pattern q r, of p q ~> text-node i ", ", parent i p 222
+
+# focusing
+click _ _ el => make-focus el
+.make-focus el, ..focus old => focus el, background-color old "transparent", background-color el "#444"
+
+# movement keys
+key-press _ "<", focus el, parent el p => make-focus p
+key-press _ "<", focus el, parent el p _ => make-focus p
+key-press _ ">", focus el, parent child el 0 => make-focus child
+
+# TODO editing
+#.text-entry _ "enter" x _,   ..tree-node x str, parent x i => tree-edit y str, parent y i
+#.text-entry _ "enter" x new, ..tree-edit x original, parent x i => commit-value i original new
+#.text-entry _ "esc"   x _,   ..tree-edit x original => tree-node x original
+#..commit-value _ same same =>
+#..commit-value i original "" => remove-node i
+#..commit-value i _ new, node i t => #update
+#..commit-node x str => tree-node x str

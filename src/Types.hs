@@ -17,7 +17,12 @@ instance IsString Label where
   fromString = L
 instance Show Label where
   show (L s) = s
+  -- TODO don't show arity
   show (LA s a) = s++"/"++show a
+
+lstring :: Label -> String
+lstring (L s) = s
+lstring (LA s _) = s
 
 nullLabel = L ""
 
@@ -156,6 +161,8 @@ data NumOp = Sum | Mul | Sub
   deriving (Eq, Show, Ord)
 
 data E = EBinOp NumOp E E
+       -- TODO combine with above
+       | EConcat E E
        | ELit Int
        | EVar Name
        | ENamed String

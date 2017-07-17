@@ -157,6 +157,7 @@ binOp_ =
   ((string "+") *> return Sum)
   <|> ((string "*") *> return Mul)
   <|> ((string "-") *> return Sub)
+
 expr_ =
   (ELit <$> int_)
   <|> (ENamed <$> symbol_)
@@ -164,6 +165,7 @@ expr_ =
   <|> (EVar <$> identifier)
   <|> (EString <$> stringLiteral)
   <|> (wrap_ $ flip EBinOp <$> expr_ <*> binOp_ <*> expr_)
+  <|> (wrap_ $ EConcat <$> expr_ <*> (string "++" *> expr_))
 
 -- allow trailing whitespace?
 rquery_ = Assert <$> rel_ <*> many expr_
