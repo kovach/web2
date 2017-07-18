@@ -54,11 +54,11 @@ In writing, a relation can be described by `tag/arity`, as in Prolog.
 For example, a directed graph might use `adj-to/2` for the adjacency
 relation.  A tuple is written as
 
-> `label v1 v2 ... vn`,
+```
+label v1 v2 ... vn
+```
 
-for instance
-
-> `adj-to 2 7`.
+for instance, `adj-to 2 7`.
 
 There are two types of relations: *logical* and *imperative*. The tuples in a
 logical relation are called *facts*, and the tuples of an imperative relation
@@ -92,32 +92,38 @@ Each clause of a query is either a *pattern* or a *constraint*.
 
 ### Patterns
 Pattern clauses bind instances of tuples in the database. When they match, they
-produce *variable bindings* in the scope of the rule. Suppose `r/n` is some
-relation.
+produce *variable bindings* in the scope of the rule.
 
-- `r x1 x2 ... xn`, where `x1` through `xn` are literal values or identifiers,
-  is a pattern which matches all tuples in relation `r` which unify with the
-  pattern. The variables are bound to the values in the matched tuple. If a
-  variable appears at more than one location in a query, it indicates an
-  equality constraint. The special identifier `_` matches without binding.
+Suppose `r/n` is some relation. Then
 
-    > For example,
+```
+r x1 x2 ... xn,
+```
 
-    >> `adj-to 1 x`
+where `x1` through `xn` are literal values or identifiers, is a pattern which
+matches all tuples in relation `r/n` which unify with the pattern. The
+variables are bound to the values in the matched tuple. If a variable appears
+at more than one location in a query, it indicates an equality constraint. The
+special identifier `_` matches without binding.
 
-    > matches all edges in the graph that start at `1`,
+examples:
 
-    >> `adj-to i i`
+  - `adj-to 1 x` matches all edges in the graph that start at `1`.
 
-    > matches all loops, and
+  - `adj-to i i` matches all loops.
 
-    >> `adj-to x y, adj-to y z`
+  - `adj-to x y, adj-to y z` matches all paths of two edges.
 
-    > matches all paths of two edges.
+**NOTE:** given `n ≠ m`, `r/n` and `r/m` are considered distinct relations.
 
-- `!r x1 ... xn`, when r is a logical relation, matches exactly when there are no
-  proofs of the fact present. It requires that the variables be bound
-  elsewhere by the query.
+#### Negation
+
+```
+!r x1 ... xn,
+```
+
+when `r` is a logical relation, matches exactly when there are no proofs of the
+fact present. It requires that the variables be bound elsewhere by the query.
 
 ### Constraints
 
@@ -169,8 +175,8 @@ The right side of an imperative rule constructs new tuples. In the example
 above, two tuples in the `empty/2` relation are created. The variable `l` is
 bound by the query, and the symbols `'black` and `'white` are symbol literals.
 
-Variables occurring in an event assertion are allowed to be free (not bound in
-the query).
+Variables occurring in an assertion are allowed to be free (not bound in the
+query).
 
   > example [(Go):](https://github.com/kovach/web2/blob/86b7f2ff04287f57d513eb2a769067526a18f1f8/examples/go.arrow#L28)
   > ```
@@ -221,7 +227,6 @@ In contrast, logical rules do not *mutate* the database:
 
 - A given fact is true only if some logical rule requires it.
 - Linear patterns may not appear in the query.
-- All variables in the assertion must be bound.
 
 Logical rules are useful for computing dynamic properties of objects.
 
