@@ -1,10 +1,10 @@
-go n, n > 1 => number n, marked n, go (n - 1)
+go n, n > 1 => number n, go (n - 1)
 
-prime k, ..marked k => step k (2 * k)
-step k m,   number m => step k (k + m)
-step k m, ..marked m => not-prime m
+prime k => composite-by k (2 * k)
+composite-by k m, number m => composite-by k (k + m)
+composite-by _ m => not-prime m
 
-..consider n, marked n => consider (n + 1), prime n
-..consider n, number n => consider (n + 1)
+..consider n, not-prime n => consider (n + 1)
+..consider n, number n => prime n, consider (n + 1)
 
 prime _ ~> prime-count
