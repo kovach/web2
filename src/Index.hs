@@ -1,5 +1,6 @@
 module Index where
 
+import Data.List (nub)
 import Data.Maybe
 import qualified Data.Set as S
 import qualified Data.Map as M
@@ -24,11 +25,13 @@ linearClauses = mapMaybe islinear
     islinear _ = Nothing
 
 insertRule :: Rule -> Index -> Index
-insertRule rule@(Rule lhs _) ind =
+insertRule rule@(Rule lhs0 _) ind =
   case dotClauses rule of
     [] -> foldr step ind lhs
     cs -> foldr step ind cs
   where
+    -- TODO forbid repeated clauses?
+    lhs = nub lhs0
     pattern = S.fromList lhs
     step q@(Query _ ep) ind =
       M.insertWith (++) (epLabel ep, epSign ep)
@@ -38,7 +41,7 @@ insertRule rule@(Rule lhs _) ind =
     linear = if not . null . linearClauses $ lhs then Linear else NonLinear
 
 insertRule rule@(LRule lhs _) ind =
-    foldr step ind lhs
+    foldr step ind (nub lhs)
   where
     pattern = S.fromList lhs
     step q@(Query _ ep) ind =
