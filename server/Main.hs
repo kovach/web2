@@ -15,6 +15,7 @@ import Control.Monad (foldM)
 import Types
 import FactIndex (emptyFS)
 import Monad
+import Rules
 import Update
 import Convert
 import Reflection
@@ -99,8 +100,11 @@ initLogProgram = do
   --objRules    <- readRules "ui/editor/test.arrow"
   objDB    <- readDBFile "examples/sieve.graph"
   objRules    <- readRules "examples/sieve.arrow"
-  editRules <- readRules "ui/editor/log.arrow"
-  let allRules = editRules
+  logRules  <- readRules "ui/editor/log.arrow"
+  editDB    <- readDBFile "ui/editor/editor.graph"
+  editRules <- readRules "ui/editor/editor.arrow"
+  -- TODO better way to load multiple rule sets
+  let allRules = convertRules $ zip [1..] $ logRules ++ editRules
   let prog = do
         programWithDB objDB objRules
         ms <- flushOutput
@@ -108,11 +112,12 @@ initLogProgram = do
             fix c _ = return c
         foldM fix emptyRC ms
         ms <- flushEvents
+        programWithDB editDB allRules
         solve allRules ms
   let (_, s) = runDB Nothing emptyDB prog
   --mapM_ (putStrLn . ppTupleProv) (fromGraph . tuples $ db s)
   putStrLn $ "initial db size: " ++ show (length $ fromGraph . tuples $ db s)
-  return (editRules, db s, netOutput s)
+  return (allRules, db s, netOutput s)
 
 makeDB = initLogProgram
 
@@ -125,7 +130,7 @@ handler connId msg s0@(State rules db0) =
       (rules', db1, msgs) <- makeDB
       -- TODO only send relevant tuples
       let (_, outputEvents) = step2 msgs emptyFS
-      --mapM_ (putStrLn . ppEvent) outputEvents
+      mapM_ (putStrLn . ppEvent) outputEvents
       return (Just (encodeEvents outputEvents), (State rules' db1))
     Just Connect -> do
       putStrLn "not implemented"

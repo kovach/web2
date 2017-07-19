@@ -22,11 +22,11 @@ var initSock = function() {
 
     console.log("msgs received: ", msgs.length);
 
-    if (msgs.length < 50) {
-      _.each(msgs, function(obj) {
-        console.log(JSON.stringify(obj));
-      });
-    }
+    //if (msgs.length < 50) {
+    //  _.each(msgs, function(obj) {
+    //    console.log(JSON.stringify(obj));
+    //  });
+    //}
 
     _.each(msgs, parseTuple(sock));
 
@@ -434,6 +434,12 @@ var parseTuple = function(sock) {
         var id = nodes[0];
         var c = nodes[1].contents;
         setObjAttr(id, "class", c);
+        break;
+      case "log":
+        //var id = nodes[0];
+        var c = _.map(nodes, function(n) { return n.contents });
+        console.log(c);
+        break;
     }
   }
 }
@@ -441,6 +447,8 @@ var parseTuple = function(sock) {
 window.onload = function() {
   var rulesId = strNode("rules");
   setObjAttr(rulesId, "elem", get("rules"));
+  var rulesId = strNode("log");
+  setObjAttr(rulesId, "elem", get("log"));
   // Some components will use right-click inputs; best to disable it everywhere?
   document.addEventListener('contextmenu', event => event.preventDefault());
   sock = initSock();

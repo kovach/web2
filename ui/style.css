@@ -18,13 +18,23 @@ body {
   outline: none;
 }
 
-#rules {
-  width: 50%;
+#rules, #log {
+  width: 40%;
   font-family: "Roboto Mono", monospace;
   font-size: 10pt;
   background-color: transparent;
   outline: none;
+  overflow: auto;
+  height: 600px;
 }
+
+::-webkit-scrollbar {
+    background: #222;
+}
+::-webkit-scrollbar-thumb {
+    background: #666;
+}
+
 
 .rule {
   display: inline-block;
@@ -60,7 +70,7 @@ body {
 }
 
 .label {
-  color: #27f;
+  color: #aaa;
   outline: none;
 }
 

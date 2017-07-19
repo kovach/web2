@@ -99,7 +99,7 @@ hasAntipodePair (_:rest) = hasAntipodePair rest
 initS :: [Rule] -> [Msg] -> DB -> S
 initS rs ms db = pushMsgs ms s0
   where
-    rrs = zip [0..] rs
+    rrs = zip [1..] rs
     s0 = S
       { dependencies = step1 rrs
       , queues = M.empty

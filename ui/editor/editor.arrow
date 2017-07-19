@@ -1,9 +1,9 @@
-thing ~> text-node "rules" ""
+#thing ~> text-node "rules" ""
 
 # helper
 n i v p r ~> text-node i v, parent i p r
 # top level rule containers
-rule r rank ~> n i "" "rules" rank, of i r, n q "" i 1, n a "" i 3, class i "rule", class q "query", class a "assert", query-node q r, assert-node a r
+rule r, rank rank r ~> n i "" "rules" rank, of i r, n q "" i 1, n a "" i 3, class i "rule", class q "query", class a "assert", query-node q r, assert-node a r
 
 # decorators
 imperative r, of p r ~> text-node i "=>", parent i p 2, class i "sep"
