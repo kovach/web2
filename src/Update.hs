@@ -5,8 +5,8 @@
 module Update where
 
 import Data.List (partition, nub)
-import Data.Map (Map)
 import Data.Maybe (mapMaybe)
+import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Either (partitionEithers)
 import Control.Monad
@@ -32,8 +32,6 @@ import Debug.Trace
 --   In particular, if those relations are also in the input set, they are not added until
 --   they are processed into Events at a later step
 type DBL = (Graph, FactState, FactState)
-
-type RankedRule = (Int, Rule)
 
 -- Things we just want to compute once
 data RuleFlags = RF
@@ -177,9 +175,9 @@ dependent' e pr = any (check e) (matched pr)
 --      EFact: add proofs to fs
 --      EFalse: remove all proofs from fs
 
-step3 :: Bool -> Event -> Rule -> IS -> M2 IS
+step3 :: Bool -> Event -> RankedRule -> IS -> M2 IS
 step3 marked ev rule (es, (g, fs, me), out) =
-  case rule of
+  case snd rule of
     -- TODO combine branches
     Rule lhs rhs -> do
         new <- concat . map fst <$> mapM applyMatch matches2
@@ -205,6 +203,11 @@ step3 marked ev rule (es, (g, fs, me), out) =
       if marked
            -- If the match depends on both (p x) and (!p x), filter it out:
       then filter consistent .
+           -- TODO could also resolve this by decomposing `+p` into two messages:
+           --   ! (!p): this falsifies !Fact patterns
+           --   p: this produces new matches
+           -- in rules, any instance of `p x, !p y` can be changed to `p' x, !p y`, with extra rule `p x ~> p' x`
+           --
            -- small optimization: only needs to be done on "high" prefix of input events.
            -- If a later event rejects the match, filter it out:
            filter (\m -> not $ any (rejects m) es') $ matches1
@@ -230,7 +233,7 @@ step3 marked ev rule (es, (g, fs, me), out) =
 
 -- call step3 on each event
 -- accumulates local state changes and output msgs
-step4 :: Bool -> [Event] -> Rule -> DBL -> M2 (DBL, [Msg])
+step4 :: Bool -> [Event] -> RankedRule -> DBL -> M2 (DBL, [Msg])
 step4 marked es r dbl = go (es, dbl, [])
   where
     go :: IS -> M2 (DBL, [Msg])
@@ -244,7 +247,7 @@ step (s@S{queues, localDB, flags}) =
     -- TODO upgrade to 0.5.10, use lookupMin?
     if M.size work == 0 then return Nothing else do
         -- eval
-        (dbl', output) <- step4 dangerous events1 rule dbl2
+        (dbl', output) <- step4 dangerous events1 rr dbl2
         -- add to primary record, external output
         commitMsgs output
         unless (null output) $ do

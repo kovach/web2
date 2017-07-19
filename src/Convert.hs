@@ -38,8 +38,8 @@ readRules f = do
 -- 4. returns extended context and a "root cause" tuple
 processInputTuples :: [Rule] -> Context -> RHS -> M2 (Tuple, Context)
 processInputTuples rules c es = do
-  let initMatch t edges c = (Provenance (Rule [] edges) (Just $ toEvent t) [] [], c)
-  root <- makeTuple ("", []) externProv
+  let initMatch t edges c = (Provenance (-1, Rule [] edges) (Just $ toEvent t) [] [], c)
+  root <- makeTuple ("_root", []) externProv
   (msgs, c') <- applyMatch $ initMatch root es c
   _ <- solve rules msgs
   return (root, c')

@@ -106,10 +106,10 @@ solveSteps :: Graph -> FactState -> Bindings -> [Query] -> [Bindings]
 solveSteps g fs c es = foldM (solveStep g fs) c es
 
 -- Main matching function --
-getMatches :: Event -> Rule -> Graph -> FactState -> [Match]
+getMatches :: Event -> RankedRule -> Graph -> FactState -> [Match]
 getMatches ev rule g fs = takeValid [] . map toMatch . go $ triggers
   where
-    triggers = indLookup (elabel ev, epolarity ev) (indexRule rule)
+    triggers = indLookup (elabel ev, epolarity ev) (indexRule $ snd rule)
 
     pow [] = [[]]
     pow (x@(Linear, _, _, _):xs) = pow xs ++ [[x]]
@@ -187,13 +187,12 @@ applyMatch (prov, ctxt) = do
     return (reverse ms ++ removed, c)
   where
     removed = map (MT Negative) $ consumed prov
-    rhs = rhsRule $ rule_src prov
+    rhs = rhsRule $ snd $ rule_src prov
 
     applyStep :: ([Msg], Context) -> Assert -> M2 ([Msg], Context)
     applyStep (ms, c0) (Assert label exprs) = do
         (c1, nodes) <- applyLookups c0 exprs
         t <- packTuple (label, nodes) prov
-        --scheduleAdd t
         return (MT Positive t : ms, c1)
 
 applyLRHS :: Match -> M2 ([Msg], Context)
@@ -205,4 +204,4 @@ applyLRHS (prov, ctxt) = do
       (c1, nodes) <- applyLookups c0 es
       return (MF Positive (l, nodes) prov : ms, c1)
 
-    rhs = rhsRule $ rule_src prov
+    rhs = rhsRule $ snd $ rule_src prov

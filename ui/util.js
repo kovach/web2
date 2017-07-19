@@ -39,9 +39,7 @@ var mkAttr = function(id, name, val) {
 var mkStyle = function(id, name, val) {
   var handler = function() {
     var obj = getObjAttr(id, "elem");
-    console.log('setting: ', obj);
     obj.style[name] = val;
-    //getObjAttr(id, "elem").style.backgroundColor = val;
   }
   mkFrame([id], handler);
 }

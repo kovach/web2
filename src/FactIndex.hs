@@ -87,8 +87,8 @@ fsMerge (FS i1 f1) (FS i2 f2) = FS (M.unionWith (++) i1 i2) (merge2 f1 f2)
 restrictFacts :: Rule -> FactState -> FactState
 restrictFacts r@(LRule _ _) (FS ind fs) = FS ind' fs'
   where
-    fix1 = clean . fmap (filter ((== r) . rule_src . snd))
-    fix2 = clean2 . fmap (fmap $ filter ((== r) . rule_src))
+    fix1 = clean . fmap (filter ((== r) . snd . rule_src . snd))
+    fix2 = clean2 . fmap (fmap $ filter ((== r) . snd . rule_src))
     ind' = fix1 ind
     fs'  = fix2 fs
 restrictFacts r _ = emptyFS

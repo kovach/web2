@@ -1,6 +1,11 @@
 op 'black 'white
 op 'white 'black
 
-# default: empty 9x9 board
-width 9
-height 9
+width 2
+height 2
+
+place-stone 'black 1 1
+place-stone 'black 1 2
+place-stone 'white 2 1
+
+place-stone 'white 2 2

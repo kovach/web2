@@ -18,6 +18,14 @@ body {
   outline: none;
 }
 
+#rules {
+  width: 50%;
+  font-family: "Roboto Mono", monospace;
+  font-size: 10pt;
+  background-color: transparent;
+  outline: none;
+}
+
 .rule {
   display: inline-block;
   border: solid;
@@ -26,9 +34,6 @@ body {
   border-radius: 7px;
   margin: 4px;
   padding: 1px;
-  background-color: transparent;
-  font-family: "Roboto Mono", monospace;
-  font-size: 10pt;
   outline: none;
 }
 
@@ -55,8 +60,7 @@ body {
 }
 
 .label {
-  /*color: #36f;*/
-  color: #67f;
+  color: #27f;
   outline: none;
 }
 

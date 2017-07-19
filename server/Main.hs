@@ -10,6 +10,7 @@ import Control.Monad (unless)
 import qualified Data.ByteString.Lazy as T (ByteString)
 import Data.Aeson
 import GHC.Generics
+import Control.Monad (foldM)
 
 import Types
 import FactIndex (emptyFS)
@@ -19,6 +20,8 @@ import Convert
 import Reflection
 
 import BroadcastServer
+
+import Debug.Trace
 
 data Command = Reset | Connect
              | RawTuple {rawLabel :: Label, rawNodes :: [Node]}
@@ -87,10 +90,31 @@ initEditorProgram = do
         programWithDB editDB allRules
         solve allRules ms
   let (_, s) = runDB Nothing emptyDB prog
-  mapM_ (putStrLn . ppTupleProv) (fromGraph . tuples $ db s)
+  --mapM_ (putStrLn . ppTupleProv) (fromGraph . tuples $ db s)
   return (editRules, db s, netOutput s)
 
-makeDB = initEditorProgram
+initLogProgram :: IO ([Rule], DB, [Msg])
+initLogProgram = do
+  --objDB    <- readDBFile "ui/editor/test.graph"
+  --objRules    <- readRules "ui/editor/test.arrow"
+  objDB    <- readDBFile "examples/sieve.graph"
+  objRules    <- readRules "examples/sieve.arrow"
+  editRules <- readRules "ui/editor/log.arrow"
+  let allRules = editRules
+  let prog = do
+        programWithDB objDB objRules
+        ms <- flushOutput
+        let fix c (MT _ t) = snd <$> flattenTuple c t
+            fix c _ = return c
+        foldM fix emptyRC ms
+        ms <- flushEvents
+        solve allRules ms
+  let (_, s) = runDB Nothing emptyDB prog
+  --mapM_ (putStrLn . ppTupleProv) (fromGraph . tuples $ db s)
+  putStrLn $ "initial db size: " ++ show (length $ fromGraph . tuples $ db s)
+  return (editRules, db s, netOutput s)
+
+makeDB = initLogProgram
 
 noDebug = True
 
@@ -120,8 +144,8 @@ handler connId msg s0@(State rules db0) =
         (_, outputEvents) = step2 outputMsgs (facts db0)
         db1 = db is
       unless noDebug $ do
-        putStrLn "raw output"
-        mapM_ (putStrLn . ppMsg) (out_unprocessed is)
+        --putStrLn "raw output"
+        --mapM_ (putStrLn . ppMsg) (out_unprocessed is)
         putStrLn "net"
         mapM_ (putStrLn . ppEvent) outputEvents
       return (Just (encodeEvents outputEvents), State rules db1)

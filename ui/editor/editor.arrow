@@ -1,3 +1,5 @@
+thing ~> text-node "rules" ""
+
 # helper
 n i v p r ~> text-node i v, parent i p r
 # top level rule containers
@@ -14,8 +16,8 @@ string l ~> is-string l
 var v q n, of p q, var-name v str ~> text-node i str, parent i p n, class i "var"
 literal l q n, is-string l, of p q ~> text-node i ("\"" ++ (l ++ "\"")), parent i p n, class i "literal"
 literal l q n, !is-string l, of p q ~> text-node i l, parent i p n, class i "literal"
-pattern q r, query-node p r, label q l ~> text-node i "", of i q, parent i p, text-node il l, parent il i 0, class il "label"
-assert q r, assert-node p r, label q l ~> text-node i "", of i q, parent i p, text-node il l, parent il i 0, class il "label"
+pattern q r, query-node p r, label l q ~> text-node i "", of i q, parent i p, text-node il l, parent il i 0, class il "label"
+assert q r, assert-node p r, label l q ~> text-node i "", of i q, parent i p, text-node il l, parent il i 0, class il "label"
 
 #pattern q r, of p q ~> text-node i ", ", parent i p 222
 

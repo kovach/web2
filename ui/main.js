@@ -24,7 +24,7 @@ var initSock = function() {
 
     if (msgs.length < 50) {
       _.each(msgs, function(obj) {
-        console.log(obj);
+        console.log(JSON.stringify(obj));
       });
     }
 

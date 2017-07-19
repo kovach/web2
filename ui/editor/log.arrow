@@ -1,0 +1,16 @@
+fact f t, tid id t ~> text-node i "", of i t, parent i "rules" id
+fact f t, of e t, label l f ~> text-node i l, parent i e 0, class i "label"
+fact f t, of e t, node n f rank ~> text-node i n, parent i e rank, class i "literal"
+
+tuple t' e, matched e p, cause p t ~> cause-of t' t
+cause-of s t ~> ancestor s t
+cause-of s t, ancestor t u ~> ancestor s u
+
+# when a "tuple" is clicked, highlight it and all of its ancestors
+.click _ _ el, of el t => make-focus t
+.click _ _ el, parent el p _, of p t => make-focus t
+
+.make-focus _, ..focusing e => background-color e "transparent"
+.make-focus t, of el t => focusing el
+.make-focus t, ancestor t' t, of el t' => focusing el
+focusing e => background-color e "#444"

@@ -74,11 +74,11 @@ flushEvents = do
   modify $ \s -> s { new_unprocessed = [] }
   return es
 
---flushOutput :: M2 [Msg]
---flushOutput = do
---  es <- gets out_unprocessed
---  modify $ \s -> s { out_unprocessed = [] }
---  return es
+flushOutput :: M2 [Msg]
+flushOutput = do
+  es <- gets out_unprocessed
+  modify $ \s -> s { out_unprocessed = [] }
+  return es
 
 packTuple :: RawTuple -> Provenance -> M2 Tuple
 packTuple (rel, ns) p = do

@@ -65,11 +65,13 @@ toEvent = E Positive
 type Dependency = [Event]
 type Consumed = [Tuple]
 
+type RankedRule = (Int, Rule)
+
 -- An instance of a match
 -- TODO include context bindings?
 data Provenance = Provenance
   -- The rule of this match
-  { rule_src :: Rule
+  { rule_src :: RankedRule
   -- The tuple that triggered this match instance
   -- Nothing for rules with empty LHS, or external inputs
   , tuple_src :: Maybe Event
@@ -85,7 +87,7 @@ tuple_cause p@(Provenance{}) = tuple_src p
 tuple_cause (Extern _) = Nothing
 
 nullProv :: Provenance
-nullProv = Provenance nullRule Nothing [] []
+nullProv = Provenance (1,nullRule) Nothing [] []
 
 externProv = Extern []
 
