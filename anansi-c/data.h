@@ -20,6 +20,19 @@ void free_list(idlist *l)
   free(l->buffer);
 }
 
+void reset_list(idlist *l)
+{
+  l->size = 0;
+}
+
+void print_list(idlist *l)
+{
+  for(int j = 0; j < l->size; j++) {
+    printf("%u, ", l->buffer[j]);
+  }
+  printf("\n");
+}
+
 bool grow_list(idlist *il)
 {
   il->cap = il->cap << 1;
@@ -58,13 +71,32 @@ void set_list(idlist *il, id i, id v)
 
 id get_list(idlist *il, id i)
 {
+  assert(i < il->size);
   return il->buffer[i];
 }
 
-void rem_list(idlist *il, id i)
+id rem_list(idlist *il, id i)
 {
+  assert(i < il->size);
   il->buffer[i] = il->buffer[il->size-1];
   il->size--;
+  if (il->size > 0) {
+    return il->buffer[i];
+  } else {
+    return INVALID_ID;
+  }
+}
+
+bool del_list(idlist *il, id i)
+{
+  for (id j = 0; j < il->size; j++) {
+    if (il->buffer[j] == i) {
+      rem_list(il, j);
+      return false;
+    }
+  }
+  printf("error\n");
+  return true;
 }
 
 id should_resize(idlist *il, int n)
@@ -97,9 +129,9 @@ int32_t hash32(size_t n, char *v)
   return result;
 }
 
-int32_t hash_tuple(tuple t)
+int32_t hash_chunk(chunk t)
 {
-  return hash32(t.size, t.addr);
+  return hash32(t.size, t.data);
 }
 
 int64_t hash64(size_t n, char *v)
@@ -143,11 +175,12 @@ bool mk_hash(idhash *h, char n)
 
 void free_hash(idhash *h)
 {
-  printf("free_hash\n");
+  printf("free_hash\n"); // TODO remove
   free(h->hash);
   free(h->chains);
 }
 
+// assumes val has not been added previously
 void add_hash(idhash *h, id key, id val)
 {
   key = key & h->hash_mask;
