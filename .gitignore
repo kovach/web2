@@ -8,3 +8,7 @@ examples/test.graph
 notes
 game-notes
 old/
+*.o
+*.a
+*.so
+anansi-c/main

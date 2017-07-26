@@ -79,7 +79,7 @@ solveStep _ fs b@(c, bound, deps) q@(Query _ (LP polarity e ns)) =
     Negative ->
       let vs = mapM (\n -> matchLookup n c) ns in
       case vs of
-        Nothing -> error $ "negation queries must refer to bound values:\n" ++ show q
+        Nothing -> error $ "negated queries must refer to bound values, or else be the sole clause of a query. offending clause:\n  " ++ show q
         Just vs' -> assert noProof (c, bound, f : deps)
           where
             noProof = not $ (e, vs') `elem` (map raw es)
@@ -129,7 +129,7 @@ getMatches ev rule g fs = takeValid [] . map toMatch . go $ triggers
         --          (computed already by pow)
         --      p2: the rest
         -- 2. Unify every pattern in p1 against ev alone
-        -- 3. Unify p2 against g/fs
+        -- 3. Unify p2 against g, fs
         ps = map pat ts
         p1 = p : ps
         p2 = foldr S.delete pattern ps

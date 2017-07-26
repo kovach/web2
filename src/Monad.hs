@@ -29,7 +29,6 @@ data InterpreterState = IS
   { db :: DB
   , new_unprocessed :: [Msg]
   , out_unprocessed :: [Msg]
-  -- TODO juse use [String] ?
   , msgLog :: [String]
   , gas :: Int
   }

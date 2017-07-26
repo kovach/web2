@@ -4,14 +4,16 @@ fact f t, log-el e t, node n f rank ~> text-node i n, parent i e rank, class i "
 
 tuple t' e, matched e p, cause p t ~> cause-of t' t
 cause-of s t ~> ancestor s t
-cause-of s t, ancestor t u ~> ancestor s u
+cause-of s t, ancestor t u ~> ancestor s u, distant-ancestor s u
 
 # when a "tuple" is clicked, highlight it and all of its ancestors
 .click _ _ el, log-el el t => log-focus t
 .click _ _ el, parent el p _, log-el p t => log-focus t
 
-.log-focus _, ..focusing e => background-color e "transparent"
-.log-focus t, log-el el t => focusing el
-.log-focus t, ancestor t' t, log-el el t' => focusing el
-.log-focus t, cause p t, rule r p, of el r => focusing el
-focusing e => background-color e "#444"
+.log-focus _, ..focusing e _ => background-color e "transparent"
+.log-focus t, log-el el t => focusing el "#666"
+.log-focus t, cause-of t' t, log-el el t' => focusing el "#555"
+.log-focus t, distant-ancestor t' t, log-el el t' => focusing el "#333"
+# highlight rule
+.log-focus t, cause p t, rule r p, of el r => focusing el "#444"
+focusing e c => background-color e c

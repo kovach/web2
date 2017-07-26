@@ -64,6 +64,7 @@
 --    Event
 --    Tuple
 --    Provenance
+--  to reduce output size.
 
 {-# LANGUAGE OverloadedStrings #-}
 module Reflection where
@@ -78,8 +79,6 @@ import Types
 import Monad
 import Graph
 import Index
-
-import Debug.Trace
 
 -- TODO update
 actions :: DB -> Index -> Label -> [RawTuple]
@@ -162,17 +161,17 @@ flattenQ r c (QBinOp op e1 e2) = do
     makeT "constraint" [q, r]
     makeT "operator" [opNode, q]
     c1 <- flattenE q c 1 e1
-    c2 <- flattenE q c1 2 e2
+    c2 <- flattenE q c1 3 e2
     return c2
   where
     opNode =
       case op of
-        QEq -> NSymbol "="
-        QDisEq -> NSymbol "/="
-        QLess -> NSymbol "<"
-        QMore -> NSymbol ">"
-        QLessEq -> NSymbol "<="
-        QMoreEq -> NSymbol ">="
+        QEq -> NString "="
+        QDisEq -> NString "/="
+        QLess -> NString "<"
+        QMore -> NString ">"
+        QLessEq -> NString "<="
+        QMoreEq -> NString ">="
 
 -- TODO combine operator cases
 flattenE :: Node -> Context -> Int -> E -> M2 Context
@@ -191,13 +190,13 @@ flattenE q c n (EBinOp op e1 e2) = do
   where
     opNode =
       case op of
-        Sum -> NSymbol "+"
-        Sub -> NSymbol "-"
-        Mul -> NSymbol "*"
+        Sum -> NString "+"
+        Sub -> NString "-"
+        Mul -> NString "*"
 flattenE q c n (EConcat e1 e2) = do
     e <- freshNode
     makeT "expr" [e, q, NInt n]
-    makeT "operator" [NSymbol "++", e]
+    makeT "operator" [NString "++", e]
     c1 <- flattenE e c 1 e1
     c2 <- flattenE e c1 2 e2
     return c2
@@ -231,7 +230,7 @@ flattenRules rules = mapM_ (flattenRule emptyRC) (zip [1..] rules)
 -- Tuple Syntax --
 -- ~~~~~~~~~~~~ --
 
--- Should use StateT
+-- Should move to InterpreterState
 data ReflContext = RC
   { rcf :: Map Fact Node
   , rcp :: Map Provenance Node
@@ -239,7 +238,6 @@ data ReflContext = RC
   , rce :: Map Event Node
   , rct :: Map Tuple Node
   }
-
 emptyRC = RC { rcf = M.empty
              , rcp = M.empty
              , rcr = M.empty
@@ -287,7 +285,6 @@ flattenProv rc1 p = do
             makeT "trigger" [ei, i]
             return temp
           Nothing -> return rc2
-
   let doT c t = do
         (ti, c') <- flattenTuple c t
         makeT "consumed" [ti, i]
@@ -296,10 +293,8 @@ flattenProv rc1 p = do
         (ei, c') <- flattenEvent c e
         makeT "matched" [ei, i]
         return c'
-
   rc4 <- foldM doT rc3 (consumed p)
   rc5 <- foldM doE rc4 (matched p)
-
   return (i, rc5)
 
 flattenEvent rc e | Just i <- M.lookup e (rce rc) = return (i, rc)

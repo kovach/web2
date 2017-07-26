@@ -81,7 +81,10 @@ data Provenance = Provenance
   , consumed :: Consumed
   }
   | Extern [Int] -- TODO ??
+  | Reduction { rule_src :: RankedRule , matched :: Dependency }
   deriving (Eq, Show, Ord)
+
+type CProof = (Provenance, [Tuple])
 
 tuple_cause p@(Provenance{}) = tuple_src p
 tuple_cause (Extern _) = Nothing

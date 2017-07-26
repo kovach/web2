@@ -136,7 +136,7 @@ var hasKeys = function(ks, obj) {
 }
 
 var objTypes = {
-  "token":["elem", "x", "y", "color", "size"],
+  "token":["elem", "x-rank", "y-rank", "color", "size"],
   "text-editor":["elem", "parent"],
   "text-node":["elem"],
 }
@@ -337,7 +337,6 @@ var parseTuple = function(sock) {
 
     switch (label) {
       case "token":
-        console.log("tok");
         var id = nodes[0];
         if (sign) {
           var elem = mkToken(id, sock);
@@ -436,7 +435,6 @@ var parseTuple = function(sock) {
         setObjAttr(id, "class", c);
         break;
       case "log":
-        //var id = nodes[0];
         var c = _.map(nodes, function(n) { return n.contents });
         console.log(c);
         break;

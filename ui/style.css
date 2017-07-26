@@ -19,7 +19,7 @@ body {
 }
 
 #rules, #log {
-  width: 40%;
+  width: 45%;
   font-family: "Roboto Mono", monospace;
   font-size: 10pt;
   background-color: transparent;
@@ -61,7 +61,7 @@ body {
   outline: none;
 }
 
-.var, .literal, .label {
+.var, .literal, .label, .expr {
   border-radius: 7px;
   display: inline-block;
   margin: 3px;
@@ -72,6 +72,12 @@ body {
 .label {
   color: #aaa;
   outline: none;
+}
+
+.expr {
+  border: solid;
+  border-width: 1px;
+  border-color: #999;
 }
 
 /* TODO */

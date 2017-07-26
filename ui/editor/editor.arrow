@@ -18,12 +18,13 @@ literal l q n, is-string l, of p q ~> text-node i ("\"" ++ (l ++ "\"")), parent 
 literal l q n, !is-string l, of p q ~> text-node i l, parent i p n, class i "literal"
 pattern q r, query-node p r, label l q ~> text-node i "", of i q, parent i p, text-node il l, parent il i 0, class il "label"
 assert q r, assert-node p r, label l q ~> text-node i "", of i q, parent i p, text-node il l, parent il i 0, class il "label"
+expr e q n, of p q, operator op e ~> text-node i "", text-node oi op, parent oi i 2, parent i p n, of i e, class i "expr", class oi "literal"
 
 #pattern q r, of p q ~> text-node i ", ", parent i p 222
 
 # focusing
-click _ _ el => make-focus el
-.make-focus el, ..focus old => focus el, background-color old "transparent", background-color el "#444"
+click _ _ el, of el _ => make-focus el
+.make-focus el, ..focus old => focus el, background-color old "transparent", background-color el "#966"
 
 # movement keys
 key-press _ "<", focus el, parent el p => make-focus p

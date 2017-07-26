@@ -62,6 +62,7 @@ initGoProgram = do
   edgeBlocks <- readDBFile "server/go.graph"
   rules <- readRules  "examples/go.arrow"
   uiRules <- readRules "ui/go.arrow"
+  --let allRules = convertRules $ zip [1..] $ rules ++ uiRules
   let allRules = rules ++ uiRules
   let (_, s) = runProgramWithDB edgeBlocks allRules
       result = db s
@@ -72,11 +73,10 @@ init110Program :: IO ([Rule], DB, [Msg])
 init110Program = do
   edgeBlocks <- readDBFile "examples/110.graph"
   rules <- readRules "examples/110.arrow"
-  let allRules = rules
-  let (_, s) = runProgramWithDB edgeBlocks allRules
+  let (_, s) = runProgramWithDB edgeBlocks rules
       result = db s
       msgs = netOutput s
-  return (allRules, result, msgs)
+  return (rules, result, msgs)
 
 initEditorProgram :: IO ([Rule], DB, [Msg])
 initEditorProgram = do
@@ -84,12 +84,11 @@ initEditorProgram = do
   editRules <- readRules "ui/editor/editor.arrow"
   objRules  <- readRules "ui/editor/editor.arrow"
   --objRules  <- readRules "ui/editor/test.arrow"
-  let allRules = editRules
   let prog = do
         flattenRules objRules
         ms <- flushEvents
-        programWithDB editDB allRules
-        solve allRules ms
+        programWithDB editDB editRules
+        solve editRules ms
   let (_, s) = runDB Nothing emptyDB prog
   --mapM_ (putStrLn . ppTupleProv) (fromGraph . tuples $ db s)
   return (editRules, db s, netOutput s)
