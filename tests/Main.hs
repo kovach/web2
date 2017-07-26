@@ -30,9 +30,9 @@ testCases =
          , msgs_sent = 85
          } )
   , ("sieve_50", "examples/sieve.arrow", "tests/sieve.graph",
-      TO { tuple_count = 194
-         , steps_used = 273
-         , msgs_sent = 207
+      TO { tuple_count = 256
+         , steps_used = 229
+         , msgs_sent = 269
          } )
   , ("factorial_6", "examples/factorial.arrow", "tests/factorial.graph",
       TO { tuple_count = 10

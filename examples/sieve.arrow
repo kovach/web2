@@ -2,7 +2,7 @@ go n, n > 1 => number n, go (n - 1)
 
 prime k => composite-by k (2 * k)
 composite-by k m, number m => composite-by k (k + m)
-composite-by _ m => not-prime m
+composite-by _ m, number m => not-prime m
 
 ..consider n, not-prime n => consider (n + 1)
 ..consider n, number n => prime n, consider (n + 1)
