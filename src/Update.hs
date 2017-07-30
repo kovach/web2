@@ -1,11 +1,12 @@
 -- TODO
---  ? watch lists
---  ! detect proof cycles; ensure the model is always minimal
+--  ? detect proof cycles; ensure the model is always minimal
 {-# LANGUAGE RecordWildCards, NamedFieldPuns #-}
 module Update where
 
 import Data.List (partition, nub)
 import Data.Maybe (mapMaybe)
+import Data.Set (Set)
+import qualified Data.Set as S
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.Either (partitionEithers)
@@ -13,118 +14,146 @@ import Control.Monad
 import Control.Monad.State
 
 import Types
-import FactIndex
+--import FactIndex
 import Rules
 import Index (isLinear)
 import Monad
 import Graph (getMatches, applyMatch, applyLRHS)
 
 import Debug.Trace
+tr _ = id
 
 -- Types --
 
--- Each rule has a local view of
---  [0] the graph (event tuples)
---  [1] the proof state for its input relations
---  [2] the proof state for its output relations
--- When a ~> rule computes new matches, or invalidates old ones, the changes
--- are immediately applied to its output FS and added to the Msg output list.
---   In particular, if those relations are also in the input set, they are not added until
---   they are processed into Events at a later step
-type DBL = (Graph, FactState, FactState)
-
+-- TODO remove
 -- Things we just want to compute once
-data RuleFlags = RF
-  { ruleLinear :: Bool
-  , ruleHasPair :: Bool
-  , prioritySig :: [Signature]
-  }
-
--- We use `queues` as a priority queue.
--- Each rule is ranked by an Int, so `M.elemAt 0` returns the first non-empty
--- queue (see initS, step)
-data S = S
-  { dependencies :: Map Label [RankedRule]
-  , queues :: Map RankedRule [Msg]
-  , localDB :: Map Rule DBL
-  , flags :: Map Rule RuleFlags
-  }
-
+--data RuleFlags = RF
+--  { ruleLinear :: Bool
+--  , ruleHasPair :: Bool
+--  , prioritySig :: [Signature]
+--  }
 -- inner state: (inputs, state, local table, outputs)
-type IS = ([Event], DBL, [Msg])
+--type IS = ([Event], DBL, [Msg])
+--pushMsg :: Msg -> S -> S
+--pushMsg msg s@S{..} = s { queues = queues' }
+--  where
+--    queues' = foldr (\r -> M.insertWith ((++)) r [msg])
+--                    queues (lookList (mlabel msg) dependencies)
 
--- Utilities --
+pushMsgs :: [Msg] -> M2 ()
+pushMsgs = mapM_ pushMsgM
 
-pushMsg :: Msg -> S -> S
-pushMsg msg s@S{..} = s { queues = queues' }
+pushMsgM :: Msg -> M2 ()
+pushMsgM m = modps $ pushMsg m
+
+pushMsg :: Msg -> PS -> PS
+pushMsg (MT p t) ps = ps { queues = queues' }
   where
-    queues' = foldr (\r -> M.insertWith ((++)) r [msg])
-                    queues (lookList (mlabel msg) dependencies)
-
-pushMsgs :: [Msg] -> S -> S
-pushMsgs ms s = foldr pushMsg s ms
+    queues' = foldr (M.alter (step p)) (queues ps) actors
+    actors = lookList (label t) (dependencies ps)
+    -- insert
+    step Positive Nothing = Just (MQ {m_pos = [t], m_neg = []})
+    step Negative Nothing = Just (MQ {m_neg = [t], m_pos = []})
+    -- enqueue
+    step Positive (Just m@(MQ{m_pos})) = Just m { m_pos = t : m_pos }
+    step Negative (Just MQ {m_pos, m_neg}) =
+      Just MQ { m_neg = t : m_neg, m_pos = filter (/= t) m_pos}
 
 -- used to update global DB
 updateDB :: Msg -> DB -> DB
 updateDB (MT Positive t) db = db { tuples = insertTuple t (tuples db) }
 updateDB (MT Negative t) db = db { tuples = removeTuple t (tuples db)
                                  , removed_tuples = t : removed_tuples db }
-updateDB f db = db { facts = updateFact f (facts db) }
+--updateDB f db = db { facts = updateFact f (facts db) }
 
 commitMsgs :: [Msg] -> M2 ()
 commitMsgs [] = return ()
 commitMsgs msgs = do
   d <- gets db
-  let db' = foldr updateDB d msgs
+  let msgs' = filter notRaw msgs
+  let db' = foldr updateDB d msgs'
   moddb $ const db'
   mapM_ outputMsg msgs
+  pushMsgs msgs
 
--- ~~~~~~~~~~~~~~~~~~~~~~~~~ --
--- Here begins The Algorithm --
--- ~~~~~~~~~~~~~~~~~~~~~~~~~ --
---   important algorithm properties:
---     - a new tuple is added to a given queue at most once (by the rule which generates it) (see step)
---     ! new msgs are added to the front of the "queue"
---       - this is important only for implementing => rule consumption priority
---         prevents a match on a tuple that has already been consumed
---       ! otherwise, ordering of events is supposed to be irrelevant
---     - step2 generates at most 1 event per fact
+--TODO remove
+--hasAntipodePair :: Eq a => [(a, Polarity)] -> Bool
+--hasAntipodePair [] = False
+--hasAntipodePair ((l,p):rest) | (l, neg p) `elem` rest = True
+--hasAntipodePair (_:rest) = hasAntipodePair rest
 
-
-hasAntipodePair :: Eq a => [(a, Polarity)] -> Bool
-hasAntipodePair [] = False
-hasAntipodePair ((l,p):rest) | (l, neg p) `elem` rest = True
-hasAntipodePair (_:rest) = hasAntipodePair rest
-
-initS :: [Rule] -> [Msg] -> DB -> S
-initS rs ms db = pushMsgs ms s0
+-- TODO no DB parameter?
+initPS :: [Rule] -> DB -> PS
+initPS rs db = emptyProc
+  { dependencies = M.unionWith (++) events rdeps
+  , queues = M.empty
+  , processors = M.fromList $ processors ++ reducers
+  , relTypes = undefined
+  }
   where
     rrs = zip [1..] rs
-    s0 = S
-      { dependencies = step1 rrs
-      , queues = M.empty
-      , localDB = M.fromList $ zip rs $ map fix rs
-      , flags = M.fromList $ map ruleFlags rs }
-    fs = facts db
-    ts = tuples db
-    fix r = (ts, fs, restrictFacts r fs)
+    graph = tuples db
 
-    ruleFlags rule = (rule, rf)
-      where
-        opposites = nub $ mapMaybe op (lhs rule)
-        rf = RF { ruleLinear = linear, ruleHasPair = dangerous, prioritySig = opposites }
-        op (Query _ p) = Just (epLabel p, neg (epSign p))
-        op _ = Nothing
-        linear = isLinear rule
-        -- such rules need an extra check in step3
-        dangerous = hasAntipodePair opposites
+    step0 :: RankedRule -> Map Label [Actor]
+    step0 r@(i, rule) = M.fromList $ zip (lhsRels rule) (repeat [ARule i])
 
-    step0 :: RankedRule -> Map Label [RankedRule]
-    step0 r@(_, rule) = M.fromList $ zip (lhsRels rule) (repeat [r])
-
-    step1 :: [RankedRule] -> Map Label [RankedRule]
+    step1 :: [RankedRule] -> Map Label [Actor]
     step1 = foldr (M.unionWith (++)) M.empty . map step0
 
+    events = step1 rrs
+
+    viewRels = logicalRelations rs
+
+    rdep v = (toRaw v, [AReducer v])
+    -- reducers bind "raw" tuples, output "reduced" tuples
+    reducer v = (AReducer v, emptyReducer v)
+    rdeps = M.fromList $ map rdep viewRels
+    reducers = map reducer viewRels
+
+    processor rr@(i, rule) =
+      case rtype rule of
+        Event -> (ARule i, ObsProc  rr graph)
+        -- TODO need to populate watched map
+        View  -> (ARule i, ViewProc rr graph M.empty)
+    processors = map processor rrs
+
+resetProcessor :: [Rule] -> M2 ()
+resetProcessor rs = do
+  d <- gets db
+  modps (const (initPS rs d))
+
+
+--TODO remove
+--initS :: [Rule] -> [Msg] -> DB -> S
+--initS rs ms db = pushMsgs ms s0
+--  where
+--    rrs = zip [1..] rs
+--    s0 = S
+--      { dependencies = step1 rrs
+--      , queues = M.empty
+--      , localDB = M.fromList $ zip rs $ map fix rs
+--      , flags = M.fromList $ map ruleFlags rs }
+--    fs = facts db
+--    ts = tuples db
+--    fix r = (ts, fs, restrictFacts r fs)
+--
+--    ruleFlags rule = (rule, rf)
+--      where
+--        opposites = nub $ mapMaybe op (lhs rule)
+--        rf = RF { ruleLinear = linear, ruleHasPair = dangerous, prioritySig = opposites }
+--        op (Query _ p) = Just (epLabel p, neg (epSign p))
+--        op _ = Nothing
+--        linear = isLinear rule
+--        -- such rules need an extra check
+--        dangerous = hasAntipodePair opposites
+--
+--    step0 :: RankedRule -> Map Label [RankedRule]
+--    step0 r@(_, rule) = M.fromList $ zip (lhsRels rule) (repeat [r])
+--
+--    step1 :: [RankedRule] -> Map Label [RankedRule]
+--    step1 = foldr (M.unionWith (++)) M.empty . map step0
+
+{-
 -- New tuples (that haven't been consumed) pass through as events
 -- Proofs are combined into fs1; the diff wrt fs0 passes through as events
 -- Any other proofs (those not contributing to visible events) are added immediately to fs0
@@ -159,21 +188,13 @@ dependent' e pr = any (check e) (matched pr)
     check (E p t) (E p' t') | t == t' && p == neg p' = True
     check _ _ = False
 
--- Main Evaluation step --
-
 -- effects of an event:
 --   "negative":
---      remove (positive) dependents from out
---      for LRule, remove dependents from me
---        triggers output
---      E: remove from graph
+--      remove from graph
+--      for View, remove dependents from me
 --   "positive":
---      get new matches
---        (for ~>) add to me, and to output
---        (for =>) add to output
---      E: add to graph
---      EFact: add proofs to fs
---      EFalse: remove all proofs from fs
+--      produce new matches
+--      add to graph
 
 step3 :: Bool -> Event -> RankedRule -> IS -> M2 IS
 step3 marked ev rule (es, (g, fs, me), out) =
@@ -242,60 +263,137 @@ step4 marked es r dbl = go (es, dbl, [])
     -- step3 never adds to es
     go (e:es, dbl, ts) = step3 marked e r (es, dbl, ts) >>= go
 
-step :: S -> M2 (Maybe S)
-step (s@S{queues, localDB, flags}) =
-    -- TODO upgrade to 0.5.10, use lookupMin?
-    if M.size work == 0 then return Nothing else do
-        -- eval
-        (dbl', output) <- step4 dangerous events1 rr dbl2
+-}
+
+takeQueue :: M2 (Maybe (Actor, MsgQueue))
+takeQueue = do
+  p <- gets processor
+  let work = M.filter (not . isEmptyQueue) (queues p)
+  if M.size work == 0 then return Nothing else do
+    let (k, v) = M.elemAt 0 work
+    modify $ \s -> s { processor = p { queues = M.insert k emptyQueue work } }
+    return $ Just (k, v)
+
+step :: M2 Bool
+step = do
+    p <- gets processor
+    mwork <- takeQueue
+    case mwork of
+      Nothing -> return False
+      Just (act, msgs) -> do
+        let pr = look act (processors p)
+        (output, pr') <- case pr of
+          Reducer op l s vals -> stepReducer msgs l op s vals
+          ObsProc r g -> stepRule msgs r g 
+          ViewProc r g watched -> stepView msgs r g watched
+        updateProc act pr'
         -- add to primary record, external output
         commitMsgs output
-        unless (null output) $ do
-          logMsg "---\ninputs:"
-          mapM_ (logMsg . ("  "++) . ppMsg) msgs
-          logMsg (show rule)
-          mapM_ (logMsg . ("  "++) . ppMsg) output
-          logMsg "---end---"
-        let s1 = s
-              -- empty the queue
-              { queues = M.insert rr [] work
-              -- update its local state
-              , localDB = M.insert rule dbl' localDB }
-        -- add to queues
-        let s2 = pushMsgs output s1
-        return $ Just s2
+        return True
+
+stepReducer mq l op state vals = tr (showIOM "reducer " ms outputs) $
+  return (outputs, proc)
   where
-    -- always ok to remove empty queues
-    work = clean queues
+    ms = toMsgs mq
+    (state1, vals1, touched) = foldr step (state, fmap tval vals, S.empty) ms
 
-    -- Prepare for step4
-    (rr@(_,rule), msgs) = M.elemAt 0 work -- laziness
-    (g, fs0, me) = look rule localDB
-    (fs1, events0) = step2 msgs fs0
-    dbl2 = (g, fs1, me)
-    (dangerous, events1) = reorderEvents events0
+    outputs = mapMaybe negVal changedf ++ newMsgs
+    proc = Reducer op l state1 vals2
 
-    -- We reorder inputs, putting events that could cause
-    -- matches to fail first. This prevents spurious matches.
-    -- This is impossible when `ruleHasPair` is True. An extra check in step3
-    -- handles it.
-    reorderEvents es =
-      case M.lookup rule flags of
-        Just (RF {ruleLinear, ruleHasPair, prioritySig}) ->
-          let (high, low) = partition ((`elem` prioritySig) . toSig) es
-          in (ruleHasPair, high ++ low)
-        _ -> error $ "missing RuleFlags map data for rule:\n  " ++ show rule
-    toSig e = (elabel e, epolarity e)
+    look1 f vs =
+      case M.lookup f vs of
+        Nothing -> defaultVal op
+        Just v -> tval v
 
-solve :: [Rule] -> [Msg] -> M2 S
+    defaultVal Or = Truth False
+
+    changedf = filter (\f -> look f vals1 /= (look1 f vals)) $ S.toList touched
+    negVal f = case M.lookup f vals of
+                 Just t -> Just $ MT Negative t
+                 _ -> Nothing
+    posVal f = (f, t)
+      where
+        p = Reduction op (look f state1)
+        --t = (trueTuple (l, f) p)
+        t = T f l p (look f vals1)
+    newPairs = map posVal changedf
+    newMsgs = map (MT Positive . snd) newPairs
+    vals2 = foldr (uncurry M.insert) vals newPairs
+
+    updateFact Positive t = M.insertWith (++) (nodes t) [t]
+    updateFact Negative t = M.adjust (filter (/= t)) (nodes t)
+
+    step (MT p t) (state, vals, touched) =
+        (state1, M.insert f (update op) vals, S.insert f touched)
+      where
+        (_,f) = tfact t
+        state1 = updateFact p t state
+        update Or = case lookList f state1 of
+                      [] -> Truth False
+                      _ -> Truth True
+
+updateProc a p = modps $ \ps -> ps { processors = M.insert a p (processors ps) }
+
+-- TODO need to mark with value instead of tid
+stepView :: MsgQueue -> RankedRule -> Graph -> WatchedSet -> M2 ([Msg], Processor)
+stepView ms@(MQ {m_neg = neg}) rule g ws = do
+    (new, ObsProc _ g1) <- stepRule ms rule g
+    let new' = map rawFact new
+    let (falsified, ws1) = falsify neg ws
+        ws2 = foldr indexProof ws1 new'
+    return (map (MT Positive) new'++falsified, ViewProc rule g1 ws2)
+  where
+    -- underlying call to stepRule should only return positive MT
+    rawFact (MT Positive t) = t { label = toRaw (label t), tval = Truth True }
+      where
+    falsify :: [Tuple] -> WatchedSet -> ([Msg], WatchedSet)
+    falsify ts ws = foldr fix ([], ws) ts
+    fix :: Tuple -> ([Msg], WatchedSet) -> ([Msg], WatchedSet)
+    fix t (out, ws) = (falsem ++ out, foldr removeProof ws (map source false))
+      where
+        false = lookList t ws
+        falsem = map (MT Negative) false
+        removeProof :: Provenance -> WatchedSet -> WatchedSet
+        removeProof p ws = foldr (M.adjust (filter ((/= p) . source))) ws (matched p)
+
+    indexProof :: Tuple -> WatchedSet -> WatchedSet
+    indexProof t w = foldr (\(m, t) -> M.insertWith (++) m [t]) w $ zip (matched $ source t) (repeat t)
+
+showIOM s ms output = unlines $ [s++"input:"] ++ map ppMsg ms ++ ["output:"] ++ map ppMsg output
+
+stepRule :: MsgQueue -> RankedRule -> Graph -> M2 ([Msg], Processor)
+stepRule mq@MQ{m_pos = pos, m_neg = neg} rule g = do
+    -- remove negative changes
+    g1 <- foldM removeTupleM g neg
+    -- get new matches
+    (g2, output) <- foldM (findMatches rule) (g, []) pos
+    return $ tr (showIOM "" (toMsgs mq) output) $
+      (output, ObsProc rule g2)
+
+removeTupleM :: Graph -> Tuple -> M2 Graph
+removeTupleM g t = return (removeTuple t g)
+
+findMatches rr (g, out) t = do
+  new <- concat . map fst <$> mapM applyMatch matches
+  let g2 = foldr removeConsumed (insertTuple t g) new
+  return (g2, new ++ out)
+  where
+    matches = getMatches t rr g
+    removeConsumed (MT Negative t) g = removeTuple t g
+    removeConsumed _ g = g
+
+solve :: [Rule] -> [Msg] -> M2 ()
 solve rs msgs = do
-    db <- gets db
+    -- logging
     logMsg "solve"
     mapM_ (logMsg . ppMsg) msgs
+    -- queue msgs
     commitMsgs msgs
-    let state = initS rs msgs db
-    unfoldM state (\s -> withGas (step s))
+    -- iterate
+    unfoldM () (\_ -> withGas (mbool <$> step))
   where
+    mbool False = Nothing
+    mbool True = Just ()
     unfoldM :: Monad m => a -> (a -> m (Maybe a)) -> m a
     unfoldM s f = do
       m <- f s

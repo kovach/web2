@@ -10,7 +10,7 @@ import qualified Data.Map as M
 import Data.Maybe
 
 import Types
-import FactIndex
+--import FactIndex
 import Expr
 import Monad
 import Index
@@ -61,35 +61,36 @@ edgeMatch _ c vs nodes =
 solvePattern :: Label -> [Event] -> Bindings -> Linear -> [NodeVar] -> [Bindings]
 solvePattern l es (ctxt, bound, deps) linear nvs =
     let pairs =
-          mapMaybe (\t -> fmap (t,) $ edgeMatch l ctxt nvs (enodes t))
+          mapMaybe (\t -> fmap (t,) $ edgeMatch l ctxt nvs (nodes t))
           . filter (not . (`elem` (map toEvent bound)))
           $ es
     in do
       (e, newC) <- pairs
-      let newBound = if linear == Linear then etuple e : bound else bound
+      let newBound = if linear == Linear then e : bound else bound
       return (newC, newBound, e : deps)
 
-solveStep :: Graph -> FactState -> Bindings -> Query -> [Bindings]
-solveStep g _ b@(c, bound, deps) (Query _ (EP linear unique e vs)) =
+solveStep :: Graph -> Bindings -> Query -> [Bindings]
+solveStep g b@(c, bound, deps) (Query _ (EP linear e vs)) =
     solvePattern e (map toEvent $ constrainRelation e g) b linear vs
 
-solveStep _ fs b@(c, bound, deps) q@(Query _ (LP polarity e ns)) =
+solveStep g b@(c, bound, deps) q@(Query _ (LP polarity e ns)) =
   case polarity of
     Positive -> solvePattern e es b NonLinear ns
     Negative ->
       let vs = mapM (\n -> matchLookup n c) ns in
       case vs of
         Nothing -> error $ "negated queries must refer to bound values, or else be the sole clause of a query. offending clause:\n  " ++ show q
-        Just vs' -> assert noProof (c, bound, f : deps)
+        Just vs' -> assert noProof (c, bound, falseTuple (e, vs') : deps)
           where
-            noProof = not $ (e, vs') `elem` (map raw es)
-            f = EFalse (e, vs')
+            noProof = not $ (e, vs') `elem` (map tfact es)
   where
-    es = toEvents e fs
-    raw (EFact f _) = f
-    raw _ = error "raw expects EFact"
+    --es = toEvents e fs
+    es = constrainRelation e g
 
-solveStep _ _ b@(c, _, _) (QBinOp op v1 v2) =
+    --raw (EFact f _) = f
+    --raw _ = error "raw expects EFact"
+
+solveStep _ b@(c, _, _) (QBinOp op v1 v2) =
     case (matchLookup (reduce c v1) c, matchLookup (reduce c v2) c) of
       (Just v1', Just v2') -> assert (op2fn op v1' v2') b
       _ -> error "(in)equality constraints must refer to bound values"
@@ -102,14 +103,14 @@ solveStep _ _ b@(c, _, _) (QBinOp op v1 v2) =
     op2fn QMore = (>)
     op2fn QMoreEq = (>=)
 
-solveSteps :: Graph -> FactState -> Bindings -> [Query] -> [Bindings]
-solveSteps g fs c es = foldM (solveStep g fs) c es
+solveSteps :: Graph -> Bindings -> [Query] -> [Bindings]
+solveSteps g c es = foldM (solveStep g) c es
 
 -- Main matching function --
-getMatches :: Event -> RankedRule -> Graph -> FactState -> [Match]
-getMatches ev rule g fs = takeValid [] . map toMatch . go $ triggers
+getMatches :: Event -> RankedRule -> Graph -> [Match]
+getMatches ev rule g = takeValid [] . map toMatch . go $ triggers
   where
-    triggers = indLookup (elabel ev, epolarity ev) (indexRule $ snd rule)
+    triggers = indLookup (label ev, tpolarity ev) (indexRule $ snd rule)
 
     pow [] = [[]]
     pow (x@(Linear, _, _, _):xs) = pow xs ++ [[x]]
@@ -129,7 +130,7 @@ getMatches ev rule g fs = takeValid [] . map toMatch . go $ triggers
         --          (computed already by pow)
         --      p2: the rest
         -- 2. Unify every pattern in p1 against ev alone
-        -- 3. Unify p2 against g, fs
+        -- 3. Unify p2 against g
         ps = map pat ts
         p1 = p : ps
         p2 = foldr S.delete pattern ps
@@ -137,8 +138,8 @@ getMatches ev rule g fs = takeValid [] . map toMatch . go $ triggers
         b0 = emptyMatchBindings
         bindings = do
           b1 <- foldM (\b (Query _ p) ->
-                        solvePattern (elabel ev) [ev] b (epLinear p) (epNodes p)) b0 p1
-          solveSteps g fs b1 (S.toAscList p2)
+                        solvePattern (label ev) [ev] b (epLinear p) (epNodes p)) b0 p1
+          solveSteps g b1 (S.toAscList p2)
 
     toMatch (ctxt, consumed, matched) =
       (Provenance rule (Just ev) matched consumed, ctxt)
@@ -152,10 +153,7 @@ getMatches ev rule g fs = takeValid [] . map toMatch . go $ triggers
 
     -- checks to see if the tuples a match depends on have been consumed by an earlier match
     matchValid :: Dependency -> Consumed -> Bool
-    matchValid deps ts = not $ any (`elem` ts) (mapMaybe fromEvent deps)
-      where
-        fromEvent (E _ t) = Just t
-        fromEvent _ = Nothing
+    matchValid deps ts = not $ any (`elem` ts) deps
 
     -- Disabling this for now: I don't like how its behavior is so closely tied
     -- to the order that step3 processes events. It would be more reasonable at
@@ -183,11 +181,11 @@ applyLookups c es = second reverse <$> foldM step (c, []) es
 
 applyMatch :: Match -> M2 ([Msg], Context)
 applyMatch (prov, ctxt) = do
-    (ms, c) <- foldM applyStep ([], ctxt) $ rhs
+    (ms, c) <- foldM applyStep ([], ctxt) r
     return (reverse ms ++ removed, c)
   where
     removed = map (MT Negative) $ consumed prov
-    rhs = rhsRule $ snd $ rule_src prov
+    r = rhs $ snd $ rule_src prov
 
     applyStep :: ([Msg], Context) -> Assert -> M2 ([Msg], Context)
     applyStep (ms, c0) (Assert label exprs) = do
@@ -195,13 +193,14 @@ applyMatch (prov, ctxt) = do
         t <- packTuple (label, nodes) prov
         return (MT Positive t : ms, c1)
 
+-- TODO remove
 applyLRHS :: Match -> M2 ([Msg], Context)
 applyLRHS (prov, ctxt) = do
-  (ms, c) <- foldM fix ([], ctxt) rhs
+  (ms, c) <- foldM fix ([], ctxt) r
   return (reverse ms, c)
   where
+    r = rhs $ snd $ rule_src prov
+
     fix (ms, c0) (Assert l es) = do
       (c1, nodes) <- applyLookups c0 es
-      return (MF Positive (l, nodes) prov : ms, c1)
-
-    rhs = rhsRule $ snd $ rule_src prov
+      return (MT Positive (trueTuple (l, nodes) prov) : ms, c1)

@@ -84,10 +84,10 @@ import Index
 actions :: DB -> Index -> Label -> [RawTuple]
 actions db ind label = concatMap step triggers
   where
-    triggers = indLookup (label, Positive) ind
-    step  (_, _, Query _ (EP _ _ rel vs), pattern) = actions
+    triggers = indLookup (label, Just (Truth True)) ind
+    step  (_, _, Query _ (EP _ rel vs), pattern) = actions
       where
-        bindings = solveSteps (tuples db) (facts db) emptyMatchBindings (S.toList pattern)
+        bindings = solveSteps (tuples db) emptyMatchBindings (S.toList pattern)
         -- TODO a rule with a free variable in a user-action should cause an error
         -- it will fail at this fromJust
         bind (ctxt, _, _) = (rel, map (fromJust . flip matchLookup ctxt) vs)
@@ -140,7 +140,7 @@ flattenNV q c n (NHole) = makeT "hole" [q, NInt n] >> return c
 
 labelString = NString . lstring
 
-flattenEP q c (EP lin _ l ns) = do
+flattenEP q c (EP lin l ns) = do
   makeT "label" [labelString l, q]
   unless (lin == NonLinear) (makeT "linear" [q] >> return ())
   foldM (\a -> uncurry $ flattenNV q a) c (zip [1..] ns)
@@ -216,8 +216,8 @@ flattenRule rc rr@(i, rule) = do
     c <- foldM (flattenQ r) [] qs
     _ <- foldM (flattenA r) c as
     case rule of
-      Rule _ _ -> makeT "imperative" [r]
-      LRule _ _ -> makeT "logical" [r]
+      Rule Event _ _ -> makeT "imperative" [r]
+      Rule View _ _ -> makeT "logical" [r]
     return (r, rc { rcr = M.insert rr r $ rcr rc })
   where
     qs = lhs rule
@@ -254,7 +254,10 @@ flattenTuple rc1 t = do
   (p, rc3) <- flattenProv rc2 (source t)
   makeT "fact" [f, i]
   makeT "cause" [p, i]
-  makeT "tid" [NInt (tid t), i]
+  case tval t of
+    Id v -> makeT "tid" [NInt v, i]
+    -- TODO test this
+    Truth b -> if b then makeT "true" [i] else makeT "false" [i]
   let rc4 = rc3 { rct = M.insert t i $ rct rc3 }
   return (i, rc4)
 
@@ -281,7 +284,7 @@ flattenProv rc1 p = do
   makeT "rule" [r, i]
   rc3 <- case tuple_src p of
           Just e -> do
-            (ei, temp) <- flattenEvent rc2 e
+            (ei, temp) <- flattenTuple rc2 e
             makeT "trigger" [ei, i]
             return temp
           Nothing -> return rc2
@@ -290,37 +293,37 @@ flattenProv rc1 p = do
         makeT "consumed" [ti, i]
         return c'
   let doE c e = do
-        (ei, c') <- flattenEvent c e
+        (ei, c') <- flattenTuple c e
         makeT "matched" [ei, i]
         return c'
   rc4 <- foldM doT rc3 (consumed p)
   rc5 <- foldM doE rc4 (matched p)
   return (i, rc5)
 
-flattenEvent rc e | Just i <- M.lookup e (rce rc) = return (i, rc)
-flattenEvent rc1 (E pol t) = do
-  i <- freshNode
-  (ti, rc2) <- flattenTuple rc1 t
-  makeT (pol' pol) [i]
-  makeT "tuple" [ti, i]
-  return (i, rc2)
-  where
-    pol' Positive = "positive"
-    pol' Negative = "negative"
-flattenEvent rc1 (EFact f ps) = do
-  i <- freshNode
-  (fi, rc2) <- flattenFact rc1 f
-  makeT "proof" [i]
-  makeT "fact" [fi, i]
-  let fix c p = do
-        (pi, c') <- flattenProv c p
-        makeT "cause" [pi, i]
-        return c'
-  rc3 <- foldM fix rc2 ps
-  return (i, rc3)
-flattenEvent rc1 (EFalse f) = do
-  i <- freshNode
-  (fi, rc2) <- flattenFact rc1 f
-  makeT "false" [i]
-  makeT "fact" [fi, i]
-  return (i, rc2)
+--flattenEvent rc e | Just i <- M.lookup e (rce rc) = return (i, rc)
+--flattenEvent rc1 (E pol t) = do
+--  i <- freshNode
+--  (ti, rc2) <- flattenTuple rc1 t
+--  makeT (pol' pol) [i]
+--  makeT "tuple" [ti, i]
+--  return (i, rc2)
+--  where
+--    pol' Positive = "positive"
+--    pol' Negative = "negative"
+--flattenEvent rc1 (EFact f ps) = do
+--  i <- freshNode
+--  (fi, rc2) <- flattenFact rc1 f
+--  makeT "proof" [i]
+--  makeT "fact" [fi, i]
+--  let fix c p = do
+--        (pi, c') <- flattenProv c p
+--        makeT "cause" [pi, i]
+--        return c'
+--  rc3 <- foldM fix rc2 ps
+--  return (i, rc3)
+--flattenEvent rc1 (EFalse f) = do
+--  i <- freshNode
+--  (fi, rc2) <- flattenFact rc1 f
+--  makeT "false" [i]
+--  makeT "fact" [fi, i]
+--  return (i, rc2)

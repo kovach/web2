@@ -38,10 +38,10 @@ readRules f = do
 -- 4. returns extended context and a "root cause" tuple
 processInputTuples :: [Rule] -> Context -> RHS -> M2 (Tuple, Context)
 processInputTuples rules c es = do
-  let initMatch t edges c = (Provenance (-1, Rule [] edges) (Just $ toEvent t) [] [], c)
+  let initMatch t edges c = (Provenance (-1, Rule Event [] edges) (Just $ toEvent t) [] [], c)
   root <- makeTuple ("_root", []) externProv
   (msgs, c') <- applyMatch $ initMatch root es c
-  _ <- solve rules msgs
+  solve rules msgs
   return (root, c')
 
 -- returns a "root" tuple that can be used to access the results of each
@@ -51,10 +51,13 @@ programWithDB edgeBlocks rules = prog2
     where
       prog1 (ts, c) es = do
         (t, c') <- processInputTuples rules c es
-        return (t:ts, c)
+        return (t:ts, c')
 
       prog2 :: M2 [Tuple]
-      prog2 = fst <$> foldM prog1 ([], []) edgeBlocks
+      prog2 = do
+        -- set up queues/indices
+        resetProcessor rules
+        fst <$> foldM prog1 ([], []) edgeBlocks
 
 runProgramWithDB e r = runDB (Nothing) emptyDB $ programWithDB e r
 
@@ -80,5 +83,5 @@ runAnalysis rules metaRules = prog3
     prog3 = do
       flattenRules rules
       msgs <- flushEvents
-      _ <- solve metaRules msgs
+      solve metaRules msgs
       return ()

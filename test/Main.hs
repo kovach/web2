@@ -8,7 +8,7 @@ import Control.Monad (unless)
 import System.Console.ANSI
 
 import Types
-import FactIndex
+--import FactIndex
 import Monad
 import Rules
 import Convert
@@ -19,9 +19,7 @@ data PTree = TreeNode Bool Tuple [PTree]
 
 makeTree :: [Tuple] -> [Tuple] -> Tuple -> PTree
 makeTree dead ts root@(T{})=
-  let fe (E _ t) = Just t
-      fe _ = Nothing
-      cs = sortOn tid $ filter ((== (Just $ Just root)) . fmap fe . tuple_cause . source) ts
+  let cs = sortOn tval $ filter ((== (Just root)) . tuple_cause . source) ts
   in TreeNode (root `elem` dead) root (map (makeTree dead ts) cs)
 
 data IOMarker = Input | Output | Internal | Ignored
@@ -48,7 +46,7 @@ printTree rules = p 0
     as = allRelations rules
     p i (TreeNode dead t ts) = do
       putStr $ replicate (i-1) ' '
-      setSGR [SetColor Foreground Dull Red]
+      --red
       putStr $ if dead then "_" else " "
       setTupleColor is os as t
       putStrLn $ ppTuple t
@@ -76,8 +74,8 @@ printTree rules = p 0
 --  repl output
 -- repl1 = runRepl "start_game" "graph.txt" "rules.arrow" >> return ()
 
-runTextDemo start_marker edgeFile ruleFile do_print = do
-    let prefix s = "examples/" ++ s
+runTextDemo start_marker pr edgeFile ruleFile do_print = do
+    let prefix s = pr++s
     (roots, rules, s) <- runProgram (prefix edgeFile) (prefix ruleFile)
     let gasUsed = defaultGas - gas s
     let result = db s
@@ -87,7 +85,7 @@ runTextDemo start_marker edgeFile ruleFile do_print = do
     let resultTrees = map (makeTree (removed_tuples result) (allTuples result)) roots
 
     putStrLn "imperative relations:"
-    mapM_ (putStrLn . ("  " ++) . show) $ allRelations rules `diffList` logicalRelations rules
+    mapM_ (putStrLn . ("  " ++) . show) $ eventRelations rules
     putStrLn "logical relations:"
     mapM_ (putStrLn . ("  " ++) . show) $ logicalRelations rules
     putStrLn "input relations:"
@@ -106,7 +104,8 @@ runTextDemo start_marker edgeFile ruleFile do_print = do
 
     if do_print
       then do
-        mapM_ (printTree rules) $ reverse resultTrees
+        --mapM_ (printTree rules) $ reverse resultTrees
+        mapM_ (putStrLn . ppTupleProv) $ sortOn tval tupleList
       else return ()
 
     -- SWITCH:
@@ -115,10 +114,11 @@ runTextDemo start_marker edgeFile ruleFile do_print = do
       mapM_ (putStrLn) $ reverse logged
       else return ()
 
-    green
-    putStrLn "\nfact state:"
-    white
-    putStrLn $ ppFS (facts result)
+    --TODO remove
+    --green
+    --putStrLn "\nfact state:"
+    --white
+    --putStrLn $ ppFS (facts result)
 
     -- SWITCH:
     --if False then do
@@ -148,13 +148,16 @@ runTextDemo start_marker edgeFile ruleFile do_print = do
 
 -- e.g. `runExample "turing"`
 runExample :: FilePath -> IO ()
-runExample s = runTextDemo nullLabel (s++".graph") (s++".arrow") True
+runExample s = runTextDemo nullLabel "examples/" (s++".graph") (s++".arrow") True
 
-p1 = runTextDemo "start_game" "card_game.graph" "card_game.arrow"
-p2 = runTextDemo "start_turn" "game2.graph" "game2.arrow"
-p3 = runTextDemo nullLabel "test.graph" "test.arrow"
-p4 = runTextDemo "start_game" "go.graph" "go.arrow"
+runP :: String -> FilePath -> IO ()
+runP p s = runTextDemo nullLabel p (s++".graph") (s++".arrow") True
+
+--p1 = runTextDemo "start_game" "card_game.graph" "card_game.arrow"
+--p2 = runTextDemo "start_turn" "game2.graph" "game2.arrow"
+--p3 = runTextDemo nullLabel "test.graph" "test.arrow"
+--p4 = runTextDemo "start_game" "go.graph" "go.arrow"
 
 main = do
   putStrLn "starting test"
-  runTextDemo "start_game" "go_stress.graph" "go.arrow" False
+  runTextDemo "start_game" "examples/" "go_stress.graph" "go.arrow" False

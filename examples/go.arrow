@@ -33,3 +33,4 @@ board-fill, location _ m n, height max, m = max => place-stone 'black m n
 
 # TODO ko
 # TODO suicide rule
+# TODO scoring game

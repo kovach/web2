@@ -135,9 +135,7 @@ ineq_ =
   (string "<" *> return QLess) <|>
   (string ">" *> return QMore)
 qbin_ = flip QBinOp <$> expr_ <*> ineq_ <*> expr_
---single_ = (char '@' *> pure Unique) <|> (pure NonUnique)
-single_ = pure NonUnique
-ep_ lin = EP lin <$> single_ <*> rel_ <*> many q_
+ep_ lin = EP lin <$> rel_ <*> many q_
 lp_ p = LP p <$> rel_ <*> many q_
 
 query_ = Query Low <$> ep_ NonLinear
@@ -175,8 +173,8 @@ rhs_ = sepBy comma_ rclause_
 arrow_ = string "=>"
 larrow_ = string "~>"
 
-rule_ = (Rule <$> lhs_ <*> (arrow_ *> rhs_))
-lrule_ = (LRule <$> lhs_ <*> (larrow_ *> rhs_))
+rule_ = (Rule Event <$> lhs_ <*> (arrow_ *> rhs_))
+lrule_ = (Rule View <$> lhs_ <*> (larrow_ *> rhs_))
 
 line_ = rule_ <|> lrule_
 

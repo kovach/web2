@@ -13,7 +13,7 @@ import GHC.Generics
 import Control.Monad (foldM)
 
 import Types
-import FactIndex (emptyFS)
+--import FactIndex (emptyFS)
 import Monad
 import Rules
 import Update
@@ -46,13 +46,11 @@ instance FromJSON Command where
 
 decodeCommand = decode
 
-convert :: Event -> Maybe (Polarity, Label, [Node])
-convert (E p T{..}) = Just (p, label, nodes)
-convert (EFact (label, nodes) _) = Just (Positive, label, nodes)
-convert (EFalse (label, nodes))  = Just (Negative, label, nodes)
+convert :: Msg -> Maybe (Polarity, Label, [Node])
+convert (MT p T{..}) = Just (p, label, nodes)
 
 -- TODO remove arity tags?
-encodeEvents :: [Event] -> T.ByteString
+encodeEvents :: [Msg] -> T.ByteString
 encodeEvents = encode . mapMaybe convert
 
 data State = State [Rule] DB
@@ -108,7 +106,6 @@ initLogProgram = do
         programWithDB objDB objRules
         ms <- flushOutput
         let fix c (MT _ t) = snd <$> flattenTuple c t
-            fix c _ = return c
         foldM fix emptyRC ms
         ms <- flushEvents
         programWithDB editDB allRules
@@ -128,8 +125,9 @@ handler connId msg s0@(State rules db0) =
       putStrLn "reset"
       (rules', db1, msgs) <- makeDB
       -- TODO only send relevant tuples
-      let (_, outputEvents) = step2 msgs emptyFS
-      mapM_ (putStrLn . ppEvent) outputEvents
+      --let (_, outputEvents) = step2 msgs emptyFS
+      let outputEvents = filter notRaw msgs
+      mapM_ (putStrLn . ppMsg) outputEvents
       return (Just (encodeEvents outputEvents), (State rules' db1))
     Just Connect -> do
       putStrLn "not implemented"
@@ -145,13 +143,14 @@ handler connId msg s0@(State rules db0) =
           solve rules [msg]
         outputMsgs = netOutput is
 
-        (_, outputEvents) = step2 outputMsgs (facts db0)
+        --(_, outputEvents) = step2 outputMsgs (facts db0)
+        outputEvents = filter notRaw outputMsgs
         db1 = db is
       unless noDebug $ do
         --putStrLn "raw output"
         --mapM_ (putStrLn . ppMsg) (out_unprocessed is)
         putStrLn "net"
-        mapM_ (putStrLn . ppEvent) outputEvents
+        mapM_ (putStrLn . ppMsg) outputEvents
       return (Just (encodeEvents outputEvents), State rules db1)
     Nothing -> do
       putStrLn "decode failed"

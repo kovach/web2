@@ -20,6 +20,9 @@ data TestOutput = TO
 
 type TestCase = (String, FilePath, FilePath, TestOutput)
 
+isEventTuple T{tval = Id _} = True
+isEventTuple _ = False
+
 -- TODO read expected output from text files instead
 --      add function to generate these files
 testCases :: [TestCase]
@@ -59,7 +62,7 @@ runTest (label, rules, input, output) = do
       outputs = netOutput s
       steps = defaultGas - gas s
   let t = TO
-          { tuple_count = length (fromGraph (tuples result))
+          { tuple_count = length (filter isEventTuple $ fromGraph (tuples result))
           , steps_used = steps
           , msgs_sent = length outputs
           }

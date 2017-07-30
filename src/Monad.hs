@@ -3,15 +3,17 @@ module Monad where
 
 import Data.Maybe
 import Control.Monad.State
+import Data.Set (Set)
 import qualified Data.Set as S
-import Data.Either (partitionEithers)
+import Data.Map (Map)
+import qualified Data.Map as M
 
 import Types
-import FactIndex
+--import FactIndex
 
 data DB = DB
   { tuples :: Graph
-  , facts :: FactState
+  --, facts :: FactState
   , removed_tuples :: [Tuple] -- TODO remove?
   , node_counter :: Count
   , tuple_counter :: Count
@@ -20,13 +22,56 @@ data DB = DB
 allTuples :: DB -> [Tuple]
 allTuples db = fromGraph (tuples db) ++ removed_tuples db
 
-initDB g = DB { tuples = toGraph g, facts = emptyFS
+initDB g = DB { tuples = toGraph g
               , removed_tuples = []
               , node_counter = 0, tuple_counter = 0}
 emptyDB = initDB []
 
+--data Reducer =
+  -- label, fs, current values, touched
+
+emptyReducer l = Reducer Or l M.empty M.empty
+
+type WatchedSet = Map Tuple [Tuple]
+
+data Processor
+  = ObsProc RankedRule Graph
+  | ViewProc RankedRule Graph WatchedSet
+  | Reducer RedOp Label (Map [Node] [Tuple]) (Map [Node] Tuple)
+  deriving (Eq, Show, Ord)
+
+emptyProcessor r = ObsProc r (toGraph [])
+
+data Actor = AReducer Label | ARule RuleId
+  deriving (Eq, Show, Ord)
+
+data RelationType = RelNormal | RelBool
+  deriving (Eq, Show, Ord)
+
+data MsgQueue = MQ { m_pos :: [Tuple], m_neg :: [Tuple] }
+emptyQueue = MQ [] []
+isEmptyQueue (MQ [] []) = True
+isEmptyQueue _ = False
+
+toMsgs :: MsgQueue -> [Msg]
+toMsgs mq = map (MT Positive) (m_pos mq)
+         ++ map (MT Negative) (m_neg mq)
+
+data PS = PS
+  { dependencies :: Map Label [Actor]
+  -- total on (rules + (reduced relation labels))
+  , queues :: Map Actor MsgQueue
+  -- total on (rules + (reduced relation labels))
+  , processors :: Map Actor Processor
+  -- partial?
+  , relTypes :: Map Label RelationType
+  }
+
+emptyProc = PS M.empty M.empty M.empty M.empty
+
 data InterpreterState = IS
   { db :: DB
+  , processor :: PS
   , new_unprocessed :: [Msg]
   , out_unprocessed :: [Msg]
   , msgLog :: [String]
@@ -36,8 +81,8 @@ data InterpreterState = IS
 type M2 = State InterpreterState
 
 defaultGas = 1000
-emptyS2 = IS emptyDB [] [] [] defaultGas
-makeS2 db gas = IS db [] [] [] gas
+--emptyS2 = IS emptyDB emptyProc [] [] [] defaultGas
+makeS2 db gas = IS db emptyProc [] [] [] gas
 
 runDB :: Maybe Int -> DB -> M2 a -> (a, InterpreterState)
 runDB mgas db m = runState m (makeS2 db (fromMaybe defaultGas mgas))
@@ -61,6 +106,9 @@ outputMsg m = modify $ \s -> s { out_unprocessed = m : out_unprocessed s }
 moddb :: (DB -> DB) -> M2 ()
 moddb f = modify $ \s -> s { db = f (db s) }
 
+modps :: (PS -> PS) -> M2 ()
+modps f = modify $ \s -> s { processor = f (processor s) }
+
 freshNode :: M2 Node
 freshNode = do
   c <- gets (node_counter . db)
@@ -83,7 +131,7 @@ packTuple :: RawTuple -> Provenance -> M2 Tuple
 packTuple (rel, ns) p = do
   c <- gets (tuple_counter . db)
   moddb $ \s -> s { tuple_counter = c + 1 }
-  let t = T { nodes = ns, label = rel, tid = c, source = p }
+  let t = T { nodes = ns, label = rel, tval = Id c, source = p }
   return t
 
 storeTuple :: Tuple -> M2 ()
@@ -109,12 +157,13 @@ netOutput = removeOpposites . out_unprocessed
 --   esp proofs
 removeOpposites ms = fix s ++ proofs
   where
+    tuples = ms
+    proofs = []
     s = S.fromList tuples
-    split (MT p t) = Left (MT p t)
-    split f@(MF _ _ _) = Right f
-    (tuples, proofs) = partitionEithers $ map split ms
+    --split (MT p t) = Left (MT p t)
+    ----split f@(MF _ _ _) = Right f
+    --(tuples, proofs) = partitionEithers $ map split ms
     op (MT p t) = MT (neg p) t
-    op _ = error "op expects MT"
 
     fix s = S.toList $ foldr annihilate (S.fromList tuples) tuples
 

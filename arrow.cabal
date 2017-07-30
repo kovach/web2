@@ -16,7 +16,7 @@ cabal-version:       >=1.10
 
 library
   hs-source-dirs:      src
-  exposed-modules:     Monad, Types, Graph, Rules, Parser, FactIndex, Update, Reflection, Convert, Index, Expr, Parse, CIndex
+  exposed-modules:     Monad, Types, Graph, Rules, Parser, Update, Reflection, Convert, Index, Expr, Parse, CIndex
   build-depends:       base >=4.9 && <4.10, random >=1.1 && <1.2, containers==0.5.7.1,
                        ansi-terminal >=0.6 && <0.7, mtl
   default-language:    Haskell2010
