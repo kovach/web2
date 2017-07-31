@@ -32,13 +32,12 @@ emptyDB = initDB []
 
 emptyReducer l = Reducer Or l M.empty M.empty
 
-type WatchedSet = Map Tuple [Tuple]
+type WatchedSet = Map Tuple (Map Provenance [Tuple])
 
 data Processor
   = ObsProc RankedRule Graph
   | ViewProc RankedRule Graph WatchedSet
   | Reducer RedOp Label (Map [Node] [Tuple]) (Map [Node] Tuple)
-  deriving (Eq, Show, Ord)
 
 emptyProcessor r = ObsProc r (toGraph [])
 

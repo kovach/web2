@@ -60,6 +60,20 @@ labelQueryArity (Query d p) = Query d (fix p)
 labelQueryArity q = q
 labelLHSArity = map labelQueryArity
 
+--TODO delete
+--type FreshMonad k = State (Map k Int, Int)
+--
+--step :: k -> (Int -> a) -> ContextMonad a
+--step k f = do
+--  (m, c) <- get
+--  case M.lookup k m of
+--    Just v -> return (f v)
+--    Nothing -> do
+--      put (M.insert k c m, c+1)
+--      return (f c)
+--
+--runFresh = flip runState (M.empty, 0)
+
 -- "Type inference"
 convertRules :: [LineRule] -> [Rule]
 convertRules rs = result

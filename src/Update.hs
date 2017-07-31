@@ -50,13 +50,14 @@ pushMsg :: Msg -> PS -> PS
 pushMsg (MT p t) ps = ps { queues = queues' }
   where
     queues' = foldr (M.alter (step p)) (queues ps) actors
-    actors = lookList (label t) (dependencies ps)
+    actors = lookDefault (label t) (dependencies ps)
     -- insert
     step Positive Nothing = Just (MQ {m_pos = [t], m_neg = []})
     step Negative Nothing = Just (MQ {m_neg = [t], m_pos = []})
     -- enqueue
     step Positive (Just m@(MQ{m_pos})) = Just m { m_pos = t : m_pos }
-    step Negative (Just MQ {m_pos, m_neg}) =
+    step a b = step2 a b
+    step2 Negative (Just MQ {m_pos, m_neg}) =
       Just MQ { m_neg = t : m_neg, m_pos = filter (/= t) m_pos}
 
 -- used to update global DB
@@ -328,7 +329,7 @@ stepReducer mq l op state vals = tr (showIOM "reducer " ms outputs) $
       where
         (_,f) = tfact t
         state1 = updateFact p t state
-        update Or = case lookList f state1 of
+        update Or = case lookDefault f state1 of
                       [] -> Truth False
                       _ -> Truth True
 
@@ -349,15 +350,20 @@ stepView ms@(MQ {m_neg = neg}) rule g ws = do
     falsify :: [Tuple] -> WatchedSet -> ([Msg], WatchedSet)
     falsify ts ws = foldr fix ([], ws) ts
     fix :: Tuple -> ([Msg], WatchedSet) -> ([Msg], WatchedSet)
-    fix t (out, ws) = (falsem ++ out, foldr removeProof ws (map source false))
+    fix t (out, ws) = (falsem ++ out, ws2)
       where
-        false = lookList t ws
-        falsem = map (MT Negative) false
+        false :: Map Provenance [Tuple]
+        false = lookDefault t ws
+        falsep = M.keys false
+        falsem = map (MT Negative) $ concat $ M.elems false
+        ws1 = M.insert t M.empty ws
+        ws2 = foldr removeProof ws1 falsep
+        --falsem = map (MT Negative) false
         removeProof :: Provenance -> WatchedSet -> WatchedSet
-        removeProof p ws = foldr (M.adjust (filter ((/= p) . source))) ws (matched p)
+        removeProof p ws = foldr (M.adjust (M.delete p)) ws (matched p)
 
     indexProof :: Tuple -> WatchedSet -> WatchedSet
-    indexProof t w = foldr (\(m, t) -> M.insertWith (++) m [t]) w $ zip (matched $ source t) (repeat t)
+    indexProof t w = foldr (\(m, t) -> M.insertWith (M.unionWith (++)) m (M.singleton (source t) [t])) w $ zip (matched $ source t) (repeat t)
 
 showIOM s ms output = unlines $ [s++"input:"] ++ map ppMsg ms ++ ["output:"] ++ map ppMsg output
 

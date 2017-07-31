@@ -6,6 +6,7 @@ module Types where
 import Data.String
 import Data.List (intercalate, delete)
 import Data.Set (Set)
+import qualified Data.Set as S
 import Data.Map (Map)
 import qualified Data.Map as M
 
@@ -48,30 +49,6 @@ neg :: Polarity -> Polarity
 neg Positive = Negative
 neg Negative = Positive
 
---data Event = E Polarity Tuple
---           | EFact Fact [Provenance]
---           | EFalse Fact
---  deriving (Show)
-
---instance Eq Event where
---  (E p1 t1) == (E p2 t2) = p1 == p2 && t1 == t2
---  (EFact f1 _) == (EFact f2 _) = f1 == f2
---  (EFalse f1) == (EFalse f2) = f1 == f2
---  _ == _ = False
---
---instance Ord Event where
---  e1 `compare` e2 = e1' `compare` e2'
---    where
---      e1' = case e1 of
---              EFact f _ -> EFact f []
---              _ -> e1
---      e2' = case e2 of
---              EFact f _ -> EFact f []
---              _ -> e2
---
--- TODO remove
---toEvent :: Tuple -> Event
---toEvent t = E Positive
 toEvent t = t
 
 -- TODO remove
@@ -126,6 +103,7 @@ instance Show Id where
   show (Id i) = "#"++show i
   show (Truth b) = "#"++show b
 
+-- TODO add id back; also to Provenance
 data Tuple
   = T
   { nodes :: [Node]
@@ -156,8 +134,12 @@ instance Ord Tuple where
   --t1 `compare` t2 = tid t1 `compare` tid t2
   t1 `compare` t2 =
     case (tval t1, tval t2) of
-      (Id i1, Id i2) -> i1 `compare` i2
-      (v1, v2) -> (tfact t1, v1) `compare` (tfact t2, v2)
+      (Id i1, Id i2) -> cmp1
+        where
+          cmp1 = i1 `compare` i2
+      (v1, v2) -> cmp2
+        where
+          cmp2 = (tfact t1, v1) `compare` (tfact t2, v2)
 
 instance IsString Node where
   fromString = NSymbol
@@ -170,21 +152,68 @@ instance Show Node where
 
 type Count = Int
 
-type Graph = Map Label [Tuple]
+--type Graph = Map Label [Tuple]
+--
+--insertTuple :: Tuple -> Graph -> Graph
+--insertTuple t = M.insertWith (++) (label t) [t]
+--
+--removeTuple :: Tuple -> Graph -> Graph
+--removeTuple t@(T {tval = Id _}) = rt1 t
+--removeTuple t = rt2 t
+--rt1 t = M.adjust (delete t) (label t)
+--rt2 t = M.adjust (delete t) (label t)
+
+-- Tuple Index ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~--
+data Graph = G
+  { relations :: Map Label (Set Tuple)
+  , index :: Map TPattern (Set Tuple)
+  }
+
+emptyGraph = (G M.empty M.empty)
+
+projections :: Tuple -> [(TPattern, Tuple)]
+projections t | [] <- nodes t = []
+projections t@(T{nodes=_:_:_}) =
+  [ (TP1 (label t) 0 (nodes t !! 0), t)
+  , (TP1 (label t) 1 (nodes t !! 1), t)
+  ]
+projections t = [(TP1 (label t) 0 (nodes t !! 0), t)]
 
 insertTuple :: Tuple -> Graph -> Graph
-insertTuple t = M.insertWith (++) (label t) [t]
+insertTuple t (G m i) = G
+  { relations = M.insertWith (S.union) (label t) (S.singleton t) m
+  , index = foldr (\(p, t) -> M.insertWith (S.union) p (S.singleton t)) i (projections t)
+  }
 
 removeTuple :: Tuple -> Graph -> Graph
-removeTuple t = M.adjust (delete t) (label t)
+removeTuple t (G m i) = G
+  { relations = M.adjust (S.delete t) (label t) m
+  , index = foldr (\(p, t) -> M.adjust (S.delete t) p) i (projections t)
+  }
 
 toGraph :: [Tuple] -> Graph
-toGraph = foldr step M.empty
+toGraph = foldr step emptyGraph
   where
     step t = insertTuple t
 
 fromGraph :: Graph -> [Tuple]
-fromGraph = concat . map snd . M.toList
+fromGraph = concat . map (S.toList . snd) . M.toList . relations
+
+constrainRelation :: Label -> Graph -> [Tuple]
+constrainRelation l (G g _) =
+  case M.lookup l g of
+    Nothing -> []
+    Just x -> S.toList x
+
+data TPattern = TP1 Label Int Node
+  deriving (Eq, Show, Ord)
+
+m2l Nothing = []
+m2l (Just x) = x
+
+constrainRelation1 :: TPattern -> Graph -> [Tuple]
+constrainRelation1 t@(TP1 l _ _) (G g i) = m2l (S.toList <$> M.lookup t i)
+-- ~~~~~~~~~~~ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~--
 
 type Name = String
 
@@ -201,6 +230,7 @@ data Dot = High | Low
   deriving (Eq, Show, Ord)
 data Linear = Linear | NonLinear
   deriving (Eq, Show, Ord)
+
 data EP
   = EP Linear Label [NodeVar]
   | LP Polarity Label [NodeVar]
@@ -292,11 +322,11 @@ look k m =
     Just v -> v
     Nothing -> error $ "missing key: " ++ show k
 
-lookList :: Ord k => k -> Map k [v] -> [v]
-lookList k m =
+lookDefault :: (Ord k, Monoid m) => k -> Map k m -> m
+lookDefault k m =
   case M.lookup k m of
     Just v -> v
-    Nothing -> []
+    Nothing -> mempty
 
 -- Accessors
 -- TODO reorg Event/Msg/Tuple/Fact types?

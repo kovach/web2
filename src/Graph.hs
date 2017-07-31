@@ -19,12 +19,6 @@ assert :: Bool -> a -> [a]
 assert True a = [a]
 assert False _ = []
 
-constrainRelation :: Label -> Graph -> [Tuple]
-constrainRelation l g =
-  case M.lookup l g of
-    Nothing -> []
-    Just x -> x
-
 matchLookup :: NodeVar -> Context -> Maybe Node
 matchLookup (NVal v) _ = Just v
 matchLookup (NVar n) c = lookup n c
@@ -70,9 +64,20 @@ solvePattern l es (ctxt, bound, deps) linear nvs =
       return (newC, newBound, e : deps)
 
 solveStep :: Graph -> Bindings -> Query -> [Bindings]
+solveStep g b@(c, bound, deps) (Query _ (EP linear e vs@(NVar v : _)))
+  | Just l <- lookup v c =
+    solvePattern e (map toEvent $ constrainRelation1 (TP1 e 0 l) g) b linear vs
 solveStep g b@(c, bound, deps) (Query _ (EP linear e vs)) =
     solvePattern e (map toEvent $ constrainRelation e g) b linear vs
 
+solveStep g b@(c, bound, deps) q@(Query _ (LP Positive e ns@(NVar v : _)))
+  | Just l <- lookup v c =
+    let es = constrainRelation1 (TP1 e 0 l) g
+    in solvePattern e es b NonLinear ns
+solveStep g b@(c, bound, deps) q@(Query _ (LP Positive e ns@(_:NVar v : _)))
+  | Just l <- lookup v c =
+    let es = constrainRelation1 (TP1 e 1 l) g
+    in solvePattern e es b NonLinear ns
 solveStep g b@(c, bound, deps) q@(Query _ (LP polarity e ns)) =
   case polarity of
     Positive -> solvePattern e es b NonLinear ns
@@ -84,8 +89,9 @@ solveStep g b@(c, bound, deps) q@(Query _ (LP polarity e ns)) =
           where
             noProof = not $ (e, vs') `elem` (map tfact es)
   where
-    --es = toEvents e fs
     es = constrainRelation e g
+
+
 
     --raw (EFact f _) = f
     --raw _ = error "raw expects EFact"
