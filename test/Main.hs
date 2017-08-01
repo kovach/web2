@@ -105,7 +105,7 @@ runTextDemo start_marker pr edgeFile ruleFile do_print = do
     if do_print
       then do
         --mapM_ (printTree rules) $ reverse resultTrees
-        mapM_ (putStrLn . ppTupleProv) $ sortOn tval tupleList
+        mapM_ (putStrLn . ppTupleProv) $ sortOn (abs . tid) tupleList
       else return ()
 
     -- SWITCH:

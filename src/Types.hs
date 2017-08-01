@@ -38,7 +38,6 @@ lstring (LA s _) = s
 
 nullLabel = L ""
 
--- TODO rename constructors
 data Node = NInt Int | NNode Int | NSymbol String | NString String
   deriving (Eq, Ord)
 
@@ -61,7 +60,7 @@ type RuleId = Int
 type RankedRule = (RuleId, Rule)
 
 -- TODO
--- sum, argmax (or "most recent")
+-- sum, argmax (or "most recent"), rand?
 data RedOp = Or
   deriving (Eq, Show, Ord)
 
@@ -96,12 +95,18 @@ externProv = Extern []
 type RawTuple = (Label, [Node])
 type Fact = RawTuple
 
-data Id = Id Int | Truth Bool
+data TVal = NoVal | Truth Bool
   deriving (Eq, Ord)
 
-instance Show Id where
-  show (Id i) = "#"++show i
-  show (Truth b) = "#"++show b
+instance Show TVal where
+  show NoVal = ""
+  show (Truth b) = show b
+
+isPositive = ok . tval
+  where
+    ok (Truth True) = True
+    ok NoVal = True
+    ok _ = False
 
 -- TODO add id back; also to Provenance
 data Tuple
@@ -109,37 +114,21 @@ data Tuple
   { nodes :: [Node]
   , label :: Label
   , source :: Provenance
-  , tval :: Id }
+  , tid :: Int
+  , tval :: TVal }
   deriving (Show)
 
 tfact :: Tuple -> Fact
 tfact t = (label t, nodes t)
 
-reducedTuple :: RedOp -> Fact -> [Provenance] -> Tuple
-reducedTuple op f@(l,ns) ps = T ns l (Reduction op (map (trueTuple f) ps)) (Truth True)
-
-trueTuple :: Fact -> Provenance -> Tuple
-trueTuple (l, ns) p = T ns l p (Truth True)
-
-falseTuple :: Fact -> Tuple
-falseTuple (l, ns) = T ns l (Reduction Or []) (Truth False)
+isEventTuple T{tval = NoVal} = True
+isEventTuple _ = False
 
 instance Eq Tuple where
-  t1 == t2 =
-    case (tval t1, tval t2) of
-      (Id i1, Id i2) -> i1 == i2
-      (v1, v2) -> v1 == v2 && tfact t1 == tfact t2
+  t1 == t2 = tid t1 == tid t2
 
 instance Ord Tuple where
-  --t1 `compare` t2 = tid t1 `compare` tid t2
-  t1 `compare` t2 =
-    case (tval t1, tval t2) of
-      (Id i1, Id i2) -> cmp1
-        where
-          cmp1 = i1 `compare` i2
-      (v1, v2) -> cmp2
-        where
-          cmp2 = (tfact t1, v1) `compare` (tfact t2, v2)
+  t1 `compare` t2 = tid t1 `compare` tid t2
 
 instance IsString Node where
   fromString = NSymbol
@@ -151,17 +140,6 @@ instance Show Node where
   show (NString s) = show s
 
 type Count = Int
-
---type Graph = Map Label [Tuple]
---
---insertTuple :: Tuple -> Graph -> Graph
---insertTuple t = M.insertWith (++) (label t) [t]
---
---removeTuple :: Tuple -> Graph -> Graph
---removeTuple t@(T {tval = Id _}) = rt1 t
---removeTuple t = rt2 t
---rt1 t = M.adjust (delete t) (label t)
---rt2 t = M.adjust (delete t) (label t)
 
 -- Tuple Index ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~--
 data Graph = G
@@ -197,13 +175,13 @@ toGraph = foldr step emptyGraph
     step t = insertTuple t
 
 fromGraph :: Graph -> [Tuple]
-fromGraph = concat . map (S.toList . snd) . M.toList . relations
+fromGraph = concat . map (S.toAscList . snd) . M.toList . relations
 
 constrainRelation :: Label -> Graph -> [Tuple]
 constrainRelation l (G g _) =
   case M.lookup l g of
     Nothing -> []
-    Just x -> S.toList x
+    Just x -> S.toAscList x
 
 data TPattern = TP1 Label Int Node
   deriving (Eq, Show, Ord)
@@ -212,7 +190,7 @@ m2l Nothing = []
 m2l (Just x) = x
 
 constrainRelation1 :: TPattern -> Graph -> [Tuple]
-constrainRelation1 t@(TP1 l _ _) (G g i) = m2l (S.toList <$> M.lookup t i)
+constrainRelation1 t@(TP1 l _ _) (G g i) = m2l (S.toAscList <$> M.lookup t i)
 -- ~~~~~~~~~~~ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~--
 
 type Name = String
@@ -266,7 +244,6 @@ data Query =
   --   TODO don't rely on this
   Query Dot EP
   | QBinOp Op E E
-  -- TODO rand
   deriving (Eq, Show, Ord)
 
 -- Right-hand side of rule
@@ -284,16 +261,14 @@ data RType = Event | View
 
 data Rule
   = Rule  { rtype :: RType, lhs :: LHS, rhs :: RHS }
-  -- | LRule { lhs :: LHS, rhs :: RHS }
   deriving (Eq, Show, Ord)
 
 nullRule :: Rule
 nullRule = Rule Event [] []
 
 lhsRule (Rule _ r _) = r
---lhsRule (LRule r _) = r
 
-type Signature = (Label, Maybe Id)
+type Signature = (Label, Maybe TVal)
 type Pattern = Set Query
 type Trigger = (Linear, Rule, Query, Pattern)
 type Index = Map Signature [Trigger]
@@ -301,11 +276,12 @@ emptyIndex = M.empty
 
 type Context = [(Name, Node)]
 type Matched = [Tuple]
+type Falsified = [(Fact, TVal)]
 --type Matched = [Event]
-type Bindings = (Context, Consumed, Matched)
-emptyMatchBindings = ([], [], [])
+type Bindings = (Context, Consumed, Matched, Falsified)
+emptyMatchBindings = ([], [], [], [])
 
-type Match = (Provenance, Context)
+type Match = (Provenance, Context, Falsified)
 
 data Msg = MT Polarity Tuple
   deriving (Eq, Show, Ord)
@@ -328,37 +304,14 @@ lookDefault k m =
     Just v -> v
     Nothing -> mempty
 
--- Accessors
--- TODO reorg Event/Msg/Tuple/Fact types?
---etuple (E _ t) = t
---etuple _ = error "etuple expects E Event"
---elabel :: Event -> Label
---elabel (E _ t) = label t
---elabel (EFact (l, _) _) = l
---elabel (EFalse (l, _)) = l
---efact :: Event -> Fact
---efact e = (elabel e, enodes e)
---enodes :: Event -> [Node]
---enodes (E _ t) = nodes t
---enodes (EFact (_, ns) _) = ns
---enodes (EFalse (_, ns)) = ns
---epolarity (E p _) = p
---epolarity (EFact _ _) = Positive
---epolarity (EFalse _) = Negative
-
 tpolarity t =
   case tval t of
     t@(Truth _) -> Just t
     _ -> Nothing
 
 mprov (MT _ t) = source t
---mprov (MF _ _ p) = p
 mlabel (MT _ t) = label t
---mlabel (MF _ (l, _) _) = l
 mfact (MT _ t) = (label t, nodes t)
-isPositive (MT Positive _) = True
-isPositive _ = False
---mfact (MF _ f _) = f
 
 epLabel :: EP -> Label
 epLabel (EP _ l _) = l
@@ -372,21 +325,16 @@ epNodes (LP _ _ ns) = ns
 epLinear (EP l _ _) = l
 epLinear _ = NonLinear
 
+ppId i = "#"++show i
 ppFact (l, ns) = unwords $ [show l] ++ map show ns
-ppTuple (T{..}) = show tval++":"++ppFact (label, nodes)
---ppEvent (E Positive t) = "+"++ppTuple t
---ppEvent (E Negative t) = "-"++ppTuple t
---ppEvent (EFact f ps) = "(+"++show (length ps)++")"++ppFact f
---ppEvent (EFalse f) = "-"++ppFact f
---ppEvents = intercalate ", " . map ppEvent
+ppTuple (T{..}) = ppId tid++":"++show tval++":"++ppFact (label, nodes)
 ppEvent = ppTupleProv
 ppMatch :: Provenance -> String
-ppMatch (Provenance{..}) = "["++maybe "" ppTuple tuple_src ++"] "++intercalate "," (map ppTuple matched)
+--ppMatch (Provenance{..}) = "["++maybe "" ppTuple tuple_src ++"] "++intercalate "," (map ppTuple matched)
+ppMatch (Provenance{..}) = intercalate ", " (map ppTuple matched)
 ppMatch (Reduction Or r) = "\\/"++"["++(unwords $ map ppTuple r)++"]"
 ppMatch (Extern ids) = "[EXTERN: "++show ids++"]"
 ppMsg :: Msg -> String
 ppMsg (MT Positive t) = "+"++ppEvent t
 ppMsg (MT Negative t) = "-"++ppEvent t
---ppMsg (MF Positive f pr) = "+"++ppFact f++"<~"++ppMatch pr
---ppMsg (MF Negative f pr) = "-"++ppFact f++"<~"++ppMatch pr
-ppTupleProv (T{..}) = show tval++":"++ppFact (label, nodes)++"{"++ppMatch source++"}"
+ppTupleProv t@(T{..}) = ppTuple t++"{"++ppMatch source++"}"

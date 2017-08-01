@@ -13,44 +13,49 @@ import Control.Monad (unless)
 import System.Exit (exitFailure)
 
 data TestOutput = TO
-  { tuple_count :: Int
+  { event_count :: Int
+  , tuple_count :: Int
   , steps_used :: Int
   , msgs_sent :: Int
   } deriving (Show, Eq, Ord)
 
 type TestCase = (String, FilePath, FilePath, TestOutput)
 
-isEventTuple T{tval = Id _} = True
-isEventTuple _ = False
-
 -- TODO read expected output from text files instead
 --      add function to generate these files
+--
+-- TODO remove msgs_sent field?
 testCases :: [TestCase]
 testCases =
   [ ("go-2x2-capture", "examples/go.arrow", "tests/go.graph",
-      TO { tuple_count = 48
-         , steps_used = 69
-         , msgs_sent = 85
+      TO { event_count = 48
+         , tuple_count = 58
+         , steps_used = 87
+         , msgs_sent = 78
          } )
   , ("sieve_50", "examples/sieve.arrow", "tests/sieve.graph",
-      TO { tuple_count = 256
-         , steps_used = 229
-         , msgs_sent = 269
+      TO { event_count = 256
+         , tuple_count = 257
+         , steps_used = 230
+         , msgs_sent = 270
          } )
   , ("factorial_6", "examples/factorial.arrow", "tests/factorial.graph",
-      TO { tuple_count = 10
+      TO { event_count = 10
+         , tuple_count = 10
          , steps_used = 16
          , msgs_sent = 9
          } )
   , ("rule110_8x8_ui", "examples/110.arrow", "tests/110.graph",
-      TO { tuple_count = 53
-         , steps_used = 54
-         , msgs_sent = 626
+      TO { event_count = 53
+         , tuple_count = 629
+         , steps_used = 71
+         , msgs_sent = 1202
          } )
   , ("anti_check", "tests/antipode.arrow", "tests/antipode.graph",
-      TO { tuple_count = 9
-         , steps_used = 6
-         , msgs_sent = 11
+      TO { event_count = 9
+         , tuple_count = 13
+         , steps_used = 10
+         , msgs_sent = 21
          } )
   ]
 
@@ -61,8 +66,12 @@ runTest (label, rules, input, output) = do
   let result = db s
       outputs = netOutput s
       steps = defaultGas - gas s
+      graph = fromGraph (tuples result)
+      eventTuples = filter isEventTuple graph
+      positiveTuples = filter isPositive graph
   let t = TO
-          { tuple_count = length (filter isEventTuple $ fromGraph (tuples result))
+          { tuple_count = length positiveTuples
+          , event_count = length eventTuples
           , steps_used = steps
           , msgs_sent = length outputs
           }
@@ -76,6 +85,7 @@ runTest (label, rules, input, output) = do
       print t
       putStrLn "expected:"
       print output
+      putStrLn $ "assertion count: " ++ show (length positiveTuples)
       return False
 
 tests = and <$> mapM runTest testCases

@@ -12,3 +12,4 @@ old/
 *.a
 *.so
 anansi-c/main
+*.prof

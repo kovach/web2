@@ -70,7 +70,6 @@
 module Reflection where
 
 import Control.Monad
-import Data.Maybe
 import qualified Data.Set as S (toList)
 import Data.Map (Map)
 import qualified Data.Map as M
@@ -78,26 +77,25 @@ import qualified Data.Map as M
 import Types
 import Monad
 import Graph
-import Index
 
 -- TODO update
-actions :: DB -> Index -> Label -> [RawTuple]
-actions db ind label = concatMap step triggers
-  where
-    triggers = indLookup (label, Just (Truth True)) ind
-    step  (_, _, Query _ (EP _ rel vs), pattern) = actions
-      where
-        bindings = solveSteps (tuples db) emptyMatchBindings (S.toList pattern)
-        -- TODO a rule with a free variable in a user-action should cause an error
-        -- it will fail at this fromJust
-        bind (ctxt, _, _) = (rel, map (fromJust . flip matchLookup ctxt) vs)
-        actions = map bind bindings
-    step _ = error "impossible; no QBinOp in Index"
-
-attributes :: Node -> DB -> [Tuple]
-attributes n db = filter ok . fromGraph $ tuples db
-  where
-    ok t = n `elem` nodes t
+--actions :: DB -> Index -> Label -> [RawTuple]
+--actions db ind label = concatMap step triggers
+--  where
+--    triggers = indLookup (label, Just (Truth True)) ind
+--    step  (_, _, Query _ (EP _ rel vs), pattern) = actions
+--      where
+--        bindings = solveSteps (tuples db) emptyMatchBindings (S.toList pattern)
+--        -- TODO a rule with a free variable in a user-action should cause an error
+--        -- it will fail at this fromJust
+--        bind (ctxt, _, _) = (rel, map (fromJust . flip matchLookup ctxt) vs)
+--        actions = map bind bindings
+--    step _ = error "impossible; no QBinOp in Index"
+--
+--attributes :: Node -> DB -> [Tuple]
+--attributes n db = filter ok . fromGraph $ tuples db
+--  where
+--    ok t = n `elem` nodes t
 
 -- ~~~~~~~~~~ --
 -- Reflection --
@@ -254,10 +252,10 @@ flattenTuple rc1 t = do
   (p, rc3) <- flattenProv rc2 (source t)
   makeT "fact" [f, i]
   makeT "cause" [p, i]
+  makeT "tid" [NInt (tid t), i]
   case tval t of
-    Id v -> makeT "tid" [NInt v, i]
-    -- TODO test this
     Truth b -> if b then makeT "true" [i] else makeT "false" [i]
+    NoVal -> return ()
   let rc4 = rc3 { rct = M.insert t i $ rct rc3 }
   return (i, rc4)
 

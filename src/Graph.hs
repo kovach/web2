@@ -1,5 +1,3 @@
--- TODO
---   index Graph
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE TupleSections #-}
 module Graph where
@@ -10,7 +8,6 @@ import qualified Data.Map as M
 import Data.Maybe
 
 import Types
---import FactIndex
 import Expr
 import Monad
 import Index
@@ -53,7 +50,7 @@ edgeMatch _ c vs nodes =
 
 -- Label passed only for arity error reporting
 solvePattern :: Label -> [Event] -> Bindings -> Linear -> [NodeVar] -> [Bindings]
-solvePattern l es (ctxt, bound, deps) linear nvs =
+solvePattern l es (ctxt, bound, deps, forced) linear nvs =
     let pairs =
           mapMaybe (\t -> fmap (t,) $ edgeMatch l ctxt nvs (nodes t))
           . filter (not . (`elem` (map toEvent bound)))
@@ -61,42 +58,47 @@ solvePattern l es (ctxt, bound, deps) linear nvs =
     in do
       (e, newC) <- pairs
       let newBound = if linear == Linear then e : bound else bound
-      return (newC, newBound, e : deps)
+      return (newC, newBound, e : deps, forced)
 
 solveStep :: Graph -> Bindings -> Query -> [Bindings]
-solveStep g b@(c, bound, deps) (Query _ (EP linear e vs@(NVar v : _)))
+solveStep g b@(c, _, _, _) (Query _ (EP linear e vs@(NVar v : _)))
   | Just l <- lookup v c =
     solvePattern e (map toEvent $ constrainRelation1 (TP1 e 0 l) g) b linear vs
-solveStep g b@(c, bound, deps) (Query _ (EP linear e vs)) =
+solveStep g b@(c, _, _, _) (Query _ (EP linear e vs)) =
     solvePattern e (map toEvent $ constrainRelation e g) b linear vs
 
-solveStep g b@(c, bound, deps) q@(Query _ (LP Positive e ns@(NVar v : _)))
+solveStep g b@(c, _, _, _) q@(Query _ (LP Positive e ns@(NVar v : _)))
   | Just l <- lookup v c =
-    let es = constrainRelation1 (TP1 e 0 l) g
+    let es = filter isPositive $ constrainRelation1 (TP1 e 0 l) g
     in solvePattern e es b NonLinear ns
-solveStep g b@(c, bound, deps) q@(Query _ (LP Positive e ns@(_:NVar v : _)))
+solveStep g b@(c, _, _, _) q@(Query _ (LP Positive e ns@(_:NVar v : _)))
   | Just l <- lookup v c =
-    let es = constrainRelation1 (TP1 e 1 l) g
+    let es = filter isPositive $ constrainRelation1 (TP1 e 1 l) g
     in solvePattern e es b NonLinear ns
-solveStep g b@(c, bound, deps) q@(Query _ (LP polarity e ns)) =
+solveStep g b@(c, bound, deps, forced) q@(Query _ (LP polarity e ns)) =
   case polarity of
-    Positive -> solvePattern e es b NonLinear ns
+    Positive -> solvePattern e trueEs b NonLinear ns
     Negative ->
       let vs = mapM (\n -> matchLookup n c) ns in
       case vs of
+        -- TODO reorder queries; remove this constraint
         Nothing -> error $ "negated queries must refer to bound values, or else be the sole clause of a query. offending clause:\n  " ++ show q
-        Just vs' -> assert noProof (c, bound, falseTuple (e, vs') : deps)
-          where
-            noProof = not $ (e, vs') `elem` (map tfact es)
+        Just vs' ->
+          let fact = (e, vs') in
+          case filter ((== fact) . tfact) es of
+            -- TODO generalize default value based on type
+            -- should be able to use syntax (new field in LP)
+            [isTrue] | tval isTrue == Truth True -> []
+            [isFalse] -> return (c, bound, isFalse : deps, forced)
+            _ -> return (c, bound, deps, (fact, Truth False) : forced)
+            --TODO remove
+            --[] -> return (c, bound, deps, (fact, Truth False) : forced)
+            ts -> error $ "solveStep. INTERNAL ERROR. duplicate proofs of reduced tuple:\n" ++ unlines (map ppTuple ts)
   where
     es = constrainRelation e g
+    trueEs = filter isPositive es
 
-
-
-    --raw (EFact f _) = f
-    --raw _ = error "raw expects EFact"
-
-solveStep _ b@(c, _, _) (QBinOp op v1 v2) =
+solveStep _ b@(c, _, _, _) (QBinOp op v1 v2) =
     case (matchLookup (reduce c v1) c, matchLookup (reduce c v2) c) of
       (Just v1', Just v2') -> assert (op2fn op v1' v2') b
       _ -> error "(in)equality constraints must refer to bound values"
@@ -147,12 +149,12 @@ getMatches ev rule g = takeValid [] . map toMatch . go $ triggers
                         solvePattern (label ev) [ev] b (epLinear p) (epNodes p)) b0 p1
           solveSteps g b1 (S.toAscList p2)
 
-    toMatch (ctxt, consumed, matched) =
-      (Provenance rule (Just ev) matched consumed, ctxt)
+    toMatch (ctxt, consumed, matched, forced) =
+      (Provenance rule (Just ev) matched consumed, ctxt, forced)
 
     takeValid :: Consumed -> [Match] -> [Match]
     takeValid _ [] = []
-    takeValid removed (m@(pr,_):ms) =
+    takeValid removed (m@(pr,_,_):ms) =
       if matchValid (matched pr) removed
       then m : takeValid (consumed pr ++ removed) ms
       else takeValid removed ms
@@ -185,28 +187,35 @@ applyLookups c es = second reverse <$> foldM step (c, []) es
       (val, c1) <- applyLookup (reduce c0 expr) c0
       return (c1, val:acc)
 
+-- TODO uncertain of negative semantics
 applyMatch :: Match -> M2 ([Msg], Context)
-applyMatch (prov, ctxt) = do
-    (ms, c) <- foldM applyStep ([], ctxt) r
-    return (reverse ms ++ removed, c)
+applyMatch (prov, ctxt, forced) =
+    case forced of
+      [] -> do
+        (ms1, c1) <- foldM applyStep ([], ctxt) implication
+        return (reverse ms1 ++ removed, c1)
+      -- If a match contains "proposed" negative tuples, it hasn't succeeded,
+      -- but the negative tuples might enable a match.
+      -- We create and emit them alone.
+      _ -> do
+        (ms2, c2) <- foldM force ([], ctxt) forced
+        return (reverse ms2, c2)
   where
     removed = map (MT Negative) $ consumed prov
-    r = rhs $ snd $ rule_src prov
+
+    implication = rhs $ snd $ rule_src prov
 
     applyStep :: ([Msg], Context) -> Assert -> M2 ([Msg], Context)
     applyStep (ms, c0) (Assert label exprs) = do
-        (c1, nodes) <- applyLookups c0 exprs
-        t <- packTuple (label, nodes) prov
-        return (MT Positive t : ms, c1)
+      (c1, nodes) <- applyLookups c0 exprs
+      t <- packTuple (label, nodes) prov
+      return (MT Positive t : ms, c1)
 
--- TODO remove
-applyLRHS :: Match -> M2 ([Msg], Context)
-applyLRHS (prov, ctxt) = do
-  (ms, c) <- foldM fix ([], ctxt) r
-  return (reverse ms, c)
-  where
-    r = rhs $ snd $ rule_src prov
+    validForced = const True
 
-    fix (ms, c0) (Assert l es) = do
-      (c1, nodes) <- applyLookups c0 es
-      return (MT Positive (trueTuple (l, nodes) prov) : ms, c1)
+    -- TODO could generate fresh ids here if we didn't force it to be fully bound at the query stage
+    force (ms, c) (fact, val) = do
+      t <- packTuple fact prov
+      -- TODO dumb negation (-) trick: interacts with use of Set.toAscList later.
+      -- We want to process forced negatives before other tuples; not sure if strictly necessary.
+      return (MT Positive t { tid = - (tid t), tval = val } : ms, c)

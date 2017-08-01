@@ -9,11 +9,9 @@ import Data.Map (Map)
 import qualified Data.Map as M
 
 import Types
---import FactIndex
 
 data DB = DB
   { tuples :: Graph
-  --, facts :: FactState
   , removed_tuples :: [Tuple] -- TODO remove?
   , node_counter :: Count
   , tuple_counter :: Count
@@ -27,19 +25,22 @@ initDB g = DB { tuples = toGraph g
               , node_counter = 0, tuple_counter = 0}
 emptyDB = initDB []
 
---data Reducer =
-  -- label, fs, current values, touched
-
-emptyReducer l = Reducer Or l M.empty M.empty
-
 type WatchedSet = Map Tuple (Map Provenance [Tuple])
 
+type ReducedCache = Map [Node] [Tuple]
+type ReducedValue  = Map [Node] Tuple
+
 data Processor
+  -- observers find matches, produce new tuples
   = ObsProc RankedRule Graph
+  -- views wrap an observer with a WatchedSet, which removes tuples whose proofs become falsified
   | ViewProc RankedRule Graph WatchedSet
-  | Reducer RedOp Label (Map [Node] [Tuple]) (Map [Node] Tuple)
+  -- reducers bind "raw" tuples, output "reduced" tuples
+  -- currently only logical ("or") reduction is supported
+  | Reducer RedOp Label ReducedCache ReducedValue
 
 emptyProcessor r = ObsProc r (toGraph [])
+emptyReducer l = Reducer Or l M.empty M.empty
 
 data Actor = AReducer Label | ARule RuleId
   deriving (Eq, Show, Ord)
@@ -58,15 +59,11 @@ toMsgs mq = map (MT Positive) (m_pos mq)
 
 data PS = PS
   { dependencies :: Map Label [Actor]
-  -- total on (rules + (reduced relation labels))
   , queues :: Map Actor MsgQueue
-  -- total on (rules + (reduced relation labels))
   , processors :: Map Actor Processor
-  -- partial?
-  , relTypes :: Map Label RelationType
   }
 
-emptyProc = PS M.empty M.empty M.empty M.empty
+emptyProc = PS M.empty M.empty M.empty
 
 data InterpreterState = IS
   { db :: DB
@@ -80,7 +77,6 @@ data InterpreterState = IS
 type M2 = State InterpreterState
 
 defaultGas = 1000
---emptyS2 = IS emptyDB emptyProc [] [] [] defaultGas
 makeS2 db gas = IS db emptyProc [] [] [] gas
 
 runDB :: Maybe Int -> DB -> M2 a -> (a, InterpreterState)
@@ -130,8 +126,13 @@ packTuple :: RawTuple -> Provenance -> M2 Tuple
 packTuple (rel, ns) p = do
   c <- gets (tuple_counter . db)
   moddb $ \s -> s { tuple_counter = c + 1 }
-  let t = T { nodes = ns, label = rel, tval = Id c, source = p }
+  let t = T { nodes = ns, label = rel, tid = c, tval = NoVal, source = p }
   return t
+
+packTupleVal :: RawTuple -> Provenance -> TVal -> M2 Tuple
+packTupleVal f p val = do
+  t <- packTuple f p
+  return t { tval = val }
 
 storeTuple :: Tuple -> M2 ()
 storeTuple t = do
