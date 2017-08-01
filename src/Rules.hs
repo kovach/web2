@@ -60,27 +60,13 @@ labelQueryArity (Query d p) = Query d (fix p)
 labelQueryArity q = q
 labelLHSArity = map labelQueryArity
 
---TODO delete
---type FreshMonad k = State (Map k Int, Int)
---
---step :: k -> (Int -> a) -> ContextMonad a
---step k f = do
---  (m, c) <- get
---  case M.lookup k m of
---    Just v -> return (f v)
---    Nothing -> do
---      put (M.insert k c m, c+1)
---      return (f c)
---
---runFresh = flip runState (M.empty, 0)
-
 -- "Type inference"
 convertRules :: [LineRule] -> [Rule]
 convertRules rs = result
   where
     -- NOTE!
-    --   relation/n is given the same type, "logical" or "event", for all n
-    --   TODO bad convention?
+    --   relation/n is given the same type, "logical" or "event", for all n.
+    --   bad convention?
     logRels = logicalRelations $ map snd rs
     impRels = eventRelations $ map snd rs
 

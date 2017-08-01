@@ -1,3 +1,5 @@
+-- TODO update; move this into a document.
+--
 -- Internal syntax notes --
 -- 1. rule syntax:
 --  rule r n
@@ -297,31 +299,3 @@ flattenProv rc1 p = do
   rc4 <- foldM doT rc3 (consumed p)
   rc5 <- foldM doE rc4 (matched p)
   return (i, rc5)
-
---flattenEvent rc e | Just i <- M.lookup e (rce rc) = return (i, rc)
---flattenEvent rc1 (E pol t) = do
---  i <- freshNode
---  (ti, rc2) <- flattenTuple rc1 t
---  makeT (pol' pol) [i]
---  makeT "tuple" [ti, i]
---  return (i, rc2)
---  where
---    pol' Positive = "positive"
---    pol' Negative = "negative"
---flattenEvent rc1 (EFact f ps) = do
---  i <- freshNode
---  (fi, rc2) <- flattenFact rc1 f
---  makeT "proof" [i]
---  makeT "fact" [fi, i]
---  let fix c p = do
---        (pi, c') <- flattenProv c p
---        makeT "cause" [pi, i]
---        return c'
---  rc3 <- foldM fix rc2 ps
---  return (i, rc3)
---flattenEvent rc1 (EFalse f) = do
---  i <- freshNode
---  (fi, rc2) <- flattenFact rc1 f
---  makeT "false" [i]
---  makeT "fact" [fi, i]
---  return (i, rc2)
