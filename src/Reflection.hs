@@ -209,7 +209,7 @@ flattenA r c (Assert l es) = do
 
 flattenRule :: ReflContext -> RankedRule -> M2 (Node, ReflContext)
 flattenRule rc r | Just i <- M.lookup r (rcr rc) = return (i, rc)
-flattenRule rc rr@(i, rule) = do
+flattenRule rc rr@(RankedRule i rule) = do
     r <- freshNode
     makeT "rule" [r]
     makeT "rank" [NInt i, r]
@@ -223,8 +223,8 @@ flattenRule rc rr@(i, rule) = do
     qs = lhs rule
     as = rhs rule
 
-flattenRules :: [Rule] -> M2 ()
-flattenRules rules = mapM_ (flattenRule emptyRC) (zip [1..] rules)
+flattenRules :: [RankedRule] -> M2 ()
+flattenRules rules = mapM_ (flattenRule emptyRC) rules
 
 -- ~~~~~~~~~~~~ --
 -- Tuple Syntax --

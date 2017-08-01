@@ -1,6 +1,7 @@
 -- Language notes in docs/
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE PatternSynonyms #-}
 module Types where
 
 import Data.String
@@ -57,7 +58,18 @@ type Dependency = [Event]
 type Consumed = [Tuple]
 
 type RuleId = Int
-type RankedRule = (RuleId, Rule)
+data RankedRule = RankedRule {ranked_id :: RuleId, ranked_rule :: Rule }
+  deriving (Show)
+
+instance Eq RankedRule where
+  RankedRule i1 _ == RankedRule i2 _ = i1 == i2
+
+instance Ord RankedRule where
+  RankedRule i1 _ `compare` RankedRule i2 _ = i1 `compare` i2
+
+-- TODO move this into a Monad
+rankRules = map (uncurry RankedRule) . (zip [1..])
+unsafeRanked = RankedRule
 
 -- TODO
 -- sum, argmax (or "most recent"), rand?
@@ -88,7 +100,7 @@ tuple_cause Reduction{} = Nothing
 tuple_cause Extern{} = Nothing
 
 nullProv :: Provenance
-nullProv = Provenance (1,nullRule) Nothing [] []
+nullProv = Provenance (RankedRule 0 nullRule) Nothing [] []
 
 externProv = Extern []
 
@@ -114,7 +126,8 @@ data Tuple
   { nodes :: [Node]
   , label :: Label
   , source :: Provenance
-  , tid :: Int
+  -- TODO really test this
+  , tid :: {-# UNPACK #-} !Int
   , tval :: TVal }
   deriving (Show)
 
@@ -125,9 +138,11 @@ isEventTuple T{tval = NoVal} = True
 isEventTuple _ = False
 
 instance Eq Tuple where
+  {-# INLINE (==) #-}
   t1 == t2 = tid t1 == tid t2
 
 instance Ord Tuple where
+  {-# INLINE compare #-}
   t1 `compare` t2 = tid t1 `compare` tid t2
 
 instance IsString Node where
@@ -312,6 +327,9 @@ tpolarity t =
 mprov (MT _ t) = source t
 mlabel (MT _ t) = label t
 mfact (MT _ t) = (label t, nodes t)
+
+pattern MPos t = MT Positive t
+pattern MNeg t = MT Negative t
 
 epLabel :: EP -> Label
 epLabel (EP _ l _) = l

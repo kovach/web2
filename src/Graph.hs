@@ -91,8 +91,6 @@ solveStep g b@(c, bound, deps, forced) q@(Query _ (LP polarity e ns)) =
             [isTrue] | tval isTrue == Truth True -> []
             [isFalse] -> return (c, bound, isFalse : deps, forced)
             _ -> return (c, bound, deps, (fact, Truth False) : forced)
-            --TODO remove
-            --[] -> return (c, bound, deps, (fact, Truth False) : forced)
             ts -> error $ "solveStep. INTERNAL ERROR. duplicate proofs of reduced tuple:\n" ++ unlines (map ppTuple ts)
   where
     es = constrainRelation e g
@@ -118,7 +116,7 @@ solveSteps g c es = foldM (solveStep g) c es
 getMatches :: Event -> RankedRule -> Graph -> [Match]
 getMatches ev rule g = takeValid [] . map toMatch . go $ triggers
   where
-    triggers = indLookup (label ev, tpolarity ev) (indexRule $ snd rule)
+    triggers = indLookup (label ev, tpolarity ev) (indexRule $ ranked_rule rule)
 
     pow [] = [[]]
     pow (x@(Linear, _, _, _):xs) = pow xs ++ [[x]]
@@ -203,7 +201,7 @@ applyMatch (prov, ctxt, forced) =
   where
     removed = map (MT Negative) $ consumed prov
 
-    implication = rhs $ snd $ rule_src prov
+    implication = rhs $ ranked_rule $ rule_src prov
 
     applyStep :: ([Msg], Context) -> Assert -> M2 ([Msg], Context)
     applyStep (ms, c0) (Assert label exprs) = do

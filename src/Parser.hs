@@ -6,6 +6,7 @@ module Parser
   (rquery_, isComment
   , LineRule, parseRuleFile
   , parseTupleFile
+  , Error, runParser, lhs_, lexLine, rule_
   ) where
 
 import Data.Char (isSpace)
@@ -43,7 +44,7 @@ spaceout = concatMap fm
     fm v = [v]
 
 lexLine :: String -> Either Error [L]
-lexLine str = fix [] empty str
+lexLine str = spaceout <$> fix [] empty str
   where
     empty = []
     emit acc ls = Token   (reverse acc) : ls
@@ -64,7 +65,7 @@ lexFile :: String -> Either Error [[L]]
 lexFile = mapM step . zip [1..] . lines
   where
     step (i, l) =
-      case spaceout <$> lexLine l of
+      case lexLine l of
         Left err -> Left ("line " ++ show i ++": " ++ err)
         Right v -> Right v
 

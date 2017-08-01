@@ -42,7 +42,7 @@ data Processor
 emptyProcessor r = ObsProc r (toGraph [])
 emptyReducer l = Reducer Or l M.empty M.empty
 
-data Actor = AReducer Label | ARule RuleId
+data Actor = ActorReducer Label | ActorRule RuleId
   deriving (Eq, Show, Ord)
 
 data RelationType = RelNormal | RelBool

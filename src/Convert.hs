@@ -2,7 +2,7 @@
 module Convert
   ( readRules, readDBFile, runProgram
   , loadProgram, runProgramWithDB, programWithDB
-  , runAnalysis
+--  , runAnalysis
   )
   where
 
@@ -39,7 +39,7 @@ readRules f = do
 processInputTuples :: [Rule] -> Context -> RHS -> M2 (Tuple, Context)
 processInputTuples rules c es = do
   let initMatch t edges c =
-        (Provenance (-1, Rule Event [] edges) (Just $ toEvent t) [] [], c, [])
+        (Provenance (unsafeRanked (-1) $ Rule Event [] edges) (Just $ toEvent t) [] [], c, [])
   root <- makeTuple ("_root", []) externProv
   (msgs, c') <- applyMatch $ initMatch root es c
   solve rules msgs
@@ -77,12 +77,13 @@ runProgram edgeName ruleName = do
     let (roots, s) = runProgramWithDB edgeBlocks rules
     return (roots, rules, s)
 
-runAnalysis :: [Rule] -> [Rule] -> M2 ()
-runAnalysis rules metaRules = prog3
-  where
-    prog3 :: M2 ()
-    prog3 = do
-      flattenRules rules
-      msgs <- flushEvents
-      solve metaRules msgs
-      return ()
+--TODO remove
+--runAnalysis :: [Rule] -> [Rule] -> M2 ()
+--runAnalysis rules metaRules = prog3
+--  where
+--    prog3 :: M2 ()
+--    prog3 = do
+--      flattenRules rules
+--      msgs <- flushEvents
+--      solve metaRules msgs
+--      return ()

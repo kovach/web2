@@ -83,7 +83,7 @@ initEditorProgram = do
   objRules  <- readRules "ui/editor/editor.arrow"
   --objRules  <- readRules "ui/editor/test.arrow"
   let prog = do
-        flattenRules objRules
+        flattenRules (rankRules objRules) -- definitely ok since we aren't computing any effects of these rules
         ms <- flushEvents
         programWithDB editDB editRules
         solve editRules ms

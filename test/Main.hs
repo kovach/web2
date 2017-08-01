@@ -8,12 +8,9 @@ import Control.Monad (unless)
 import System.Console.ANSI
 
 import Types
---import FactIndex
 import Monad
 import Rules
 import Convert
-
---import CIndex
 
 data PTree = TreeNode Bool Tuple [PTree]
 

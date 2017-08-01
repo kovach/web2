@@ -70,11 +70,11 @@ initPS rs db = emptyProc
   , processors = M.fromList $ processors ++ reducers
   }
   where
-    rrs = zip [1..] rs
+    rrs = rankRules rs
     graph = tuples db
 
     step0 :: RankedRule -> Map Label [Actor]
-    step0 r@(i, rule) = M.fromList $ zip (lhsRels rule) (repeat [ARule i])
+    step0 r@(RankedRule i rule) = M.fromList $ zip (lhsRels rule) (repeat [ActorRule i])
 
     step1 :: [RankedRule] -> Map Label [Actor]
     step1 = foldr (M.unionWith (++)) M.empty . map step0
@@ -83,16 +83,16 @@ initPS rs db = emptyProc
 
     viewRels = logicalRelations rs
 
-    rdep v = (toRaw v, [AReducer v])
-    reducer v = (AReducer v, emptyReducer v)
+    rdep v = (toRaw v, [ActorReducer v])
+    reducer v = (ActorReducer v, emptyReducer v)
     rdeps = M.fromList $ map rdep viewRels
     reducers = map reducer viewRels
 
-    processor rr@(i, rule) =
+    processor rr@(RankedRule i rule) =
       case rtype rule of
-        Event -> (ARule i, ObsProc  rr graph)
+        Event -> (ActorRule i, ObsProc  rr graph)
         -- TODO need to populate watched map?
-        View  -> (ARule i, ViewProc rr graph M.empty)
+        View  -> (ActorRule i, ViewProc rr graph M.empty)
     processors = map processor rrs
 
 resetProcessor :: [Rule] -> M2 ()
@@ -138,7 +138,7 @@ step = do
 stepReducer :: MsgQueue -> Label -> RedOp -> ReducedCache -> ReducedValue -> M2 ([Msg], Processor)
 stepReducer mq l op state vals = do
   newPairs <- mapM posVal changedf
-  let newMsgs = map (MT Positive . snd) newPairs
+  let newMsgs = map (MPos . snd) newPairs
       valsOut = foldr (uncurry M.insert) vals newPairs
       outputs = mapMaybe negVal changedf ++ newMsgs
       proc = Reducer op l state1 valsOut
@@ -157,7 +157,9 @@ stepReducer mq l op state vals = do
         isFalse t = Truth False == tval t
 
     -- these facts have new values
-    changedf = filter (\f -> (M.lookup f vals2) /= (tval <$> M.lookup f vals)) $ touchedList
+    changedf =
+      {-# SCC changedf #-}
+      filter (\f -> (M.lookup f vals2) /= (tval <$> M.lookup f vals)) $ touchedList
     -- Create a Negative Msg
     negVal f = case M.lookup f vals of
                  Just t -> Just $ MT Negative t
@@ -173,6 +175,7 @@ stepReducer mq l op state vals = do
 
     --  Main fold function
     step Or (MT p t) (state, vals, touched) =
+        {-# SCC step #-}
         (state1, vals1, S.insert f touched)
       where
         (_,f) = tfact t
@@ -229,7 +232,7 @@ stepRule mq@MQ{m_pos = pos, m_neg = neg} rule g = do
     g1 <- foldM removeTupleM g neg
     -- get new matches
     (g2, output) <- foldM (findMatches rule) (g1, []) pos
-    return $ tr (showIOM (show (fst rule) ++ " ") (toMsgs mq) output) $
+    return $ tr (showIOM (show (ranked_id rule) ++ " ") (toMsgs mq) output) $
       (output, ObsProc rule g2)
 
 removeTupleM :: Graph -> Tuple -> M2 Graph
