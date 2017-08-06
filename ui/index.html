@@ -2,16 +2,21 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <link rel="stylesheet" type="text/css" href="style.css">
     <link href="https://fonts.googleapis.com/css?family=Noto+Sans|Roboto+Mono" rel="stylesheet">
 
   </head>
   <body>
     <!-- TODO only create application elements in response to message -->
-    <div id="rules"> </div>
-    <div id="log"> </div>
+    <div id="edit"></div>
+    <div id="rules"></div>
+    <div id="log"></div>
     <!--<svg id="svg-main"></svg>-->
     <script type="text/javascript" src="underscore.js"></script>
+    <script type="text/javascript" src="CodeMirror/lib/codemirror.js"></script>
+    <script type="text/javascript" src="CodeMirror/keymap/vim.js"></script>
+    <script type="text/javascript" src="CodeMirror/keymap/emacs.js"></script>
+    <link rel="stylesheet" href="CodeMirror/lib/codemirror.css">
+    <link rel="stylesheet" type="text/css" href="style.css">
     <script type="text/javascript" src="dom.js"></script>
     <script type="text/javascript" src="util.js"></script>
     <script type="text/javascript" src="main.js"></script>

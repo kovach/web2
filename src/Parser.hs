@@ -22,7 +22,14 @@ type L = Lex String
 
 type LParser = ParseEither [L] Error
 
-type LineRule = (Int, Rule)
+type LineRule = (Int, Rule, String)
+
+ppLex :: [L] -> String
+ppLex = unwords . map fix
+  where
+    fix (Token s) = s
+    fix (String s) = "\"" ++ s ++ "\""
+    fix (Comment s) = "#" ++ s
 
 isComment (Comment _) = True
 isComment _ = False
@@ -181,7 +188,7 @@ line_ = rule_ <|> lrule_
 
 parseLine line s =
   case runParser line_ s of
-    Right (r, []) -> (line, r)
+    Right (r, []) -> (line, r, ppLex s)
     p -> error $ "line " ++ show line ++ ": incomplete parse.\n  " ++ show p
 
 removeComments = filter (not . isComment)

@@ -67,10 +67,11 @@ convertRules rs = result
     -- NOTE!
     --   relation/n is given the same type, "logical" or "event", for all n.
     --   bad convention?
-    logRels = logicalRelations $ map snd rs
-    impRels = eventRelations $ map snd rs
+    rules = map (\(l,a,_) -> (l,a)) rs
+    logRels = logicalRelations $ map snd rules
+    impRels = eventRelations $ map snd rules
 
-    result = map fix rs
+    result = map fix rules
 
     convertq (line, rule) q@(Query d ep@(EP Linear l ns)) | l `elem` logRels =
       error $ "Rules may not consume logical tuples. error on line " ++ show line ++ ":\n" ++ show rule

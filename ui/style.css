@@ -7,6 +7,27 @@ body {
   outline: none;
 }
 
+.CodeMirror {
+  font-family: "Roboto Mono", monospace;
+	font-size: 14pt;
+  color: #eee;
+  background-color: #333;
+  outline: none;
+  height: auto;
+  margin: 10px;
+}
+
+.CodeMirror-cursor {
+  color: #f00;
+  background-color: #777;
+  width: 10px;
+}
+
+.gutter {
+  width: 15px;
+  background-color: #444;
+}
+
 .node {
   outline: none;
   display: block;

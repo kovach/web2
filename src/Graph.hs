@@ -113,7 +113,9 @@ solveSteps :: Graph -> Bindings -> [Query] -> [Bindings]
 solveSteps g c es = foldM (solveStep g) c es
 
 -- Main matching function --
-getMatches :: Event -> RankedRule -> Graph -> [Match]
+getMatches :: Tuple -> RankedRule -> Graph -> [Match]
+-- A rule with empty lhs (that somehow received a message) has a unique match:
+getMatches _ r@(RankedRule _ (Rule p [] rhs)) _ = [(Provenance r Nothing [] [], [], [])]
 getMatches ev rule g = takeValid [] . map toMatch . go $ triggers
   where
     triggers = indLookup (label ev, tpolarity ev) (indexRule $ ranked_rule rule)
@@ -201,6 +203,7 @@ applyMatch (prov, ctxt, forced) =
   where
     removed = map (MT Negative) $ consumed prov
 
+    implication :: [Assert]
     implication = rhs $ ranked_rule $ rule_src prov
 
     applyStep :: ([Msg], Context) -> Assert -> M2 ([Msg], Context)

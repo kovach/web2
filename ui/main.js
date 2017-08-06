@@ -234,17 +234,17 @@ var editCommands =
   , "Escape":["esc", true]
   };
 
-var nodeCommands =
-  { "h":["h", false]
-  , "l":["l", false]
-  , "j":["j", false]
-  , "k":["k", false]
-  , "i":["i", false]
-  , "A":["A", false]
-  , "I":["I", false]
-  , "<":["<", false]
-  , ">":[">", false]
-  };
+var nodeCommands = {};
+//  { "h":["h", false]
+//  , "l":["l", false]
+//  , "j":["j", false]
+//  , "k":["k", false]
+//  , "i":["i", false]
+//  , "A":["A", false]
+//  , "I":["I", false]
+//  , "<":["<", false]
+//  , ">":[">", false]
+//  };
 
 var editCommand = function(key) {
   return editCommands[key][0];
@@ -279,7 +279,7 @@ var bodyHandler = function(sock) {
       }
       keyCommand2(sock, nodeCommand(key));
     } else {
-      console.log(ev);
+      //console.log(ev);
     }
   };
 }
@@ -294,7 +294,7 @@ var textNodeHandler = function(el, id, sock) {
       }
       keyCommand(id, sock, nodeCommand(key));
     } else {
-      console.log(ev);
+      //console.log(ev);
     }
   };
 }
@@ -310,7 +310,7 @@ var textEditHandler = function(el, id, sock) {
       // Send key command along with current buffer contents
       textEntryCommand(id, sock, editCommand(key), el.innerHTML);
     } else {
-      console.log(ev);
+      //console.log(ev);
     }
   };
 }
@@ -448,7 +448,77 @@ window.onload = function() {
   var rulesId = strNode("log");
   setObjAttr(rulesId, "elem", get("log"));
   // Some components will use right-click inputs; best to disable it everywhere?
-  document.addEventListener('contextmenu', event => event.preventDefault());
-  sock = initSock();
-  document.addEventListener('keydown', bodyHandler(sock));
+  //document.addEventListener('contextmenu', event => event.preventDefault());
+
+
+  //sock = initSock();
+
+
+  //document.addEventListener('keydown', bodyHandler(sock));
+
+  var mainCM = CodeMirror(get("edit"), {
+    //keyMap: "vim",
+    value: "hi\nlol\nthere\n",
+    readOnly: true,
+    cursorBlinkRate: 0,
+    gutters: ["gutter"],
+  });
+
+  var lineCM = CodeMirror(get("edit"), {
+    smartIndent: false,
+    keyMap: "emacs",
+    cursorBlinkRate: 0,
+  });
+
+  var nextLine = function() {
+    console.log('nextLine');
+    var l = mainCM.getCursor().line;
+    mainCM.setCursor({line: l+1, ch: 0});
+  }
+
+  mainCM.setOption("extraKeys", {
+    'j': nextLine,
+    Escape: function() {
+      console.log('escape');
+    },
+    LeftClick: function(cm, ev) {
+      var line = ev.line;
+      console.log('well', ev);
+      cm.replaceRange("", {line:line}, {line:line+1});
+      mainCM.setValue("");
+    }
+  });
+
+  mainCM.on("gutterClick", function(cm, ev) {
+    console.log('gutter', ev);
+    cm.setSelection({line:ev});
+    cm.replaceSelection("");
+    //cm.replaceRange("", {line:ev-1}, {line:ev});
+  });
+
+  lineCM.setOption("extraKeys", {
+    Enter: function() {
+      var v = lineCM.getValue();
+      if (v.length == 0) {
+        return;
+      }
+      if (v[v.length-1] == ".") {
+        console.log('SEND');
+        mainCM.setValue(mainCM.getValue()+v.slice(0,v.length-1)+"\n");
+        lineCM.setValue("");
+      } else if (v[v.length-1] == "!") {
+        console.log('cancel');
+        lineCM.setValue("");
+        // update id
+      } else {
+        console.log(v);
+      }
+    }
+  });
+
+  lineCM.on("change", function() {
+    console.log('change');
+  });
+
 }
+

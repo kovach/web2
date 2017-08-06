@@ -4,7 +4,7 @@ op 'white 'black
 start_game
 
 # fill the board
-width 10
-height 10
+width 14
+height 14
 
 board-fill

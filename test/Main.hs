@@ -11,6 +11,7 @@ import Types
 import Monad
 import Rules
 import Convert
+import REPL
 
 data PTree = TreeNode Bool Tuple [PTree]
 
@@ -73,13 +74,14 @@ printTree rules = p 0
 
 runTextDemo start_marker pr edgeFile ruleFile do_print = do
     let prefix s = pr++s
-    (roots, rules, s) <- runProgram (prefix edgeFile) (prefix ruleFile)
+    (_, outputs, rules, s) <- runProgram (prefix edgeFile) (prefix ruleFile)
+    --(_, rules, s) <- runProgram (prefix edgeFile) (prefix ruleFile)
     let gasUsed = defaultGas - gas s
     let result = db s
     let logged = msgLog s
-    let outputs = netOutput s
+    --let outputs = []
 
-    let resultTrees = map (makeTree (removed_tuples result) (allTuples result)) roots
+    --let resultTrees = map (makeTree (removed_tuples result) (allTuples result)) roots
 
     putStrLn "imperative relations:"
     mapM_ (putStrLn . ("  " ++) . show) $ eventRelations rules

@@ -1,15 +1,18 @@
--- Language notes in docs/
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 module Types where
 
 import Data.String
-import Data.List (intercalate, delete)
+import Data.List (intercalate)
+import Data.Either (partitionEithers)
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Map (Map)
 import qualified Data.Map as M
+import Data.IntMap (IntMap)
+import qualified Data.IntMap as IM
 
 data Label = L String | LA String Int | LRaw String Int
   deriving (Eq, Ord)
@@ -36,10 +39,11 @@ instance Show Label where
 lstring :: Label -> String
 lstring (L s) = s
 lstring (LA s _) = s
+lstring (LRaw s _) = s
 
 nullLabel = L ""
 
-data Node = NInt Int | NNode Int | NSymbol String | NString String
+data Node = NInt !Int | NNode !Int | NSymbol String | NString String
   deriving (Eq, Ord)
 
 data Polarity = Positive | Negative
@@ -57,8 +61,8 @@ type Event = Tuple
 type Dependency = [Event]
 type Consumed = [Tuple]
 
-type RuleId = Int
-data RankedRule = RankedRule {ranked_id :: RuleId, ranked_rule :: Rule }
+type RuleRank = Int
+data RankedRule = RankedRule {ranked_id :: RuleRank, ranked_rule :: Rule }
   deriving (Show)
 
 instance Eq RankedRule where
@@ -67,8 +71,7 @@ instance Eq RankedRule where
 instance Ord RankedRule where
   RankedRule i1 _ `compare` RankedRule i2 _ = i1 `compare` i2
 
--- TODO move this into a Monad
-rankRules = map (uncurry RankedRule) . (zip [1..])
+rankRules rs = map (uncurry RankedRule) (zip [1..] rs)
 unsafeRanked = RankedRule
 
 -- TODO
@@ -305,6 +308,9 @@ data Msg = MT Polarity Tuple
 first f (a, b) = (f a, b)
 second f (a, b) = (a, f b)
 
+firstM f (a, b) = (,b) <$> f a
+secondM f (a, b) = (a,) <$> f b
+
 clean :: Ord k => Map k [v] -> Map k [v]
 clean = M.filter (not . null)
 
@@ -313,11 +319,26 @@ look k m =
     Just v -> v
     Nothing -> error $ "missing key: " ++ show k
 
-lookDefault :: (Ord k, Monoid m) => k -> Map k m -> m
+ilookDefault :: (Monoid v) => Int -> IntMap v -> v
+ilookDefault k m =
+  case IM.lookup k m of
+    Just v -> v
+    Nothing -> mempty
+
+lookDefault :: (Ord k, Monoid v) => k -> Map k v -> v
 lookDefault k m =
   case M.lookup k m of
     Just v -> v
     Nothing -> mempty
+
+adjustDefault :: (Ord k, Monoid v) => (v -> v) -> k -> Map k v -> Map k v
+adjustDefault f = M.alter fix
+  where
+    fix Nothing = Just (f mempty)
+    fix (Just v) = Just (f v)
+
+splitMap :: (a -> Either b c) -> [a] -> ([b], [c])
+splitMap f = partitionEithers . map f
 
 tpolarity t =
   case tval t of

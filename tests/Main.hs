@@ -31,13 +31,13 @@ testCases =
       TO { event_count = 48
          , tuple_count = 58
          , steps_used = 87
-         , msgs_sent = 78
+         , msgs_sent = 176
          } )
   , ("sieve_50", "examples/sieve.arrow", "tests/sieve.graph",
       TO { event_count = 256
          , tuple_count = 257
          , steps_used = 230
-         , msgs_sent = 270
+         , msgs_sent = 403
          } )
   , ("factorial_6", "examples/factorial.arrow", "tests/factorial.graph",
       TO { event_count = 10
@@ -49,22 +49,22 @@ testCases =
       TO { event_count = 53
          , tuple_count = 629
          , steps_used = 71
-         , msgs_sent = 1202
+         , msgs_sent = 658
          } )
   , ("anti_check", "tests/antipode.arrow", "tests/antipode.graph",
       TO { event_count = 9
          , tuple_count = 13
          , steps_used = 10
-         , msgs_sent = 21
+         , msgs_sent = 15
          } )
   ]
 
 
 runTest :: TestCase -> IO Bool
 runTest (label, rules, input, output) = do
-  (_, _, s) <- runProgram input rules
+  (_, outputs, _, s) <- runProgram input rules
   let result = db s
-      outputs = netOutput s
+      --outputs = netOutput s
       steps = defaultGas - gas s
       graph = fromGraph (tuples result)
       eventTuples = filter isEventTuple graph
