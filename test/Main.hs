@@ -4,6 +4,7 @@ module Main where
 
 import Data.List (sortOn)
 import Control.Monad (unless)
+import Control.Monad.State
 --import System.Console.Readline
 import System.Console.ANSI
 
@@ -11,6 +12,8 @@ import Types
 import Monad
 import Rules
 import Convert
+import Update
+import REPL
 
 data PTree = TreeNode Bool Tuple [PTree]
 
@@ -73,13 +76,14 @@ printTree rules = p 0
 
 runTextDemo start_marker pr edgeFile ruleFile do_print = do
     let prefix s = pr++s
-    (roots, rules, s) <- runProgram (prefix edgeFile) (prefix ruleFile)
+    (_, outputs, rules, s) <- runProgram (prefix edgeFile) (prefix ruleFile)
+    --(_, rules, s) <- runProgram (prefix edgeFile) (prefix ruleFile)
     let gasUsed = defaultGas - gas s
     let result = db s
     let logged = msgLog s
-    let outputs = netOutput s
+    --let outputs = []
 
-    let resultTrees = map (makeTree (removed_tuples result) (allTuples result)) roots
+    --let resultTrees = map (makeTree (removed_tuples result) (allTuples result)) roots
 
     putStrLn "imperative relations:"
     mapM_ (putStrLn . ("  " ++) . show) $ eventRelations rules
@@ -158,3 +162,27 @@ runP p s = runTextDemo nullLabel p (s++".graph") (s++".arrow") True
 main = do
   putStrLn "starting test"
   runTextDemo "start_game" "examples/" "go_stress.graph" "go.arrow" False
+
+todo = do
+  let files = [
+        ("test1", "examples/test.arrow")
+        , ("test2", "examples/test2.arrow")
+        ]
+  strs <- mapM (readFile . snd) files
+  let prog = do
+        ps <- initMetaPS (zip (map fst files) strs)
+        worker <- gets worker_id
+        -- newProgramProc "test1"
+        -- newProgramProc "test2"
+        n1 <- lift (freshNode)
+        n2 <- lift (freshNode)
+        let mk = LA "make-app" 2
+        m1 <- MT Positive <$> lift (packTuple (mk, [n1, NString "test1"]) (Extern []))
+        m2 <- MT Positive <$> lift (packTuple (mk, [n2, NString "test2"]) (Extern []))
+        m3 <- MT Positive <$> lift (packTuple (LA "well" 0, []) (Extern []))
+        (output1, ps1) <- solve [m1, m2] ps
+        (output2, ps2) <- solve [MActor worker m3] ps1
+        return (output1 ++ output2)
+  let (output, _) = runStack1 prog
+  putStrLn $ unlines (map ppMsg output)
+  return ()

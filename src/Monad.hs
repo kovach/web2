@@ -2,17 +2,20 @@
 module Monad where
 
 import Data.Maybe
+import Data.List (delete)
 import Control.Monad.State
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Map (Map)
 import qualified Data.Map as M
+import Data.IntMap (IntMap)
+import qualified Data.IntMap as IM
 
 import Types
 
 data DB = DB
   { tuples :: Graph
-  , removed_tuples :: [Tuple] -- TODO remove?
+  , removed_tuples :: [Tuple]
   , node_counter :: Count
   , tuple_counter :: Count
   }
@@ -22,34 +25,20 @@ allTuples db = fromGraph (tuples db) ++ removed_tuples db
 
 initDB g = DB { tuples = toGraph g
               , removed_tuples = []
-              , node_counter = 0, tuple_counter = 0}
+              , node_counter = 0, tuple_counter = 1}
 emptyDB = initDB []
 
-type WatchedSet = Map Tuple (Map Provenance [Tuple])
+data MsgQueue = MQ { m_pos :: ![Tuple], m_neg :: ![Tuple] }
+instance Monoid MsgQueue where
+  mempty = MQ [] []
+  -- NOTE this is not good for appending a single message that you know not to
+  -- be in the other queue
+  mappend (MQ p1 n1) (MQ p2 n2) =
+    MQ (foldr delete p1 n2 ++ foldr delete p2 n1)
+       (n1 ++ n2)
 
-type ReducedCache = Map [Node] [Tuple]
-type ReducedValue  = Map [Node] Tuple
-
-data Processor
-  -- observers find matches, produce new tuples
-  = ObsProc RankedRule Graph
-  -- views wrap an observer with a WatchedSet, which removes tuples whose proofs become falsified
-  | ViewProc RankedRule Graph WatchedSet
-  -- reducers bind "raw" tuples, output "reduced" tuples
-  -- currently only logical ("or") reduction is supported
-  | Reducer RedOp Label ReducedCache ReducedValue
-
-emptyProcessor r = ObsProc r (toGraph [])
-emptyReducer l = Reducer Or l M.empty M.empty
-
-data Actor = ActorReducer Label | ActorRule RuleId
-  deriving (Eq, Show, Ord)
-
-data RelationType = RelNormal | RelBool
-  deriving (Eq, Show, Ord)
-
-data MsgQueue = MQ { m_pos :: [Tuple], m_neg :: [Tuple] }
-emptyQueue = MQ [] []
+emptyQueue :: MsgQueue
+emptyQueue = mempty
 isEmptyQueue (MQ [] []) = True
 isEmptyQueue _ = False
 
@@ -57,30 +46,107 @@ toMsgs :: MsgQueue -> [Msg]
 toMsgs mq = map (MT Positive) (m_pos mq)
          ++ map (MT Negative) (m_neg mq)
 
+-- TODO give Provenance a unique id
+type WatchedSet = IntMap (Map Provenance [Tuple])
+
+type ReducedCache = Map [Node] [Tuple]
+type ReducedValue  = Map [Node] Tuple
+
+emptyProcessor r = ObsProc r (toGraph [])
+emptyReducer l = Reducer Or l M.empty M.empty
+
+-- These actors process individual rule updates
+data Processor
+  -- An observer finds matches, produces new tuples
+  = ObsProc RankedRule Graph
+
+  -- A view wraps an observer with a WatchedSet, which removes a tuple whose proof becomes falsified
+  | ViewProc RankedRule Graph WatchedSet
+
+  -- A reducer binds "raw" tuples, outputs "reduced" tuples by applying some fold
+  -- currently only logical ("or") reduction is supported
+  | Reducer RedOp Label ReducedCache ReducedValue
+
+-- These actors handle interaction between sub-programs
+data MetaProcessor
+  = CreatorProc Actor
+  | WorkerProc
+  | SubProgram Actor ProgramName PS
+  | JSProc
+  | BaseProc Processor
+
+-- add output
 data PS = PS
   { dependencies :: Map Label [Actor]
   , queues :: Map Actor MsgQueue
-  , processors :: Map Actor Processor
+  , sinks :: [Actor]
+  , processors :: Map Actor MetaProcessor
+  , output :: ([Tuple], Set Tuple)
+  , ps_name :: String
   }
 
-emptyProc = PS M.empty M.empty M.empty
+emptyPS :: PS
+emptyPS = PS mempty mempty mempty mempty mempty "root"
 
+data ReflContext = RC
+  { rcf :: Map Fact Node
+  , rcp :: Map Provenance Node
+  , rcr :: Map RankedRule Node
+  , rct :: Map Tuple Node }
+
+emptyReflContext = RC { rcf = M.empty , rcp = M.empty , rcr = M.empty , rct = M.empty }
+
+-- remove new/out_unprocessed, processor
 data InterpreterState = IS
   { db :: DB
-  , processor :: PS
-  , new_unprocessed :: [Msg]
-  , out_unprocessed :: [Msg]
+  , unprocessed :: [Msg]
   , msgLog :: [String]
   , gas :: Int
   }
 
 type M2 = State InterpreterState
 
+type RuleId = Node
+type ProgramName = String
+
+-- systematic actors communicate through this state
+-- They send "normal" [Msg] to each other, but can access Haskell
+--   values stored here
+data SystemState = SS
+  -- map id to parsed Rule
+  { rule_map :: Map RuleId (Rule, String)
+  -- environment holds dynamically created actors
+  -- managed by external PS with two actors:
+  --   creator <-> worker
+  -- creator can add or reset environment elements
+  -- worker accepts messages from creator, `solve`s environment
+  , environment :: PS
+  , program_map :: Map ProgramName [RuleId]
+  , refl_context :: ReflContext
+  , tuple_ids :: IntMap Tuple
+  , all_tuples :: Set Tuple
+  , worker_id :: Actor
+  }
+
+emptySS :: SystemState
+emptySS = SS M.empty emptyPS M.empty emptyReflContext mempty mempty undefined
+
+type SM = StateT SystemState M2
+
 defaultGas = 1000
-makeS2 db gas = IS db emptyProc [] [] [] gas
+makeS2 db gas = IS db [] [] gas
+emptyIS = makeS2 emptyDB defaultGas
 
 runDB :: Maybe Int -> DB -> M2 a -> (a, InterpreterState)
 runDB mgas db m = runState m (makeS2 db (fromMaybe defaultGas mgas))
+
+runStack1 :: SM a -> (a, InterpreterState)
+runStack1 m =
+  let ((a, _), is) = runStack emptySS emptyIS m
+  in (a, is)
+
+runStack :: SystemState -> InterpreterState -> SM a -> ((a, SystemState), InterpreterState)
+runStack ss is m = runState (runStateT m ss) is
 
 useGas :: M2 ()
 useGas = modify $ \s -> s { gas = gas s - 1}
@@ -92,17 +158,21 @@ withGas f = do
     useGas
     f
 
+withGas2 :: (SM (Maybe b)) -> SM (Maybe b)
+withGas2 f = do
+  g <- lift $ gets gas
+  if g < 1 then return Nothing else do
+    lift $ useGas
+    f
+
+setGas :: Int -> M2 ()
+setGas g = modify $ \s -> s { gas = g }
+
 logMsg :: String -> M2 ()
 logMsg m = modify $ \s -> s { msgLog = m : msgLog s }
 
-outputMsg :: Msg -> M2 ()
-outputMsg m = modify $ \s -> s { out_unprocessed = m : out_unprocessed s }
-
 moddb :: (DB -> DB) -> M2 ()
 moddb f = modify $ \s -> s { db = f (db s) }
-
-modps :: (PS -> PS) -> M2 ()
-modps f = modify $ \s -> s { processor = f (processor s) }
 
 freshNode :: M2 Node
 freshNode = do
@@ -112,14 +182,8 @@ freshNode = do
 
 flushEvents :: M2 [Msg]
 flushEvents = do
-  es <- gets new_unprocessed
-  modify $ \s -> s { new_unprocessed = [] }
-  return es
-
-flushOutput :: M2 [Msg]
-flushOutput = do
-  es <- gets out_unprocessed
-  modify $ \s -> s { out_unprocessed = [] }
+  es <- gets unprocessed
+  modify $ \s -> s { unprocessed = [] }
   return es
 
 packTuple :: RawTuple -> Provenance -> M2 Tuple
@@ -145,27 +209,13 @@ makeTuple r p = do
   return t
 
 scheduleAdd :: Tuple -> M2 ()
-scheduleAdd t = modify $ \s -> s { new_unprocessed = MT Positive t : new_unprocessed s }
+scheduleAdd t = modify $ \s -> s { unprocessed = MT Positive t : unprocessed s }
 
-scheduleDel :: Tuple -> M2 ()
-scheduleDel t = modify $ \s -> s { new_unprocessed = MT Negative t : new_unprocessed s }
-
-netOutput :: InterpreterState -> [Msg]
-netOutput = removeOpposites . out_unprocessed
-
--- TODO check this
---   esp proofs
-removeOpposites ms = fix s ++ proofs
+-- NOTE: gives each rule a fresh integer label;
+-- They are ordered according to the list.
+tagRules :: [Rule] -> M2 [RankedRule]
+tagRules rs = mapM fix rs
   where
-    tuples = ms
-    proofs = []
-    s = S.fromList tuples
-    --split (MT p t) = Left (MT p t)
-    ----split f@(MF _ _ _) = Right f
-    --(tuples, proofs) = partitionEithers $ map split ms
-    op (MT p t) = MT (neg p) t
-
-    fix s = S.toList $ foldr annihilate (S.fromList tuples) tuples
-
-    annihilate t s | op t `S.member` s = S.delete t (S.delete (op t) s)
-    annihilate _ s = s
+    fix r = do
+      NNode i <- freshNode
+      return $ RankedRule i r

@@ -6,7 +6,7 @@ module Parser
   (rquery_, isComment
   , LineRule, parseRuleFile
   , parseTupleFile
-  , Error, runParser, lhs_, lexLine, rule_
+  , Error, runParser, lhs_, lexLine, line_
   ) where
 
 import Data.Char (isSpace)
@@ -22,7 +22,14 @@ type L = Lex String
 
 type LParser = ParseEither [L] Error
 
-type LineRule = (Int, Rule)
+type LineRule = (Int, Rule, String)
+
+ppLex :: [L] -> String
+ppLex = unwords . map fix
+  where
+    fix (Token s) = s
+    fix (String s) = "\"" ++ s ++ "\""
+    fix (Comment s) = "#" ++ s
 
 isComment (Comment _) = True
 isComment _ = False
@@ -148,7 +155,7 @@ hnlogicquery  = string ".!" *> (Query High <$> lp_ Negative)
 
 clause_ = qbin_ <|> dotquery_ <|> linearquery_ <|> dotlinearquery_ <|> query_
         <|> lnlogicquery <|> hnlogicquery
-lhs_ = sepBy1 comma_ clause_
+lhs_ = sepBy comma_ clause_
 
 wrap_ p = (string "(") *> p <* (string ")")
 
@@ -174,14 +181,15 @@ rhs_ = sepBy comma_ rclause_
 arrow_ = string "=>"
 larrow_ = string "~>"
 
-rule_ = (Rule Event <$> lhs_ <*> (arrow_ *> rhs_))
-lrule_ = (Rule View <$> lhs_ <*> (larrow_ *> rhs_))
+rule_ = (Rule Nothing Event <$> lhs_ <*> (arrow_ *> rhs_))
+lrule_ = (Rule Nothing View <$> lhs_ <*> (larrow_ *> rhs_))
 
 line_ = rule_ <|> lrule_
 
 parseLine line s =
+  let str = ppLex s in
   case runParser line_ s of
-    Right (r, []) -> (line, r)
+    Right (r, []) -> (line, r , str)
     p -> error $ "line " ++ show line ++ ": incomplete parse.\n  " ++ show p
 
 removeComments = filter (not . isComment)

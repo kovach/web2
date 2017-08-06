@@ -8,14 +8,13 @@ import qualified Data.Map as M
 import Types
 
 dotClauses :: Rule -> LHS
--- TODO check this change (allows LRules to have dot clauses)
 dotClauses = mapMaybe isdot . lhs
   where
     isdot q@(Query High _) = Just q
     isdot _ = Nothing
 
 isLinear :: Rule -> Bool
-isLinear (Rule Event lhs _) = not . null . linearClauses $ lhs
+isLinear (Rule {rtype = Event, lhs = lhs}) = not . null . linearClauses $ lhs
 isLinear _ = False
 
 linearClauses :: LHS -> LHS
@@ -25,7 +24,7 @@ linearClauses = mapMaybe islinear
     islinear _ = Nothing
 
 insertRule :: Rule -> Index -> Index
-insertRule rule@(Rule Event lhs0 _) ind =
+insertRule rule@(Rule _ Event lhs0 _) ind =
   case dotClauses rule of
     [] -> foldr step ind lhs
     cs -> foldr step ind cs
@@ -40,7 +39,7 @@ insertRule rule@(Rule Event lhs0 _) ind =
     -- TODO remove?
     linear = if not . null . linearClauses $ lhs then Linear else NonLinear
 
-insertRule rule@(Rule View lhs _) ind =
+insertRule rule@(Rule _ View lhs _) ind =
     foldr step ind (nub lhs)
   where
     pattern = S.fromList lhs

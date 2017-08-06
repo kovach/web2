@@ -13,3 +13,5 @@ old/
 *.so
 anansi-c/main
 *.prof
+*.mp4
+*.jpg

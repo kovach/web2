@@ -13,7 +13,7 @@ negated q,    of p q ~> text-node i "!",  parent i p -1, class i "label"
 
 # rule components
 string l ~> is-string l
-var v q n, of p q, var-name v str ~> text-node i str, parent i p n, class i "var"
+var v q n, of p q, var-name str v ~> text-node i str, parent i p n, class i "var"
 literal l q n, is-string l, of p q ~> text-node i ("\"" ++ (l ++ "\"")), parent i p n, class i "literal"
 literal l q n, !is-string l, of p q ~> text-node i l, parent i p n, class i "literal"
 pattern q r, query-node p r, label l q ~> text-node i "", of i q, parent i p, text-node il l, parent il i 0, class il "label"

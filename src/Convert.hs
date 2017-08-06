@@ -1,12 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Convert
   ( readRules, readDBFile, runProgram
-  , loadProgram, runProgramWithDB, programWithDB
---  , runAnalysis
-  )
+  , loadProgram, runProgramWithDB, programWithDB)
   where
 
-import Control.Monad (foldM)
+import Control.Monad
+import Control.Monad.State
 
 import Types
 import Parser
@@ -14,7 +13,7 @@ import Rules
 import Monad
 import Graph
 import Update
-import Reflection
+import Iterate
 
 -- DB parsing
 readDBFile :: FilePath -> IO [[Assert]]
@@ -29,61 +28,53 @@ readRules :: FilePath -> IO [Rule]
 readRules f = do
   rs <- readFile f
   case parseRuleFile rs of
-    Right rs -> return $ convertRules rs
+    Right rs -> return $ convertRules $ map (\(l,a,_) -> (l,a)) rs
+
     Left err -> error $ err
 
 -- 1. treats the input RHS as a set of tuples to add
 -- 2. adds them, possibly extending context c
 -- 3. solves for consequences, using rules
 -- 4. returns extended context and a "root cause" tuple
-processInputTuples :: [Rule] -> Context -> RHS -> M2 (Tuple, Context)
-processInputTuples rules c es = do
+processInputTuples :: PS -> Context -> RHS -> SM (Tuple, [Msg], Context, PS)
+processInputTuples ps c es = do
   let initMatch t edges c =
-        (Provenance (unsafeRanked (-1) $ Rule Event [] edges) (Just $ toEvent t) [] [], c, [])
-  root <- makeTuple ("_root", []) externProv
-  (msgs, c') <- applyMatch $ initMatch root es c
-  solve rules msgs
-  return (root, c')
+        (Provenance (unsafeRanked (-1) $ Rule Nothing Event [] edges) (Just $ toEvent t) [] [], c, [])
+  root <- lift $ makeTuple ("_root", []) externProv
+  (msgs, c') <- lift $ applyMatch $ initMatch root es c
+  (out, ps') <- solve (map CMsg msgs) ps
+  return (root, out, c', ps')
 
 -- returns a "root" tuple that can be used to access the results of each
 -- block of edges.
-programWithDB :: [RHS] -> [Rule] -> M2 [Tuple]
+programWithDB :: [RHS] -> [Rule] -> SM ([Tuple], [Msg], PS)
 programWithDB edgeBlocks rules = prog2
     where
-      prog1 (ts, c) es = do
-        (t, c') <- processInputTuples rules c es
-        return (t:ts, c')
+      prog1 (ts, outs, c, ps) es = do
+        (t, out, c', ps') <- processInputTuples ps c es
+        return (t:ts, out ++ outs, c', ps')
 
-      prog2 :: M2 [Tuple]
+      prog2 :: SM ([Tuple], [Msg], PS)
       prog2 = do
         -- set up queues/indices
-        resetProcessor rules
-        fst <$> foldM prog1 ([], []) edgeBlocks
+        db <- lift $ gets db
+        ps <- lift $ initPS "some-program" rules (tuples db)
+        fix <$> foldM prog1 ([], [], [], ps) edgeBlocks
+      fix (a, ms, _, b) = (a, ms, b)
 
-runProgramWithDB e r = runDB (Nothing) emptyDB $ programWithDB e r
+runProgramWithDB :: [RHS] -> [Rule] -> (([Tuple], [Msg], PS), InterpreterState)
+runProgramWithDB e r = runStack1 $ programWithDB e r
 
 loadProgram :: FilePath -> FilePath -> IO ([RHS], [Rule])
 loadProgram edgeFile ruleFile = do
     edgeBlocks <- readDBFile edgeFile
     rules <- readRules ruleFile
-
     return (edgeBlocks, rules)
 
 -- Program execution
 -- Main function
-runProgram :: FilePath -> FilePath -> IO ([Tuple], [Rule], InterpreterState)
+runProgram :: FilePath -> FilePath -> IO ([Tuple], [Msg], [Rule], InterpreterState)
 runProgram edgeName ruleName = do
     (edgeBlocks, rules) <- loadProgram edgeName ruleName
-    let (roots, s) = runProgramWithDB edgeBlocks rules
-    return (roots, rules, s)
-
---TODO remove
---runAnalysis :: [Rule] -> [Rule] -> M2 ()
---runAnalysis rules metaRules = prog3
---  where
---    prog3 :: M2 ()
---    prog3 = do
---      flattenRules rules
---      msgs <- flushEvents
---      solve metaRules msgs
---      return ()
+    let ((roots, ms, _), s) = runProgramWithDB edgeBlocks rules
+    return (roots, ms, rules, s)

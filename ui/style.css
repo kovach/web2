@@ -7,9 +7,31 @@ body {
   outline: none;
 }
 
+.CodeMirror {
+  font-family: "Roboto Mono", monospace;
+	font-size: 9pt;
+  color: #eee;
+  background-color: #333;
+  outline: none;
+  height: auto;
+  margin: 10px;
+}
+
+.CodeMirror-cursor {
+  color: #f00;
+  background-color: #777;
+  width: 10px;
+}
+
+.gutter {
+  width: 15px;
+  background-color: #444;
+}
+
 .node {
   outline: none;
-  display: block;
+  /*display: block;*/
+  display: inline-block;
 }
 
 #rules, #program, #log {
@@ -20,13 +42,21 @@ body {
 }
 
 #rules, #log {
-  width: 45%;
+  width: 40%;
   font-family: "Roboto Mono", monospace;
-  font-size: 10pt;
+  font-size: 14pt;
   background-color: transparent;
   outline: none;
   overflow: auto;
-  height: 600px;
+  vertical-align: top;
+  height: 700px;
+}
+
+#rules {
+  /*width: 20%;*/
+}
+
+#log {
 }
 
 ::-webkit-scrollbar {
@@ -46,6 +76,33 @@ body {
   margin: 4px;
   padding: 1px;
   outline: none;
+}
+
+.button, .prov, .extern, .inline, .block, .rule_node {
+  display: inline-block;
+  border: solid;
+  border-width: 2px;
+  border-color: #999;
+  border-radius: 7px;
+  margin: 4px;
+  padding: 4px;
+  outline: none;
+  text-align: center;
+  user-select: none;
+  -moz-user-select: none;
+}
+
+.prov, .block {
+  font-size: 9pt;
+  display: block;
+}
+
+.extern {
+  color: #d38;
+}
+
+.rule_node {
+  color: #8d3;
 }
 
 .query, .assert, .sep {

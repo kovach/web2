@@ -1,14 +1,17 @@
 -- TODO
 --  ? detect positive proof cycles; ensure the positive part of the model is always well-founded
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE RecordWildCards, NamedFieldPuns #-}
 module Update where
 
-import Data.Maybe (mapMaybe)
+import Data.Maybe (mapMaybe, fromJust)
+import Data.List (delete, foldl')
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Map (Map)
 import qualified Data.Map as M
-import Data.Either (partitionEithers)
+import Data.IntMap (IntMap)
+import qualified Data.IntMap as IM
 import Control.Monad
 import Control.Monad.State
 
@@ -16,120 +19,109 @@ import Types
 import Rules
 import Monad
 import Graph (getMatches, applyMatch)
+import Reflection
 
 import Debug.Trace
 tr _ = id
 --tr = trace
 
-splitMap :: (a -> Either b c) -> [a] -> ([b], [c])
-splitMap f = partitionEithers . map f
-
 showIOM s ms output = unlines $ [s++"input:"] ++ map ppMsg ms ++ ["output:"] ++ map ppMsg output
 
-pushMsgs :: [Msg] -> M2 ()
-pushMsgs = mapM_ pushMsgM
+-- assumes no queue sees +t after -t
+pushQueue :: Msg -> MsgQueue -> MsgQueue
+pushQueue m mq = tr ("push msg:\n" ++ ppMsg m) $ pushQueue' m mq
+pushQueue' (MT Positive t) m@(MQ{m_pos}) = m { m_pos = t : m_pos }
+pushQueue' (MT Negative t) MQ {m_pos, m_neg} =
+  MQ { m_neg = t : m_neg, m_pos = delete t m_pos}
 
-pushMsgM :: Msg -> M2 ()
-pushMsgM m = modps $ pushMsg m
-
-pushMsg :: Msg -> PS -> PS
-pushMsg (MT p t) ps = ps { queues = queues' }
+pushMsg :: ControlMsg -> PS -> PS
+pushMsg (CNotActor act m') ps = pushMsgTo m' actors ps
   where
-    queues' = foldr (M.alter (step p)) (queues ps) actors
-    actors = lookDefault (label t) (dependencies ps)
-    -- insert
-    step Positive Nothing = Just (MQ {m_pos = [t], m_neg = []})
-    step Negative Nothing = Just (MQ {m_neg = [t], m_pos = []})
-    -- enqueue
-    step Positive (Just m@(MQ{m_pos})) = Just m { m_pos = t : m_pos }
-    step a b = step2 a b
-    step2 Negative (Just MQ {m_pos, m_neg}) =
-      Just MQ { m_neg = t : m_neg, m_pos = filter (/= t) m_pos}
+    actors = S.toList . S.delete act . S.fromList $ (sinks ps) ++ concat (M.elems (dependencies ps))
+pushMsg (CActor act m') ps = pushMsgTo m' [act] ps
+pushMsg (CMsg m) ps = pushMsgTo m actors ps
+  where
+    actors = sinks ps ++ lookDefault (mlabel m) (dependencies ps)
 
--- used to update global DB
+pushMsgTo m actors ps = ps { queues = queues', output = pushOutput m (output ps) }
+  where
+    queues' = foldr (adjustDefault $ pushQueue m) (queues ps) actors
+    pushOutput m s | not (notRaw m) = s
+    pushOutput (MT Positive t) (n, s) = (n, S.insert t s)
+    pushOutput (MT Negative t) (n, s) = (t:n, S.delete t s)
+
+sendMsgs :: [ControlMsg] -> PS -> PS
+-- this foldl' very important
+sendMsgs ms ps = foldl' (flip pushMsg) ps ms
+
+-- updates global DB
 updateDB :: Msg -> DB -> DB
 updateDB (MT Positive t) db = db { tuples = insertTuple t (tuples db) }
 updateDB (MT Negative t) db = db { tuples = removeTuple t (tuples db)
                                  , removed_tuples = t : removed_tuples db }
 
-commitMsgs :: [Msg] -> M2 ()
-commitMsgs [] = return ()
-commitMsgs msgs = do
-  d <- gets db
-  let msgs' = filter notRaw msgs
-  let db' = foldr updateDB d msgs'
-  moddb $ const db'
-  mapM_ outputMsg msgs
-  pushMsgs msgs
-
--- TODO no DB parameter?
-initPS :: [Rule] -> DB -> PS
-initPS rs db = emptyProc
-  { dependencies = M.unionWith (++) events rdeps
-  , queues = M.empty
-  , processors = M.fromList $ processors ++ reducers
-  }
+updatePS :: [Rule] -> PS -> PS
+updatePS rs ps = foldr fix ps rules
   where
-    rrs = rankRules rs
-    graph = tuples db
+    converted = rankRules $ convertRules (zip [1..] rs)
+    rules = converted
+    fix (RankedRule _ Rule { rule_id = Nothing }) _ = error "missing rule id"
+    fix rrule ps@PS{..} = 
+        ps { dependencies = dependencies2
+           , processors = M.insert actor proc' processors }
+      where
+        actor = (ActorRule (ranked_id rrule))
+        proc' = case look actor processors of
+                  BaseProc (ObsProc _ graph) -> BaseProc (ObsProc rrule graph)
+                  BaseProc (ViewProc _ graph ws) -> BaseProc (ViewProc rrule graph ws)
 
+        dependencies1 = fmap (filter (/= actor)) dependencies
+        dependencies2 = M.unionWith (++) dependencies1
+          (M.fromList $ zip (lhsRels $ ranked_rule rrule) (repeat [actor]))
+
+initPS :: ProgramName -> [Rule] -> Graph -> M2 PS
+initPS name rs graph = do
+  return PS
+    { dependencies = M.unionsWith (++) [events, rdeps]
+    , queues = unitQueues
+    , output = mempty
+    , sinks = mempty
+    , ps_name = name
+    , processors = M.fromList . map (second BaseProc) $ processors ++ reducers }
+  where
     step0 :: RankedRule -> Map Label [Actor]
     step0 r@(RankedRule i rule) = M.fromList $ zip (lhsRels rule) (repeat [ActorRule i])
 
     step1 :: [RankedRule] -> Map Label [Actor]
     step1 = foldr (M.unionWith (++)) M.empty . map step0
 
+    rsConverted = convertRules (zip [1..] rs)
+    rrs = rankRules rsConverted
     events = step1 rrs
+    processors = map processor rrs
 
-    viewRels = logicalRelations rs
+    unitRules = map (ActorRule . ranked_id) $
+      filter (null . lhs . ranked_rule) rrs
+    unitQueues = M.fromList $ zip unitRules (repeat $ pushQueue unitMsg mempty)
+
+    viewRels = logicalRelations rsConverted
 
     rdep v = (toRaw v, [ActorReducer v])
     reducer v = (ActorReducer v, emptyReducer v)
-    rdeps = M.fromList $ map rdep viewRels
     reducers = map reducer viewRels
+
+    rdeps = M.fromList $ map rdep viewRels
 
     processor rr@(RankedRule i rule) =
       case rtype rule of
         Event -> (ActorRule i, ObsProc  rr graph)
         -- TODO need to populate watched map?
-        View  -> (ActorRule i, ViewProc rr graph M.empty)
-    processors = map processor rrs
-
-resetProcessor :: [Rule] -> M2 ()
-resetProcessor rs = do
-  d <- gets db
-  modps (const (initPS rs d))
-
-takeQueue :: M2 (Maybe (Actor, MsgQueue))
-takeQueue = do
-  p <- gets processor
-  let work = M.filter (not . isEmptyQueue) (queues p)
-  if M.size work == 0 then return Nothing else do
-    let (k, v) = M.elemAt 0 work
-    modify $ \s -> s { processor = p { queues = M.insert k emptyQueue work } }
-    return $ Just (k, v)
-
-step :: M2 Bool
-step = do
-    p <- gets processor
-    mwork <- takeQueue
-    case mwork of
-      Nothing -> return False
-      Just (act, msgs) -> do
-        let pr = look act (processors p)
-        (output, pr') <- case pr of
-          Reducer op l s vals -> stepReducer msgs l op s vals
-          ObsProc r g -> stepRule msgs r g 
-          ViewProc r g watched -> stepView msgs r g watched
-        updateProc act pr'
-        -- add to primary record, external output
-        commitMsgs output
-        return True
+        View  -> (ActorRule i, ViewProc rr graph IM.empty)
 
 -- Note: a logical relation has three potential values for a given tuple:
---   - true
+--   - explicitly true
 --   - explicitly false
---   - unobserved
+--   - unobserved (no value)
 -- Whenever a value changes, a new Positive Msg is emitted, and a Negative Msg
 -- is emitted if the tuple had a previous value. An "explicit false" tuple is
 -- created whenever a previously true fact becomes false (caused by
@@ -185,10 +177,7 @@ stepReducer mq l op state vals = do
 
     updateFact :: Polarity -> Tuple -> ReducedCache -> ReducedCache
     updateFact Positive t = M.insertWith (++) (nodes t) [t]
-    updateFact Negative t = M.adjust (filter (/= t)) (nodes t)
-
-
-updateProc a p = modps $ \ps -> ps { processors = M.insert a p (processors ps) }
+    updateFact Negative t = M.adjust (delete t) (nodes t)
 
 stepView :: MsgQueue -> RankedRule -> Graph -> WatchedSet -> M2 ([Msg], Processor)
 stepView ms@(MQ {m_neg = neg}) rule g ws = do
@@ -205,6 +194,8 @@ stepView ms@(MQ {m_neg = neg}) rule g ws = do
     rawFact (MT Positive t@T{tval = NoVal}) = Left t { label = toRaw (label t), tval = Truth True }
     --   these are negative tuples suggested by some rule body
     rawFact (MT Positive t) = Right t { label = toRaw (label t) }
+    --   error
+    rawFact (MT Negative t) = error $ "internal error: view processor attached to linear rule! consumed tuple:\n" ++ ppTuple t
       where
     -- Remove all proofs depending on ts; return them and the new WS
     falsify :: [Tuple] -> WatchedSet -> ([Tuple], WatchedSet)
@@ -213,55 +204,46 @@ stepView ms@(MQ {m_neg = neg}) rule g ws = do
     fix t (out, ws) = (falsem ++ out, ws2)
       where
         false :: Map Provenance [Tuple]
-        false = lookDefault t ws
+        false = ilookDefault (tid t) ws
         falsep = M.keys false
         falsem = concat $ M.elems false
-        ws1 = M.insert t M.empty ws
+        ws1 = IM.insert (tid t) M.empty ws
         ws2 = foldr removeProof ws1 falsep
         removeProof :: Provenance -> WatchedSet -> WatchedSet
-        removeProof p ws = foldr (M.adjust (M.delete p)) ws (matched p)
+        removeProof p ws = foldr (IM.adjust (M.delete p)) ws (map tid $ matched p)
 
     -- Add t to the watched subset of each tuple its proof depends on.
     indexProof :: Tuple -> WatchedSet -> WatchedSet
-    indexProof t w = foldr (\(m, t) -> M.insertWith (M.unionWith (++)) m (M.singleton (source t) [t])) w $
+    indexProof t w = foldr (\(m, t) -> IM.insertWith (M.unionWith (++)) (tid m) (M.singleton (source t) [t])) w $
       zip (matched $ source t) (repeat t)
 
 stepRule :: MsgQueue -> RankedRule -> Graph -> M2 ([Msg], Processor)
-stepRule mq@MQ{m_pos = pos, m_neg = neg} rule g = do
+stepRule mq@MQ{m_pos = pos, m_neg = neg} rule g = tr "stepRule" $ do
     -- remove negative changes
-    g1 <- foldM removeTupleM g neg
+    let g1 = foldr removeTuple g neg
     -- get new matches
     (g2, output) <- foldM (findMatches rule) (g1, []) pos
     return $ tr (showIOM (show (ranked_id rule) ++ " ") (toMsgs mq) output) $
       (output, ObsProc rule g2)
-
-removeTupleM :: Graph -> Tuple -> M2 Graph
-removeTupleM g t = return (removeTuple t g)
-
-findMatches rr (g, out) t = do
-  new <- concat . map fst <$> mapM applyMatch matches
-  let g2 = foldr removeConsumed (insertTuple t g) new
-  return (g2, new ++ out)
   where
-    matches = getMatches t rr g
-    removeConsumed (MT Negative t) g = removeTuple t g
-    removeConsumed _ g = g
+    findMatches rr (g, out) t = do
+      new <- concat . map fst <$> mapM applyMatch matches
+      let g2 = foldr removeConsumed (insertTuple t g) new
+      return (g2, new ++ out)
+      where
+        matches = getMatches t rr g
+        removeConsumed (MT Negative t) g = removeTuple t g
+        removeConsumed _ g = g
 
-solve :: [Rule] -> [Msg] -> M2 ()
-solve rs msgs = do
-    -- logging
-    logMsg "solve"
-    mapM_ (logMsg . ppMsg) msgs
-    -- queue msgs
-    commitMsgs msgs
-    -- iterate
-    unfoldM () (\_ -> withGas (mbool <$> step))
-  where
-    mbool False = Nothing
-    mbool True = Just ()
-    unfoldM :: Monad m => a -> (a -> m (Maybe a)) -> m a
-    unfoldM s f = do
-      m <- f s
-      case m of
-        Nothing -> return s
-        Just s' -> unfoldM s' f
+stepProcessor :: MsgQueue -> Processor -> M2 ([Msg], Processor)
+stepProcessor msgs (ObsProc r g) = stepRule msgs r g
+stepProcessor msgs (ViewProc r g watched) = stepView msgs r g watched
+stepProcessor msgs (Reducer op l s vals) = stepReducer msgs l op s vals
+
+takeQueue :: PS -> Maybe (PS, Actor, MsgQueue)
+takeQueue p =
+  let work = M.filter (not . isEmptyQueue) (queues p) in
+  if M.size work == 0 then Nothing else
+    let (k, v) = M.elemAt 0 work
+        proc = p { queues = M.insert k emptyQueue work }
+    in Just (proc, k, v)

@@ -1,3 +1,6 @@
+#=> go 7
+#=> consider 2
+
 go n, n > 1 => number n, go (n - 1)
 
 prime k => composite-by k (2 * k)

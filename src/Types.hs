@@ -1,15 +1,18 @@
--- Language notes in docs/
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternSynonyms #-}
 module Types where
 
 import Data.String
-import Data.List (intercalate, delete)
+import Data.List (intercalate)
+import Data.Either (partitionEithers)
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Map (Map)
 import qualified Data.Map as M
+import Data.IntMap (IntMap)
+import qualified Data.IntMap as IM
 
 data Label = L String | LA String Int | LRaw String Int
   deriving (Eq, Ord)
@@ -36,10 +39,11 @@ instance Show Label where
 lstring :: Label -> String
 lstring (L s) = s
 lstring (LA s _) = s
+lstring (LRaw s _) = ":"++s
 
 nullLabel = L ""
 
-data Node = NInt Int | NNode Int | NSymbol String | NString String
+data Node = NInt !Int | NNode !Int | NSymbol String | NString String
   deriving (Eq, Ord)
 
 data Polarity = Positive | Negative
@@ -57,8 +61,8 @@ type Event = Tuple
 type Dependency = [Event]
 type Consumed = [Tuple]
 
-type RuleId = Int
-data RankedRule = RankedRule {ranked_id :: RuleId, ranked_rule :: Rule }
+type RuleRank = Int
+data RankedRule = RankedRule {ranked_id :: RuleRank, ranked_rule :: Rule }
   deriving (Show)
 
 instance Eq RankedRule where
@@ -67,8 +71,7 @@ instance Eq RankedRule where
 instance Ord RankedRule where
   RankedRule i1 _ `compare` RankedRule i2 _ = i1 `compare` i2
 
--- TODO move this into a Monad
-rankRules = map (uncurry RankedRule) . (zip [1..])
+rankRules rs = map (uncurry RankedRule) (zip [1..] rs)
 unsafeRanked = RankedRule
 
 -- TODO
@@ -77,20 +80,20 @@ data RedOp = Or
   deriving (Eq, Show, Ord)
 
 -- An instance of a match
--- TODO include context bindings?
 data Provenance = Provenance
   -- The rule of this match
   { rule_src :: RankedRule
   -- The tuple that triggered this match instance
   -- Nothing for rules with empty LHS, or external inputs
-  , tuple_src :: Maybe Event
+  , tuple_src :: Maybe Tuple
   -- Tuples matched by this match instance
   , matched :: Dependency
   -- Tuples removed from the world by this match instance
-  , consumed :: Consumed
-  }
-  | Extern [Int] -- TODO ??
+  , consumed :: Consumed }
+  -- The output of a fold operation
   | Reduction { reduction_op :: RedOp, reduced :: [Tuple] }
+  -- An external input
+  | Extern [Int]
   deriving (Eq, Show, Ord)
 
 type CProof = (Provenance, [Tuple])
@@ -98,9 +101,6 @@ type CProof = (Provenance, [Tuple])
 tuple_cause p@(Provenance{}) = tuple_src p
 tuple_cause Reduction{} = Nothing
 tuple_cause Extern{} = Nothing
-
-nullProv :: Provenance
-nullProv = Provenance (RankedRule 0 nullRule) Nothing [] []
 
 externProv = Extern []
 
@@ -136,6 +136,10 @@ tfact t = (label t, nodes t)
 
 isEventTuple T{tval = NoVal} = True
 isEventTuple _ = False
+
+unitTuple = T [] "ok" (Extern []) 0 NoVal
+unitMsg = MT Positive unitTuple
+
 
 instance Eq Tuple where
   {-# INLINE (==) #-}
@@ -274,14 +278,13 @@ type RHS = [Assert]
 data RType = Event | View
   deriving (Eq, Show, Ord)
 
-data Rule
-  = Rule  { rtype :: RType, lhs :: LHS, rhs :: RHS }
+data Rule = Rule
+  { rule_id :: Maybe Node
+  , rtype :: RType
+  , lhs :: LHS
+  , rhs :: RHS
+  }
   deriving (Eq, Show, Ord)
-
-nullRule :: Rule
-nullRule = Rule Event [] []
-
-lhsRule (Rule _ r _) = r
 
 type Signature = (Label, Maybe TVal)
 type Pattern = Set Query
@@ -298,12 +301,26 @@ emptyMatchBindings = ([], [], [], [])
 
 type Match = (Provenance, Context, Falsified)
 
-data Msg = MT Polarity Tuple
+-- NOTE ordering of these constructors (and use of RuleRank as precedence)
+-- determines rule matching priority
+data Actor
+  -- rule based actors
+  = ActorReducer Label | ActorRule RuleRank
+  -- systematic actors
+  | Output | ActorObject Node
   deriving (Eq, Show, Ord)
+
+data Msg = MT Polarity Tuple
+
+-- Used by processors in Iterate
+data ControlMsg = CMsg Msg | CActor Actor Msg | CNotActor Actor Msg
 
 -- Utilities
 first f (a, b) = (f a, b)
 second f (a, b) = (a, f b)
+
+firstM f (a, b) = (,b) <$> f a
+secondM f (a, b) = (a,) <$> f b
 
 clean :: Ord k => Map k [v] -> Map k [v]
 clean = M.filter (not . null)
@@ -313,11 +330,26 @@ look k m =
     Just v -> v
     Nothing -> error $ "missing key: " ++ show k
 
-lookDefault :: (Ord k, Monoid m) => k -> Map k m -> m
+ilookDefault :: (Monoid v) => Int -> IntMap v -> v
+ilookDefault k m =
+  case IM.lookup k m of
+    Just v -> v
+    Nothing -> mempty
+
+lookDefault :: (Ord k, Monoid v) => k -> Map k v -> v
 lookDefault k m =
   case M.lookup k m of
     Just v -> v
     Nothing -> mempty
+
+adjustDefault :: (Ord k, Monoid v) => (v -> v) -> k -> Map k v -> Map k v
+adjustDefault f = M.alter fix
+  where
+    fix Nothing = Just (f mempty)
+    fix (Just v) = Just (f v)
+
+splitMap :: (a -> Either b c) -> [a] -> ([b], [c])
+splitMap f = partitionEithers . map f
 
 tpolarity t =
   case tval t of
@@ -343,6 +375,10 @@ epNodes (LP _ _ ns) = ns
 epLinear (EP l _ _) = l
 epLinear _ = NonLinear
 
+mpos (MT Positive t) = Just t
+mpos _ = Nothing
+
+wrapp s = "(" ++ s ++ ")"
 ppId i = "#"++show i
 ppFact (l, ns) = unwords $ [show l] ++ map show ns
 ppTuple (T{..}) = ppId tid++":"++show tval++":"++ppFact (label, nodes)
@@ -352,7 +388,11 @@ ppMatch :: Provenance -> String
 ppMatch (Provenance{..}) = intercalate ", " (map ppTuple matched)
 ppMatch (Reduction Or r) = "\\/"++"["++(unwords $ map ppTuple r)++"]"
 ppMatch (Extern ids) = "[EXTERN: "++show ids++"]"
+ppActor a = show a
 ppMsg :: Msg -> String
 ppMsg (MT Positive t) = "+"++ppEvent t
 ppMsg (MT Negative t) = "-"++ppEvent t
+ppCMsg (CMsg m) = ppMsg m
+ppCMsg (CActor _ m) = ppMsg m
+ppCMsg (CNotActor _ m) = ppMsg m
 ppTupleProv t@(T{..}) = ppTuple t++"{"++ppMatch source++"}"

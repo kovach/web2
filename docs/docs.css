@@ -7,8 +7,8 @@
 
 body {
   font-family: 'Noto Sans';
-  font-size: 13pt;
-	max-width: 39em;
+  font-size: 12pt;
+	max-width: 42em;
 	margin: auto;
 	text-align: justify;
 }
@@ -29,4 +29,14 @@ pre {
   font-weight: bold;
   color: #d38;
   margin: 10px;
+}
+
+blockquote {
+  background: #f0f0f0;
+  text-align: center;
+}
+
+img, video {
+  margin: auto;
+  display: block;
 }

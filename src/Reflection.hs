@@ -63,7 +63,6 @@
 --  these are cached during tuple reflection:
 --    Rule
 --    Fact
---    Event
 --    Tuple
 --    Provenance
 --  to reduce output size.
@@ -72,6 +71,7 @@
 module Reflection where
 
 import Control.Monad
+import Control.Monad.State
 import qualified Data.Set as S (toList)
 import Data.Map (Map)
 import qualified Data.Map as M
@@ -99,17 +99,50 @@ import Graph
 --  where
 --    ok t = n `elem` nodes t
 
--- ~~~~~~~~~~ --
--- Reflection --
--- ~~~~~~~~~~ --
+type M3 = StateT ReflContext M2
 
-makeT :: Label -> [Node] -> M2 ()
-makeT (L f) p = do
-  t <- packTuple (LA f (length p), p) nullProv
+freshProv = do
+  NNode n <- freshNode
+  return $ Extern [n]
+
+makeT :: Label -> [Node] -> M3 ()
+makeT (L f) p = lift $ do
+  pr <- freshProv
+  t <- packTuple (LA f (length p), p) pr
   scheduleAdd t
-makeT f p = do
-  t <- packTuple (f, p) nullProv
+makeT f p = lift $ do
+  pr <- freshProv
+  t <- packTuple (f, p) pr
   scheduleAdd t
+
+fresh :: M3 Node
+fresh = lift freshNode
+
+type Lens a b = (a -> b, (b -> b) -> a -> a)
+type RCLens f = Lens ReflContext (Map f Node)
+flens :: RCLens Fact
+flens = (rcf, \f rc -> rc { rcf = f (rcf rc) })
+plens :: RCLens Provenance
+plens = (rcp, \f rc -> rc { rcp = f (rcp rc) })
+rlens :: RCLens RankedRule
+rlens = (rcr, \f rc -> rc { rcr = f (rcr rc) })
+tlens :: RCLens Tuple
+tlens = (rct, \f rc -> rc { rct = f (rct rc) })
+
+withL :: Ord v => RCLens v -> v -> M3 Node -> M3 Node
+withL (get, set) t m = do
+  mp <- gets get
+  case M.lookup t mp of
+    Just i -> return i
+    Nothing -> do
+      i <- m
+      modify $ set (M.insert t i)
+      return i
+
+withF = withL (flens)
+withP = withL (plens)
+withR = withL (rlens)
+withT = withL (tlens)
 
 -- ~~~~~~~~~~~ --
 -- Rule Syntax --
@@ -131,8 +164,8 @@ flattenNV q ctxt n (NVar name) =
       makeT "var" [b, q, NInt n]
       return ctxt
     Nothing -> do
-      b <- freshNode
-      makeT "var-name" [b, NString name]
+      b <- fresh
+      makeT "var-name" [NString name, b]
       makeT "var" [b, q, NInt n]
       return $ (name, b) : ctxt
 
@@ -151,13 +184,12 @@ flattenEP q c (LP pol l ns) = do
   foldM (\a -> uncurry $ flattenNV q a) c (zip [1..] ns)
 
 flattenQ r c (Query dot ep) = do
-  q <- freshNode
+  q <- fresh
   makeT "pattern" [q, r]
   flattenEP q c ep
 
--- TODO implement
 flattenQ r c (QBinOp op e1 e2) = do
-    q <- freshNode
+    q <- fresh
     makeT "constraint" [q, r]
     makeT "operator" [opNode, q]
     c1 <- flattenE q c 1 e1
@@ -174,14 +206,14 @@ flattenQ r c (QBinOp op e1 e2) = do
         QMoreEq -> NString ">="
 
 -- TODO combine operator cases
-flattenE :: Node -> Context -> Int -> E -> M2 Context
+flattenE :: Node -> Context -> Int -> E -> M3 Context
 flattenE q c n (ELit i) = flattenNV q c n (NVal (NInt i))
 flattenE q c n (EString str) = flattenNV q c n (NVal (NString str))
 flattenE q c n (ENamed str) = flattenNV q c n (NVal (NSymbol str))
 flattenE q c n (EVar str) = flattenNV q c n (NVar str)
 flattenE q c n (EHole) = flattenNV q c n NHole
 flattenE q c n (EBinOp op e1 e2) = do
-    e <- freshNode
+    e <- fresh
     makeT "expr" [e, q, NInt n]
     makeT "operator" [opNode, e]
     c1 <- flattenE e c 1 e1
@@ -194,7 +226,7 @@ flattenE q c n (EBinOp op e1 e2) = do
         Sub -> NString "-"
         Mul -> NString "*"
 flattenE q c n (EConcat e1 e2) = do
-    e <- freshNode
+    e <- fresh
     makeT "expr" [e, q, NInt n]
     makeT "operator" [NString "++", e]
     c1 <- flattenE e c 1 e1
@@ -202,100 +234,110 @@ flattenE q c n (EConcat e1 e2) = do
     return c2
 
 flattenA r c (Assert l es) = do
-  q <- freshNode
+  q <- fresh
   makeT "assert" [q, r]
   makeT "label" [labelString l, q]
   foldM (\c -> uncurry $ flattenE q c) c (zip [1..] es)
 
-flattenRule :: ReflContext -> RankedRule -> M2 (Node, ReflContext)
-flattenRule rc r | Just i <- M.lookup r (rcr rc) = return (i, rc)
-flattenRule rc rr@(RankedRule i rule) = do
-    r <- freshNode
+flattenRule :: Maybe Node -> RankedRule -> M3 Node
+flattenRule rs rr@(RankedRule i rule) = withR rr $ do
+    r <- fresh
     makeT "rule" [r]
+    case rule_id rule of
+      Just id -> makeT "rule-id" [id, r]
+      Nothing -> makeT "extern" [r]
     makeT "rank" [NInt i, r]
     c <- foldM (flattenQ r) [] qs
     _ <- foldM (flattenA r) c as
-    case rule of
-      Rule Event _ _ -> makeT "imperative" [r]
-      Rule View _ _ -> makeT "logical" [r]
-    return (r, rc { rcr = M.insert rr r $ rcr rc })
+    case rtype rule of
+      Event -> makeT "imperative" [r]
+      View -> makeT "logical" [r]
+    return r
   where
     qs = lhs rule
     as = rhs rule
 
-flattenRules :: [RankedRule] -> M2 ()
-flattenRules rules = mapM_ (flattenRule emptyRC) rules
+flattenRules :: [RankedRule] -> M3 Node
+flattenRules rules = do
+  i <- fresh
+  makeT "rule-set" [i]
+  mapM_ (flattenRule $ Just i) rules
+  return i
 
 -- ~~~~~~~~~~~~ --
 -- Tuple Syntax --
 -- ~~~~~~~~~~~~ --
-
--- Should move to InterpreterState
-data ReflContext = RC
-  { rcf :: Map Fact Node
-  , rcp :: Map Provenance Node
-  , rcr :: Map RankedRule Node
-  , rce :: Map Event Node
-  , rct :: Map Tuple Node
-  }
-emptyRC = RC { rcf = M.empty
-             , rcp = M.empty
-             , rcr = M.empty
-             , rce = M.empty
-             , rct = M.empty
-             }
-
-flattenTuple :: ReflContext -> Tuple -> M2 (Node, ReflContext)
-flattenTuple rc t | Just i <- M.lookup t (rct rc) = return (i, rc)
-flattenTuple rc1 t = do
-  i <- freshNode
+flattenTuple :: Tuple -> M3 Node
+flattenTuple t = withT t $ do
+  i <- fresh
   makeT "tuple" [i]
-  (f, rc2) <- flattenFact rc1 (label t, nodes t)
-  (p, rc3) <- flattenProv rc2 (source t)
+  f <- flattenFact (label t, nodes t)
+  p <- flattenProv (source t)
   makeT "fact" [f, i]
   makeT "cause" [p, i]
   makeT "tid" [NInt (tid t), i]
   case tval t of
     Truth b -> if b then makeT "true" [i] else makeT "false" [i]
     NoVal -> return ()
-  let rc4 = rc3 { rct = M.insert t i $ rct rc3 }
-  return (i, rc4)
+  return i
 
-flattenFact rc f | Just i <- M.lookup f (rcf rc) = return (i, rc)
-flattenFact rc1 f@(l,ns) = do
-  i <- freshNode
+flattenFact f@(l,ns) = withF f $ do
+  i <- fresh
   makeT "fact" [i]
   mapM (\(r,n) -> makeT "node" [n, i, NInt r]) (zip [1..] ns)
   makeT "label" [labelString l, i]
-  let rc2 = rc1 { rcf = M.insert f i $ rcf rc1 }
-  return (i, rc2)
+  return i
 
-flattenProv rc p | Just i <- M.lookup p (rcp rc) = return (i, rc)
-flattenProv rc1 (Extern ids) = do
-  i <- freshNode
+flattenProv p@(Extern ids) = withP p $ do
+  i <- fresh
   makeT "extern" [i]
   let fix (n,num) = makeT "id" [NInt num, i, NInt n]
   mapM_ fix $ zip [1..] ids
-  return (i, rc1)
-flattenProv rc1 p = do
-  i <- freshNode
+  return i
+flattenProv p@(Provenance{}) = withP p $ do
+  i <- fresh
   makeT "cause" [i]
-  (r, rc2) <- flattenRule rc1 (rule_src p)
+  makeT "event" [i]
+  r <- flattenRule Nothing (rule_src p)
   makeT "rule" [r, i]
-  rc3 <- case tuple_src p of
-          Just e -> do
-            (ei, temp) <- flattenTuple rc2 e
-            makeT "trigger" [ei, i]
-            return temp
-          Nothing -> return rc2
-  let doT c t = do
-        (ti, c') <- flattenTuple c t
+  case tuple_src p of
+    Just e -> do
+      ei <- flattenTuple e
+      makeT "trigger" [ei, i]
+    Nothing -> return ()
+  let doT t = do
+        ti <- flattenTuple t
         makeT "consumed" [ti, i]
-        return c'
-  let doE c e = do
-        (ei, c') <- flattenTuple c e
+  let doE e = do
+        ei <- flattenTuple e
         makeT "matched" [ei, i]
-        return c'
-  rc4 <- foldM doT rc3 (consumed p)
-  rc5 <- foldM doE rc4 (matched p)
-  return (i, rc5)
+  mapM doT (consumed p)
+  mapM doE (matched p)
+  return i
+flattenProv p@(Reduction{}) = withP p $ do
+  i <- fresh
+  makeT "cause" [i]
+  makeT "reduced" [i]
+  let ops = case reduction_op p of
+        Or -> "or"
+  makeT "op" [NString ops, i]
+  let doT t = do
+        ti <- flattenTuple t
+        makeT "matched" [ti, i]
+  mapM doT (reduced p)
+  return i
+
+flattenContext :: Context -> M3 Node
+flattenContext ctxt = do
+  c <- fresh
+  mapM_ (fix c) ctxt
+  return c
+  where
+    fix c (name, node) = do
+      i <- fresh
+      makeT "var-name" [NString name, i]
+      makeT "value" [node, i]
+      makeT "binding" [i, c]
+
+runReflection :: M3 a -> ReflContext -> M2 (a, ReflContext)
+runReflection = runStateT

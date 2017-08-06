@@ -3,22 +3,22 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE RecordWildCards, NamedFieldPuns #-}
+{-# LANGUAGE TupleSections #-}
 module Main where
 
 import Data.Maybe (mapMaybe)
-import Control.Monad (unless)
+import Control.Monad
+import Control.Monad.State
 import qualified Data.ByteString.Lazy as T (ByteString)
 import Data.Aeson
 import GHC.Generics
 import Control.Monad (foldM)
 
 import Types
---import FactIndex (emptyFS)
 import Monad
-import Rules
-import Update
-import Convert
 import Reflection
+import REPL
+import Iterate
 
 import BroadcastServer
 
@@ -46,118 +46,83 @@ instance FromJSON Command where
 
 decodeCommand = decode
 
-convert :: Msg -> Maybe (Polarity, Label, [Node])
-convert (MT p T{..}) = Just (p, label, nodes)
+convert :: Msg -> Maybe (Polarity, Label, [Node], Node, Bool)
+convert (MT p T{..}) = Just (p, label, nodes, NNode tid, fix tval)
+  where
+    fix (Truth t) = t
+    fix NoVal = True
 
 -- TODO remove arity tags?
 encodeEvents :: [Msg] -> T.ByteString
 encodeEvents = encode . mapMaybe convert
 
-data State = State [Rule] DB
+data State = State PS SystemState InterpreterState
 
-initGoProgram :: IO ([Rule], DB, [Msg])
-initGoProgram = do
-  edgeBlocks <- readDBFile "server/go.graph"
-  rules <- readRules  "examples/go.arrow"
-  uiRules <- readRules "ui/go.arrow"
-  --let allRules = convertRules $ zip [1..] $ rules ++ uiRules
-  let allRules = rules ++ uiRules
-  let (_, s) = runProgramWithDB edgeBlocks allRules
-      result = db s
-      msgs = netOutput s
-  return (allRules, result, msgs)
+type Init = (PS, DB, [Msg])
 
-init110Program :: IO ([Rule], DB, [Msg])
-init110Program = do
-  edgeBlocks <- readDBFile "examples/110.graph"
-  rules <- readRules "examples/110.arrow"
-  let (_, s) = runProgramWithDB edgeBlocks rules
-      result = db s
-      msgs = netOutput s
-  return (rules, result, msgs)
+--initGoProgram :: IO Init
+--initGoProgram = do
+--  edgeBlocks <- readDBFile "server/go.graph"
+--  rules <- readRules  "examples/go.arrow"
+--  uiRules <- readRules "ui/go.arrow"
+--  --let allRules = convertRules $ zip [1..] $ rules ++ uiRules
+--  let allRules = rules ++ uiRules
+--  let ((_, ps), s) = runProgramWithDB edgeBlocks allRules
+--      result = db s
+--      msgs = netOutput s
+--  return (ps, result, msgs)
 
-initEditorProgram :: IO ([Rule], DB, [Msg])
-initEditorProgram = do
-  editDB    <- readDBFile "ui/editor/editor.graph"
-  editRules <- readRules "ui/editor/editor.arrow"
-  objRules  <- readRules "ui/editor/editor.arrow"
-  --objRules  <- readRules "ui/editor/test.arrow"
-  let prog = do
-        flattenRules (rankRules objRules) -- definitely ok since we aren't computing any effects of these rules
-        ms <- flushEvents
-        programWithDB editDB editRules
-        solve editRules ms
-  let (_, s) = runDB Nothing emptyDB prog
-  --mapM_ (putStrLn . ppTupleProv) (fromGraph . tuples $ db s)
-  return (editRules, db s, netOutput s)
+makeDB = do
+  let files = [ ("refl", "ui/components/refl.arrow") , ("button", "ui/components/button.arrow") ]
+  strs <- mapM (readFile . snd) files
+  let fix s = do
+        n1 <- freshNode
+        m1 <- packTuple (LA "make-app" 2, [n1, NString s]) (Extern [])
+        return $ CMsg (MT Positive m1)
+  return $ runStack emptySS emptyIS $ do
+    ps <- initMetaPS (zip (map fst files) strs)
+    ms <- lift $ mapM (fix . fst) files
+    -- register rulesets
+    (output1, ps1) <- solve ms ps
+    return (output1, ps1)
 
-initLogProgram :: IO ([Rule], DB, [Msg])
-initLogProgram = do
-  --objDB    <- readDBFile "ui/editor/test.graph"
-  --objRules    <- readRules "ui/editor/test.arrow"
-  objDB    <- readDBFile "examples/sieve.graph"
-  objRules    <- readRules "examples/sieve.arrow"
-  logRules  <- readRules "ui/editor/log.arrow"
-  editDB    <- readDBFile "ui/editor/editor.graph"
-  editRules <- readRules "ui/editor/editor.arrow"
-  -- TODO better way to load multiple rule sets
-  let allRules = convertRules $ zip [1..] $ logRules ++ editRules
-  let prog = do
-        programWithDB objDB objRules
-        ms <- flushOutput
-        let fix c (MT _ t) = snd <$> flattenTuple c t
-        foldM fix emptyRC ms
-        ms <- flushEvents
-        programWithDB editDB allRules
-        solve allRules ms
-  let (_, s) = runDB Nothing emptyDB prog
-  --mapM_ (putStrLn . ppTupleProv) (fromGraph . tuples $ db s)
-  putStrLn $ "initial db size: " ++ show (length $ fromGraph . tuples $ db s)
-  return (allRules, db s, netOutput s)
+noDebug = False
 
-makeDB = initLogProgram
-
-noDebug = True
-
-handler connId msg s0@(State rules db0) =
+handler connId msg s0@(State ps ss is) =
   case decodeCommand msg of
     Just Reset -> do
       putStrLn "reset"
-      (rules', db1, msgs) <- makeDB
+      (((msgs, ps'), ss'), is') <- makeDB
       -- TODO only send relevant tuples
       --let (_, outputEvents) = step2 msgs emptyFS
-      let outputEvents = filter notRaw msgs
-      mapM_ (putStrLn . ppMsg) outputEvents
-      return (Just (encodeEvents outputEvents), (State rules' db1))
+      putStrLn $ "init: " ++ unlines (map ppMsg msgs)
+      return (Just (encodeEvents msgs), State ps' ss' is')
     Just Connect -> do
       putStrLn "not implemented"
       return (Nothing, s0)
     Just RawTuple{rawLabel, rawNodes} -> do
       putStrLn "parsed event"
       let
-        (_, is) = runDB Nothing db0 $ do
-          let ns = NInt connId : rawNodes
+        (((msgs, ps'), ss'), is') = runStack ss is $ do
+          -- reset gas limit
+          lift $ setGas 500
+          -- TODO mark tuple with connection id
+          let ns = rawNodes
               l = LA (lstring rawLabel) (length ns)
-          t <- packTuple (l, ns) (Extern [])
-          let msg = MT Positive t
-          solve rules [msg]
-        outputMsgs = netOutput is
+          t <- lift $ packTuple (l, ns) (Extern [])
+          worker <- gets worker_id
+          let msg = (CActor worker (MT Positive t))
+          solve [msg] ps
 
-        --(_, outputEvents) = step2 outputMsgs (facts db0)
-        outputEvents = filter notRaw outputMsgs
-        db1 = db is
       unless noDebug $ do
-        --putStrLn "raw output"
-        --mapM_ (putStrLn . ppMsg) (out_unprocessed is)
-        putStrLn "net"
-        mapM_ (putStrLn . ppMsg) outputEvents
-      return (Just (encodeEvents outputEvents), State rules db1)
+        putStrLn "new"
+        mapM_ (putStrLn . ppMsg) msgs
+      putStrLn "done"
+      return (Just (encodeEvents msgs), State ps' ss' is')
     Nothing -> do
       putStrLn "decode failed"
       return (Nothing, s0)
 
 main = do
-  let rules = []
-      db = emptyDB
   putStrLn "server starting"
-  runServer (State rules db) handler
+  runServer (State emptyPS emptySS emptyIS) handler
