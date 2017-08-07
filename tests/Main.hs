@@ -5,12 +5,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
+import Control.Monad (unless)
+import System.Exit (exitFailure)
+
 import Types
 import Monad
 import Convert (runProgram)
-
-import Control.Monad (unless)
-import System.Exit (exitFailure)
 
 data TestOutput = TO
   { event_count :: Int
@@ -28,34 +28,34 @@ type TestCase = (String, FilePath, FilePath, TestOutput)
 testCases :: [TestCase]
 testCases =
   [ ("go-2x2-capture", "examples/go.arrow", "tests/go.graph",
-      TO { event_count = 48
-         , tuple_count = 58
+      TO { event_count = 39
+         , tuple_count = 49
          , steps_used = 87
-         , msgs_sent = 176
+         , msgs_sent = 91
          } )
   , ("sieve_50", "examples/sieve.arrow", "tests/sieve.graph",
-      TO { event_count = 256
-         , tuple_count = 257
+      TO { event_count = 255
+         , tuple_count = 256
          , steps_used = 230
-         , msgs_sent = 403
+         , msgs_sent = 303
          } )
   , ("factorial_6", "examples/factorial.arrow", "tests/factorial.graph",
-      TO { event_count = 10
-         , tuple_count = 10
+      TO { event_count = 9
+         , tuple_count = 9
          , steps_used = 16
-         , msgs_sent = 9
+         , msgs_sent = 8
          } )
   , ("rule110_8x8_ui", "examples/110.arrow", "tests/110.graph",
-      TO { event_count = 53
-         , tuple_count = 629
+      TO { event_count = 43
+         , tuple_count = 619
          , steps_used = 71
-         , msgs_sent = 658
+         , msgs_sent = 616
          } )
   , ("anti_check", "tests/antipode.arrow", "tests/antipode.graph",
-      TO { event_count = 9
-         , tuple_count = 13
+      TO { event_count = 4
+         , tuple_count = 8
          , steps_used = 10
-         , msgs_sent = 15
+         , msgs_sent = 7
          } )
   ]
 

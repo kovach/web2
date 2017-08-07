@@ -86,7 +86,7 @@ data Provenance = Provenance
   { rule_src :: RankedRule
   -- The tuple that triggered this match instance
   -- Nothing for rules with empty LHS, or external inputs
-  , tuple_src :: Maybe Event
+  , tuple_src :: Maybe Tuple
   -- Tuples matched by this match instance
   , matched :: Dependency
   -- Tuples removed from the world by this match instance
@@ -139,6 +139,10 @@ tfact t = (label t, nodes t)
 
 isEventTuple T{tval = NoVal} = True
 isEventTuple _ = False
+
+unitTuple = T [] "ok" (Extern []) 0 NoVal
+unitMsg = MT Positive unitTuple
+
 
 instance Eq Tuple where
   {-# INLINE (==) #-}
@@ -301,8 +305,17 @@ emptyMatchBindings = ([], [], [], [])
 
 type Match = (Provenance, Context, Falsified)
 
-data Msg = MT Polarity Tuple
+-- NOTE ordering of these constructors (and use of RuleRank as precedence)
+-- determines rule matching priority
+data Actor
+  -- rule based actors
+  = ActorReducer Label | ActorRule RuleRank
+  -- systematic actors
+  | Output | ActorObject Node
   deriving (Eq, Show, Ord)
+
+-- TODO remove MActor?
+data Msg = MT Polarity Tuple | MActor Actor Msg
 
 -- Utilities
 first f (a, b) = (f a, b)
@@ -364,6 +377,7 @@ epNodes (LP _ _ ns) = ns
 epLinear (EP l _ _) = l
 epLinear _ = NonLinear
 
+wrapp s = "(" ++ s ++ ")"
 ppId i = "#"++show i
 ppFact (l, ns) = unwords $ [show l] ++ map show ns
 ppTuple (T{..}) = ppId tid++":"++show tval++":"++ppFact (label, nodes)
@@ -373,7 +387,9 @@ ppMatch :: Provenance -> String
 ppMatch (Provenance{..}) = intercalate ", " (map ppTuple matched)
 ppMatch (Reduction Or r) = "\\/"++"["++(unwords $ map ppTuple r)++"]"
 ppMatch (Extern ids) = "[EXTERN: "++show ids++"]"
+ppActor a = show a
 ppMsg :: Msg -> String
 ppMsg (MT Positive t) = "+"++ppEvent t
 ppMsg (MT Negative t) = "-"++ppEvent t
+ppMsg (MActor act m) = wrapp $ "to: " ++ ppActor act ++ "| " ++ ppMsg m
 ppTupleProv t@(T{..}) = ppTuple t++"{"++ppMatch source++"}"

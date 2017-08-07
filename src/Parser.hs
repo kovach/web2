@@ -155,7 +155,7 @@ hnlogicquery  = string ".!" *> (Query High <$> lp_ Negative)
 
 clause_ = qbin_ <|> dotquery_ <|> linearquery_ <|> dotlinearquery_ <|> query_
         <|> lnlogicquery <|> hnlogicquery
-lhs_ = sepBy1 comma_ clause_
+lhs_ = sepBy comma_ clause_
 
 wrap_ p = (string "(") *> p <* (string ")")
 

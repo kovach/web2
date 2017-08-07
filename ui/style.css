@@ -43,7 +43,7 @@ body {
 #rules, #log {
   width: 45%;
   font-family: "Roboto Mono", monospace;
-  font-size: 10pt;
+  font-size: 12pt;
   background-color: transparent;
   outline: none;
   overflow: auto;

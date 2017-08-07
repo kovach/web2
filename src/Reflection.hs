@@ -277,6 +277,7 @@ flattenA r c (Assert l es) = do
   makeT "label" [labelString l, q]
   foldM (\c -> uncurry $ flattenE q c) c (zip [1..] es)
 
+-- TODO add ruleid
 flattenRule :: Maybe Node -> RankedRule -> M3 Node
 flattenRule rs rr@(RankedRule i rule) = withR rr $ do
     r <- fresh

@@ -25,7 +25,7 @@ allTuples db = fromGraph (tuples db) ++ removed_tuples db
 
 initDB g = DB { tuples = toGraph g
               , removed_tuples = []
-              , node_counter = 0, tuple_counter = 0}
+              , node_counter = 0, tuple_counter = 1}
 emptyDB = initDB []
 
 data MsgQueue = MQ { m_pos :: ![Tuple], m_neg :: ![Tuple] }
@@ -70,21 +70,13 @@ data Processor
   -- currently only logical ("or") reduction is supported
   | Reducer RedOp Label ReducedCache ReducedValue
 
-  -- Handles control graph changes AND reflection
-  --
-  -- `insert rule subproc-id`
-  -- `insert proc seequenceproc-id`
-  -- `set-gas g proc-id`
-  --
-  -- tuple -> reflected tuples
-  -- `refl tid target` -> (target) reflected tuples
-  --
-  | CreatorProc
+  -- These actors handle interaction between sub-programs
+  | CreatorProc Actor
   | WorkerProc
+  | SubProgram ProgramName PS
   | JSProc
 
-  | SubProgram ProgramName PS
-
+  -- TODO remove
   -- msgs:
   --  `update-rule rulset-id rule-uid rule-str` ->
   --
@@ -111,25 +103,19 @@ data Processor
   -- | Wrap Label Processor
 
 
--- NOTE ordering of these constructors (and use of RuleRank as precedence)
--- determines rule matching priority
-data Actor
-  -- rule based actors
-  = ActorReducer Label | ActorRule RuleRank
-  -- systematic actors
-  | Output | ActorObject Node
-  deriving (Eq, Show, Ord)
-
 -- add output
 data PS = PS
   { dependencies :: Map Label [Actor]
   , queues :: Map Actor MsgQueue
+  , sinks :: [Actor]
   , processors :: Map Actor Processor
   , output :: ([Tuple], Set Tuple)
+  , ps_name :: String
   -- , gas_limits :: Map Actor Int
   }
 
-emptyPS = PS mempty mempty mempty mempty
+emptyPS :: PS
+emptyPS = PS mempty mempty mempty mempty mempty "root"
 
 data ReflContext = RC
   { rcf :: Map Fact Node
@@ -160,8 +146,6 @@ type ProgramName = String
 data SystemState = SS
   -- map id to parsed Rule
   { rule_map :: Map RuleId (Rule, String)
-  -- ?? is this needed
-  -- , graph_map :: Map Actor Graph
 
   -- environment holds dynamically created actors
   -- managed by external PS with two actors:
@@ -172,20 +156,27 @@ data SystemState = SS
   , program_map :: Map ProgramName [RuleId]
   , refl_context :: ReflContext
   , tuple_ids :: IntMap Tuple
+  , worker_id :: Actor
   }
 
-emptySS = SS M.empty emptyPS M.empty emptyReflContext IM.empty
+emptySS = SS M.empty emptyPS M.empty emptyReflContext IM.empty undefined
 
 type SM = StateT SystemState M2
 
 defaultGas = 1000
 makeS2 db gas = IS db [] [] gas
+emptyIS = makeS2 emptyDB defaultGas
 
 runDB :: Maybe Int -> DB -> M2 a -> (a, InterpreterState)
 runDB mgas db m = runState m (makeS2 db (fromMaybe defaultGas mgas))
 
-runStack :: SM a -> (a, InterpreterState)
-runStack m = runState (evalStateT m emptySS) (makeS2 emptyDB defaultGas)
+runStack1 :: SM a -> (a, InterpreterState)
+runStack1 m =
+  let ((a, _), is) = runStack emptySS emptyIS m
+  in (a, is)
+
+runStack :: SystemState -> InterpreterState -> SM a -> ((a, SystemState), InterpreterState)
+runStack ss is m = runState (runStateT m ss) is
 
 useGas :: M2 ()
 useGas = modify $ \s -> s { gas = gas s - 1}

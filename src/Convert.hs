@@ -30,7 +30,8 @@ readRules :: FilePath -> IO [Rule]
 readRules f = do
   rs <- readFile f
   case parseRuleFile rs of
-    Right rs -> return $ convertRules rs
+    Right rs -> return $ convertRules $ map (\(l,a,_) -> (l,a)) rs
+
     Left err -> error $ err
 
 -- 1. treats the input RHS as a set of tuples to add
@@ -59,11 +60,11 @@ programWithDB edgeBlocks rules = prog2
       prog2 = do
         -- set up queues/indices
         db <- lift $ gets db
-        ps <- lift $ initPS rules (tuples db)
-        fix <$> foldM (prog1) ([], [], [], ps) edgeBlocks
+        ps <- lift $ initPS "some-program" rules (tuples db)
+        fix <$> foldM prog1 ([], [], [], ps) edgeBlocks
       fix (a, ms, _, b) = (a, ms, b)
 
-runProgramWithDB e r = runStack $ programWithDB e r
+runProgramWithDB e r = runStack1 $ programWithDB e r
 --runProgramWithDB e r = runDB (Nothing) emptyDB $ programWithDB e r
 
 loadProgram :: FilePath -> FilePath -> IO ([RHS], [Rule])

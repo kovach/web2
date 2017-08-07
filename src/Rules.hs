@@ -61,13 +61,12 @@ labelQueryArity q = q
 labelLHSArity = map labelQueryArity
 
 -- "Type inference"
-convertRules :: [LineRule] -> [Rule]
-convertRules rs = result
+convertRules :: [(Int, Rule)] -> [Rule]
+convertRules rules = result
   where
     -- NOTE!
     --   relation/n is given the same type, "logical" or "event", for all n.
     --   bad convention?
-    rules = map (\(l,a,_) -> (l,a)) rs
     logRels = logicalRelations $ map snd rules
     impRels = eventRelations $ map snd rules
 

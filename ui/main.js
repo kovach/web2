@@ -22,11 +22,11 @@ var initSock = function() {
 
     console.log("msgs received: ", msgs.length);
 
-    //if (msgs.length < 50) {
-    //  _.each(msgs, function(obj) {
-    //    console.log(JSON.stringify(obj));
-    //  });
-    //}
+    if (msgs.length < 50) {
+      _.each(msgs, function(obj) {
+        console.log(JSON.stringify(obj));
+      });
+    }
 
     _.each(msgs, parseTuple(sock));
 
@@ -442,20 +442,7 @@ var parseTuple = function(sock) {
   }
 }
 
-window.onload = function() {
-  var rulesId = strNode("rules");
-  setObjAttr(rulesId, "elem", get("rules"));
-  var rulesId = strNode("log");
-  setObjAttr(rulesId, "elem", get("log"));
-  // Some components will use right-click inputs; best to disable it everywhere?
-  //document.addEventListener('contextmenu', event => event.preventDefault());
-
-
-  //sock = initSock();
-
-
-  //document.addEventListener('keydown', bodyHandler(sock));
-
+var makeMainCM = function() {
   var mainCM = CodeMirror(get("edit"), {
     //keyMap: "vim",
     value: "hi\nlol\nthere\n",
@@ -463,37 +450,13 @@ window.onload = function() {
     cursorBlinkRate: 0,
     gutters: ["gutter"],
   });
+}
 
+var makeLineCM = function(sock) {
   var lineCM = CodeMirror(get("edit"), {
     smartIndent: false,
     keyMap: "emacs",
     cursorBlinkRate: 0,
-  });
-
-  var nextLine = function() {
-    console.log('nextLine');
-    var l = mainCM.getCursor().line;
-    mainCM.setCursor({line: l+1, ch: 0});
-  }
-
-  mainCM.setOption("extraKeys", {
-    'j': nextLine,
-    Escape: function() {
-      console.log('escape');
-    },
-    LeftClick: function(cm, ev) {
-      var line = ev.line;
-      console.log('well', ev);
-      cm.replaceRange("", {line:line}, {line:line+1});
-      mainCM.setValue("");
-    }
-  });
-
-  mainCM.on("gutterClick", function(cm, ev) {
-    console.log('gutter', ev);
-    cm.setSelection({line:ev});
-    cm.replaceSelection("");
-    //cm.replaceRange("", {line:ev-1}, {line:ev});
   });
 
   lineCM.setOption("extraKeys", {
@@ -522,3 +485,45 @@ window.onload = function() {
 
 }
 
+window.onload = function() {
+  var rulesId = strNode("rules");
+  setObjAttr(rulesId, "elem", get("rules"));
+  var rulesId = strNode("log");
+  setObjAttr(rulesId, "elem", get("log"));
+  // Some components will use right-click inputs; best to disable it everywhere?
+  //document.addEventListener('contextmenu', event => event.preventDefault());
+
+
+  sock = initSock();
+
+  makeLineCM(sock);
+
+
+  //document.addEventListener('keydown', bodyHandler(sock));
+
+}
+
+// TODO delete
+  //var nextLine = function() {
+  //  console.log('nextLine');
+  //  var l = mainCM.getCursor().line;
+  //  mainCM.setCursor({line: l+1, ch: 0});
+  //}
+//  mainCM.setOption("extraKeys", {
+//    'j': nextLine,
+//    Escape: function() {
+//      console.log('escape');
+//    },
+//    LeftClick: function(cm, ev) {
+//      var line = ev.line;
+//      console.log('well', ev);
+//      cm.replaceRange("", {line:line}, {line:line+1});
+//      mainCM.setValue("");
+//    }
+//  });
+//  mainCM.on("gutterClick", function(cm, ev) {
+//    console.log('gutter', ev);
+//    cm.setSelection({line:ev});
+//    cm.replaceSelection("");
+//    //cm.replaceRange("", {line:ev-1}, {line:ev});
+//  });

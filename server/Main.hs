@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE StandaloneDeriving #-}
 {-# LANGUAGE RecordWildCards, NamedFieldPuns #-}
+{-# LANGUAGE TupleSections #-}
 module Main where
 
 import Data.Maybe (mapMaybe)
@@ -54,7 +55,7 @@ convert (MT p T{..}) = Just (p, label, nodes)
 encodeEvents :: [Msg] -> T.ByteString
 encodeEvents = encode . mapMaybe convert
 
-data State = State PS DB
+data State = State PS SystemState InterpreterState
 
 type Init = (PS, DB, [Msg])
 
@@ -118,51 +119,60 @@ type Init = (PS, DB, [Msg])
 --  putStrLn $ "initial db size: " ++ show (length $ fromGraph . tuples $ db s)
 --  return (allRules, db s, netOutput s)
 
-makeDB = undefined
+makeDB = do
+  let files = [
+        ("test1", "examples/test.arrow")
+        , ("test2", "examples/test2.arrow")
+        ]
+  strs <- mapM (readFile . snd) files
+  return $ runStack emptySS emptyIS $ do
+    ps <- initMetaPS (zip (map fst files) strs)
+    n1 <- lift (freshNode)
+    n2 <- lift (freshNode)
+    let mk = LA "make-app" 2
+    m1 <- MT Positive <$> lift (packTuple (mk, [n1, NString "test1"]) (Extern []))
+    m2 <- MT Positive <$> lift (packTuple (mk, [n2, NString "test2"]) (Extern []))
+    (output1, ps1) <- solve [m1, m2] ps
+    return (output1, ps1)
 
-noDebug = True
+noDebug = False
 
-handler connId msg s0@(State ps db0) =
+handler connId msg s0@(State ps ss is) =
   case decodeCommand msg of
     Just Reset -> do
       putStrLn "reset"
-      (ps', db1, msgs) <- makeDB
+      (((msgs, ps'), ss'), is') <- makeDB
       -- TODO only send relevant tuples
       --let (_, outputEvents) = step2 msgs emptyFS
-      let outputEvents = filter notRaw msgs
-      mapM_ (putStrLn . ppMsg) outputEvents
-      return (Just (encodeEvents outputEvents), (State ps' db1))
+      putStrLn $ "init: " ++ unlines (map ppMsg msgs)
+      return (Just (encodeEvents msgs), State ps' ss' is')
     Just Connect -> do
       putStrLn "not implemented"
       return (Nothing, s0)
     Just RawTuple{rawLabel, rawNodes} -> do
       putStrLn "parsed event"
       let
-        ((outputEvents, ps1), is) = runStack $ do
+        (((msgs, ps'), ss'), is') = runStack ss is $ do
           -- mark tuple with connection id
           let ns = NInt connId : rawNodes
               l = LA (lstring rawLabel) (length ns)
           t <- lift $ packTuple (l, ns) (Extern [])
-          let msg = MT Positive t
+          worker <- gets worker_id
+          let msg = (MActor worker (MT Positive t))
           solve [msg] ps
 
         --outputMsgs = netOutput is
         --outputEvents = filter notRaw outputMsgs
 
-        db1 = db is
-
       unless noDebug $ do
-        --putStrLn "raw output"
-        --mapM_ (putStrLn . ppMsg) (out_unprocessed is)
-        putStrLn "net"
-        mapM_ (putStrLn . ppMsg) outputEvents
-      return (Just (encodeEvents outputEvents), State ps1 db1)
+        putStrLn "new"
+        mapM_ (putStrLn . ppMsg) msgs
+      return (Just (encodeEvents msgs), State ps' ss' is')
     Nothing -> do
       putStrLn "decode failed"
       return (Nothing, s0)
 
 main = do
   let rules = []
-      db = emptyDB
   putStrLn "server starting"
-  runServer (State emptyPS db) handler
+  runServer (State emptyPS emptySS emptyIS) handler
