@@ -36,6 +36,9 @@ pushQueue' (MT Negative t) MQ {m_pos, m_neg} =
   MQ { m_neg = t : m_neg, m_pos = delete t m_pos}
 
 pushMsg :: Msg -> PS -> PS
+pushMsg (MNotActor act m') ps = pushMsgTo m' actors ps
+  where
+    actors = S.toList . S.delete act . S.fromList $ (sinks ps) ++ concat (M.elems (dependencies ps))
 pushMsg (MActor act m') ps = pushMsgTo m' [act] ps
 pushMsg m ps = pushMsgTo m actors ps
   where
@@ -301,7 +304,7 @@ newProgramProc cause node name = do
       rules = map (\i -> fst $ look i rule_map) ruleIds
       -- watches = inputRelations rules
   let actor = ActorObject node
-  proc <- SubProgram name <$> lift (initPS name rules emptyGraph)
+  proc <- SubProgram actor name <$> lift (initPS name rules emptyGraph)
   --let inputs = M.fromList $ zip watches (repeat [actor])
   let fix ps@PS{..} = ps
           { --dependencies = M.unionWith (++) dependencies inputs
@@ -335,9 +338,10 @@ step ps = tr ("step: " ++ ps_name ps) $ do
           ViewProc r g watched -> lift $ stepView msgs r g watched
           CreatorProc worker -> stepCreator msgs worker
           WorkerProc -> stepWorker msgs
-          SubProgram name ps -> do
+          SubProgram me name ps -> do
             (out, ps') <- solve (toMsgs msgs) ps
-            return (out, SubProgram name ps')
+            -- TODO fix this
+            return (map (MNotActor me) out, SubProgram me name ps')
         let pr1 = ps' { processors = M.insert act pr' (processors ps') }
         return $ Just $ sendMsgs output pr1
 

@@ -30,7 +30,8 @@ body {
 
 .node {
   outline: none;
-  display: block;
+  /*display: block;*/
+  display: inline-block;
 }
 
 #rules, #program, #log {
@@ -41,9 +42,9 @@ body {
 }
 
 #rules, #log {
-  width: 45%;
+  width: 25%;
   font-family: "Roboto Mono", monospace;
-  font-size: 12pt;
+  font-size: 14pt;
   background-color: transparent;
   outline: none;
   overflow: auto;
@@ -67,6 +68,20 @@ body {
   margin: 4px;
   padding: 1px;
   outline: none;
+}
+
+.button {
+  display: inline-block;
+  border: solid;
+  border-width: 2px;
+  border-color: #999;
+  border-radius: 7px;
+  margin: 4px;
+  padding: 4px;
+  outline: none;
+  text-align: center;
+  user-select: none;
+  -moz-user-select: none;
 }
 
 .query, .assert, .sep {

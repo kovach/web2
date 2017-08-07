@@ -315,7 +315,7 @@ data Actor
   deriving (Eq, Show, Ord)
 
 -- TODO remove MActor?
-data Msg = MT Polarity Tuple | MActor Actor Msg
+data Msg = MT Polarity Tuple | MActor Actor Msg | MNotActor Actor Msg
 
 -- Utilities
 first f (a, b) = (f a, b)

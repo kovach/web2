@@ -73,7 +73,7 @@ data Processor
   -- These actors handle interaction between sub-programs
   | CreatorProc Actor
   | WorkerProc
-  | SubProgram ProgramName PS
+  | SubProgram Actor ProgramName PS
   | JSProc
 
   -- TODO remove

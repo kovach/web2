@@ -112,7 +112,6 @@ data MetaCommand
   | DeleteRule Node ProgramName
   | AddRule Node ProgramName
 
-
 commandRelations :: [Label]
 commandRelations =
   [ LA "make-app" 2

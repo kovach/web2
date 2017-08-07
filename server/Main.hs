@@ -48,8 +48,11 @@ instance FromJSON Command where
 
 decodeCommand = decode
 
-convert :: Msg -> Maybe (Polarity, Label, [Node])
-convert (MT p T{..}) = Just (p, label, nodes)
+convert :: Msg -> Maybe (Polarity, Label, [Node], Int, Bool)
+convert (MT p T{..}) = Just (p, label, nodes, tid, fix tval)
+  where
+    fix (Truth t) = t
+    fix NoVal = True
 
 -- TODO remove arity tags?
 encodeEvents :: [Msg] -> T.ByteString
@@ -121,18 +124,22 @@ type Init = (PS, DB, [Msg])
 
 makeDB = do
   let files = [
-        ("test1", "examples/test.arrow")
-        , ("test2", "examples/test2.arrow")
+        --("test1", "examples/test.arrow")
+        -- , ("test2", "examples/test2.arrow")
+         --("button", "examples/test.arrow")
+         ("button", "ui/components/button.arrow")
         ]
   strs <- mapM (readFile . snd) files
+  let fix s = do
+        n1 <- freshNode
+        let mk = LA "make-app" 2
+        m1 <- MT Positive <$> (packTuple (mk, [n1, NString s]) (Extern []))
+        return m1
   return $ runStack emptySS emptyIS $ do
     ps <- initMetaPS (zip (map fst files) strs)
-    n1 <- lift (freshNode)
-    n2 <- lift (freshNode)
-    let mk = LA "make-app" 2
-    m1 <- MT Positive <$> lift (packTuple (mk, [n1, NString "test1"]) (Extern []))
-    m2 <- MT Positive <$> lift (packTuple (mk, [n2, NString "test2"]) (Extern []))
-    (output1, ps1) <- solve [m1, m2] ps
+    ms <- lift $ mapM (fix . fst) files
+    -- register rulesets
+    (output1, ps1) <- solve ms ps
     return (output1, ps1)
 
 noDebug = False
@@ -154,7 +161,7 @@ handler connId msg s0@(State ps ss is) =
       let
         (((msgs, ps'), ss'), is') = runStack ss is $ do
           -- mark tuple with connection id
-          let ns = NInt connId : rawNodes
+          let ns = rawNodes -- NInt connId : rawNodes
               l = LA (lstring rawLabel) (length ns)
           t <- lift $ packTuple (l, ns) (Extern [])
           worker <- gets worker_id

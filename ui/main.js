@@ -334,6 +334,8 @@ var parseTuple = function(sock) {
     var label = t[1].contents[0];
     var arity = t[1].contents[1]; // used sparingly
     var nodes = t[2];
+    var tid = t[3];
+    var tval = t[4];
 
     switch (label) {
       case "token":
@@ -422,8 +424,12 @@ var parseTuple = function(sock) {
         break;
       case "background-color":
         var id = nodes[0];
-        var c = nodes[1].contents;
-        mkStyle(id, "backgroundColor", c);
+        if (sign) {
+          var c = nodes[1].contents;
+          mkStyle(id, "backgroundColor", c);
+        } else if (tval) {
+          mkStyle(id, "backgroundColor", "transparent");
+        }
         break;
       case "contents":
         var id = nodes[0];
@@ -492,7 +498,6 @@ window.onload = function() {
   setObjAttr(rulesId, "elem", get("log"));
   // Some components will use right-click inputs; best to disable it everywhere?
   //document.addEventListener('contextmenu', event => event.preventDefault());
-
 
   sock = initSock();
 

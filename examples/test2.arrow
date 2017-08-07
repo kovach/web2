@@ -1,1 +1,1 @@
-f => g
+=> text-node i "hi", parent i "log"
