@@ -1,6 +1,6 @@
 .PHONY: send
 send: live.html docs.css
-	scp live.html docs.css \
+	scp live.html live.md docs.css \
       scott@cutfree.net:/www/static/
 
 index.html: index.md
