@@ -317,6 +317,7 @@ var textEditHandler = function(el, id, sock) {
 
 var removeObject = function(id) {
   var elem = objects[JSON.stringify(id)].elem;
+  console.log(id, elem);
   elem.parentNode.removeChild(elem);
 }
 
@@ -364,14 +365,14 @@ var parseTuple = function(sock) {
         break;
       case "text-node":
         var id = nodes[0];
-        if (sign) {
+        if (sign && tval) {
           var body = toString(nodes[1]); // string
           var parent = nodes[2];
           //var el = mkNode(body, id, sock, textNodeHandler, getObjAttr(parent, "elem"));
           var el = mkNode(body, id, sock, textNodeHandler);
           setObjAttr(id, "type", "text-node");
           setObjAttr(id, "elem", el);
-        } else {
+        } else if (tval) {
           removeObject(id);
         }
         break;
@@ -414,12 +415,14 @@ var parseTuple = function(sock) {
         // child, parent
         var id1 = nodes[0];
         var id2 = nodes[1];
-        if (arity == 2) {
-          mkParent(id1, id2);
-        } else if (arity == 3) {
-          var rank = nodes[2].contents;
-          mkPositionalParent(id1, id2, rank);
-          mkAttr(id1, "rank", rank);
+        if (sign) {
+          if (arity == 2) {
+            mkParent(id1, id2);
+          } else if (arity == 3) {
+            var rank = nodes[2].contents;
+            mkPositionalParent(id1, id2, rank);
+            mkAttr(id1, "rank", rank);
+          }
         }
         break;
       case "background-color":

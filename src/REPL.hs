@@ -68,38 +68,15 @@ parse s = do
           Left err1 -> tryRule err1
   tryQuery
 
-
-
---
--- Terrible Hacks --
---
---
 freshActor :: SM Actor
 freshActor = lift $ ActorObject <$> freshNode
 
---TODO delete
---pushActor :: Actor -> [Msg] -> PS -> PS
---pushActor act ms ps = ps
---  { queues = M.adjust (\q -> foldr pushQueue q ms) act (queues ps) }
 removeActor :: Actor -> PS -> PS
 removeActor act ps@PS{..} = ps
   { dependencies = fmap (filter (/=  act)) dependencies
   , queues = M.delete act queues
   , processors = M.delete act processors
-  -- , gas_limits = M.delete act gas_limits
   }
-
--- System message schema --
---
--- create app-id string
--- reflect container-id [..tid]
--- parse parent str
--- repl app-id
--- change-rule id str
--- delete-rule id ProgramName
--- add-rule    id ProgramName
---
--- reset app-id -- refresh rules/db
 
 data MetaCommand
   = MakeApp Node String
@@ -150,15 +127,3 @@ parseMetaCommand _ = Nothing
 
 setEnv :: PS -> SM ()
 setEnv e = modify $ \ss -> ss { environment = e }
-
-
-{-
-
--- TODO
--- IO
---  load several programs
---  create program map for them
---  make SS
---  launch "controller" program
---    click a button, launch that program
--}

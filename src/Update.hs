@@ -69,7 +69,6 @@ initPS name rs graph = do
     , output = mempty
     , sinks = mempty
     , ps_name = name
-    -- , gas_limits = M.empty
     , processors = M.fromList $ processors ++ reducers }
   where
     step0 :: RankedRule -> Map Label [Actor]
@@ -264,12 +263,6 @@ stepWorker mq@MQ{m_pos, m_neg} = tr ("stepWorker" ++ unlines (map ppMsg (toMsgs 
     return (msgs, WorkerProc)
   where
     commands = mapMaybe (\t -> (t,) <$> parseWorkerCommand t) m_pos
-
---initManager :: SM ()
---initManager = do
---  modify $ \ss -> ss { environment = fix (environment ss) }
---  where
---    fix
 
 stepCreator :: MsgQueue -> Actor -> SM ([Msg], Processor)
 stepCreator mq@MQ{m_pos, m_neg} worker = tr "stepCreator" $ do

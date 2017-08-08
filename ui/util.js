@@ -25,6 +25,8 @@ var mkFrame = function(ids, f) {
 var mkParent = function(child, par) {
   var handler = function() {
     append(getObjAttr(child, "elem"), getObjAttr(par, "elem"));
+    console.log('e', getObjAttr(child, "elem"));
+    console.log('p', getObjAttr(child, "elem").parentNode);
   }
   mkFrame([child, par], handler);
 }

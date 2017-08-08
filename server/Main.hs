@@ -127,7 +127,8 @@ makeDB = do
         --("test1", "examples/test.arrow")
         -- , ("test2", "examples/test2.arrow")
          --("button", "examples/test.arrow")
-         ("button", "ui/components/button.arrow")
+         --("button", "ui/components/button.arrow")
+         ("files", "ui/components/files.arrow")
         ]
   strs <- mapM (readFile . snd) files
   let fix s = do
