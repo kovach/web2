@@ -6,11 +6,8 @@ abstraction. While working, a programmer tries to maintain a unified view, but
 doing so is a struggle. Live programming systems must be sensitive to this
 struggle.
 
-We like to imagine there is a single joint system comprised of a program, some
-sampling of its concrete behavior, and various programmers. Ideally, the
-abstract form of a program and its dynamics would inhabit the same "space", so
-that a viewer of any part could trace along related information.
-
+Ideally, the abstract form of a program and its dynamics would inhabit the same
+"space", so that a viewer of any part could trace along related information.
 As long as we struggle to conceptualize this space, our solutions tend to adopt
 one of two directions; since a programmer can only see so much at a time, we
 assume they are either looking at code or looking at output, and try to connect

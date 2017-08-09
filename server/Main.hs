@@ -127,10 +127,10 @@ makeDB = do
         --("test1", "examples/test.arrow")
         -- , ("test2", "examples/test2.arrow")
          --("button", "examples/test.arrow")
-          ("base", "ui/components/base.arrow")
-         , ("refl", "ui/components/refl.arrow")
+         ("refl", "ui/components/refl.arrow")
+          -- , ("base", "ui/components/base.arrow")
          , ("button", "ui/components/button.arrow")
-         , ("editor", "ui/components/rule-edit.arrow")
+         --, ("editor", "ui/components/rule-edit.arrow")
          --("files", "ui/components/files.arrow")
         ]
   strs <- mapM (readFile . snd) files

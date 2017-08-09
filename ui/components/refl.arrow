@@ -1,0 +1,31 @@
+# helper relation
+node n _ _ ~> type-node n
+# explicitly reflect the tuple attached to an element
+shift-click _ tid => reflect tid _
+reflected t _, cause p t ~> render-cause p
+## Rendering
+# visual elements
+inline i s => text-node i s, class i "inline"
+block i s  => text-node i s, class i "block"
+# tuple rendering
+tuple-node i t, fact f t, label l f => inline i l, of i t
+tuple-node par t, fact f t, node n f rank => text-node i n, of i n, parent i par rank, class i "literal"
+# provenance rendering
+render-cause p                        => block i "", parent i "log", of i p
+render-cause p, event p, of par p     => text-node arr "<=", parent arr par 1
+render-cause p, reduced p, of par p   => text-node arr "<~", parent arr par 1
+render-cause p, of par p, cause p t   => tuple-node i t, parent i par 0
+render-cause p, of par p, matched t p => tuple-node i t, parent i par 2
+render-cause p, of par p, extern p    => text-node i "IO", parent i par 2, class i "extern"
+render-cause p, of par p, rule r p, rule-id id r => text-node i "rule ", text-node l id, parent i par, parent l i, class i "rule_node", of i r
+## User actions
+raw-click 'left id _ => click id
+raw-click 'right id tid => shift-click id tid
+# follow causes backwards
+click e, of e t, tuple t, cause p t ~> render-cause p
+# view all tuples referring to n; uses reflection api
+click e, of e n, type-node n => attributes n _
+# rule editing API
+click e, of e r, rule-id id r => edit-rule id
+rule-string str id => text-editor i id str
+raw-update-rule id str => update-rule id str

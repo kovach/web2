@@ -1,0 +1,11 @@
+=> text-node i "maker", parent i "rules", maker i, class i "button"
+click i, maker i => make-button
+
+make-button => text-node i "click", parent i "rules", button i
+button i => class i "button", off i
+
+click i, button i => toggle i
+..toggle i, ..off i => on i
+..toggle i, ..on  i => off i
+
+on i ~> background-color i "#555"
