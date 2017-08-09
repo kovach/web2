@@ -35,11 +35,11 @@ second viewpoint, and tries to follow this **axiom**:
   > provenance should be easy to work with
 
 It aspires to be a sort of computational "story-telling" assistant.
-Ultimately, we want to enable the construction of systems whose users are free
+We want to enable the construction of systems whose users are free
 to "continuously" learn about them, by localizing explanations at their
 effects.
 
-More formally, it is composed of these layers:
+It is composed of these layers:
 
   - a time-varying database,
   - datalog style language, composing programs from rules,
@@ -73,14 +73,17 @@ output:
   - a tuple $t \in proj_L A$ depends on those tuples $u \in A$ whose restriction to $L$ agrees with $t$.
   - tuples resulting from selection are exactly those input tuples satisfying some predicate
 
+Also, since provenance implicitly refers to all intermediate state, the global,
+flat nature of a database is natural.
+
 In anansi, all program values are *labelled tuples*. For example:
 
 ```
 adjacent l1 l2
+foo
 path s t
 visible s
 background-color element "#555"
-foo
 cons l head tail
 ```
 
@@ -90,14 +93,14 @@ literal values, which may be strings, integers, or unique identifiers, also
 called *nodes*. We sometimes write relations along with their arity, for
 instance `cons/3`, as in prolog.
 
-A program operates on a *database*, which is a time-varying multiset of tuples.
+A program operates on a database, which is a time-varying multiset of tuples.
 Tuples are optionally annotated with a value, used to support a sort of logic
 programming, described later. A program is given by a set of *datalog* rules.
 
 By datalog, we mean a family of languages
 [[Abiteboul, Vianu 1991](http://www.sciencedirect.com/science/article/pii/002200009190032Z)]
 that provide a simple programming mechanism by means of *rules*. A rule
-consists of a body, which is a database query, and a *head*, which when
+consists of a body, which is a database query, and a head, which when
 instantiated with variable bindings coming from a query match creates new
 tuples:
 
@@ -117,24 +120,22 @@ bodies and apply their corresponding updates until no further consequences are
 derivable.
 
 ### Summary
-The use of tuples gives a very fine-grained notion of data locality. Computing
-by means of rules means that each tuple has a simple immediate cause, and that
+The use of tuples gives a fine-grained notion of data locality. Computing by
+means of rules means that each tuple has a simple immediate cause, and that
 these immediate causes link together to form a directed graph. Graphs are
 easily represented as sets of tuples, so with the right machinery, our rule
-based language will serve us in analyzing provenance. We will discuss this
-further in the later section on reflection.
+based language will serve us in analyzing provenance. We discuss this further
+in the later section on reflection.
 
 # Syntax Features
-Our language extends traditional datalog with the following features:
+We have attempted to avoid novelty in the language design. It extends
+traditional datalog with the following features:
 
   - unbound variables in rule heads
   - tuple deletion
   - view maintenance
   - reduction operations
 
-We have attempted to rigorously avoid novelty in the language design.
-
-TODO explain
 
 We explain each one by stepping through this small program:
 
@@ -166,7 +167,7 @@ It creates several tuples defining a button: the `text-node`, `parent`, and
 
 The unbound variable `i` is assigned a fresh value, guaranteed to be distinct
 from all other values in the current database. This language feature is like a
-very lightweight object system; many tuples can be "hung together" on the same
+lightweight object system; many tuples can be "hung together" on the same
 identity, and "message sends" can be accomplished with rules such as
 
 ```
@@ -201,7 +202,7 @@ participate in any later match. The current interpreter evaluates an *iterated
 fixed-point*: rules are totally ordered, and a rule is not considered by the
 matcher until all earlier (higher precedence) rules have finished evaluating.
 Thus the two rules above matching `toggle` do not enter an infinite loop,
-because the `toggle` *event* is consumed. The strict evaluation order prevents
+because the `toggle` event is consumed. The strict evaluation order prevents
 conflicts between rules.
 
 This feature can easily express small, local state machines; using it at a
@@ -255,14 +256,13 @@ connected or not.
 Thus we implemented a notion of reduction: if a single tuple defined by a `~>`
 rule has multiple proofs, they are combined into a single proof, and only one
 tuple is visible to the system. We call these *logical rules*. We also support
-negation in rule bodies, and are working on an incremental, bottom-up version
-of the
-[well-founded semantics](https://pdfs.semanticscholar.org/ad69/24abcce554dc66819fe05de9c88bd3fd43d8.pdf)
-.
+negation in rule bodies for logical tuples, and are working on an incremental,
+bottom-up version of the
+[well-founded semantics](https://pdfs.semanticscholar.org/ad69/24abcce554dc66819fe05de9c88bd3fd43d8.pdf).
 
 We are experimenting with certain other reduction operations:
 
-  - `(+)`: sums up a relation whose tuples have associated numeric values.
+  - `(+)`: sums over a relation whose tuples have associated numeric values.
   - `(push)`: a max-heap abstraction, which merges key-value pairs and allows
     queries to view the single value associated with largest key.
 
@@ -287,27 +287,31 @@ for more detailed information.
 
 The reflection layer of the system allows us to run anansi programs that
 operate on other anansi programs or their provenance graphs. Our interpreter
-can easily *reflect* a database of tuples, provenance terms, and rules into a
+can *reflect* a database of tuples, provenance terms, and rules into a
 secondary database with a fixed schema.  This allows us to write "higher order"
 programs that operate over the computation histories of others.
 
 ### Demo
 
-In the demo above, you can hear me explain a simple live edit.
+<video src="edit2.mp4" width=100% controls=""></video>
+
+In the video above, you can hear me explain a simple live edit.  The code is
+available
+[here](https://github.com/kovach/web2/blob/deadline/ui/components/refl.arrow).
 
 The appendix shows a few other miscellaneous examples:
 
   - go example
   - program self-portrait
 
-# Some Implementation Details
+# GUI Implementation
 
-Our GUI system is crude. It has two pieces:
+The GUI system is crude. It has two pieces:
  
   - a Javascript client, with an API of about 20 "IO relations"
   - a language interpreter server
 
-Note that all screenshots shown in this document are taken from running anansi
+Note that all screenshots and videos shown here are taken from running anansi
 programs.
 
 ### Client
@@ -316,7 +320,7 @@ and messages coming from the client, representing external input events.
 
 The DOM changing side has enough messages to create text nodes, a few svg
 elements, parent relationships, and various style changes. To deal with the
-non-deterministic ordering of messages flowing out of the server, a very simple
+non-deterministic ordering of messages flowing out of the server, a simple
 pattern matcher stores messages until they can be processed in the proper
 order. New messages types can be easily added.
 
@@ -332,12 +336,18 @@ The server interprets a program. It consumes input events, one at a time, and
 iterates any applicable rules until fixpoint. It outputs DOM tuples, to be
 handled by the client. 
 
-# future work
-### ui synthesis
+# Future work
 
-We are developing a framework for "GUI inference": generation of a minimal
-external interface that allows interaction with a ruleset. This problem has
-several steps:
+We see the current system as a sort of "assembly language" for provenance
+experiments. We are not far off from a self-hosted REPL and programming
+environment. This will make programming more comfortable, but we also envision
+some higher level ways of building up.
+
+### UI synthesis
+
+We are experimenting with "GUI inference": generation of a minimal external
+interface that allows interaction with a ruleset. This problem has several
+steps:
 
   - specify a program
   - identify input and output relations
@@ -350,56 +360,64 @@ example exposes some of the difficulties. See
 [ui/go](https://github.com/kovach/web2/blob/master/ui/go.arrow)
 for the additional rules we use to display a game and play. In order to generate a similar ruleset automatically, some questions need to be answered:
 
-  - some rules are meant only for initialization; the relations they set up are
-    *static*. what is the right way to specify that a relation is dynamic?
-  - given a list of valid inputs (in the Go case, a list of `place-stone/3`
-    tuples for the current player, that target empty locations) how do we
-    display them? an explicit listing is not good enough; is the geometry of
-    the Go board latent in the rules?
+  - Some rules are meant only for initialization; the relations they set up are
+    static. What is the natural way to specify that a relation is dynamic?
+  - Given a family of valid inputs (in the Go case, a list of `place-stone/3`
+    tuples for the current player, that target empty locations), how do we
+    display them? An explicit listing is unnatural. Is the geometry of the Go
+    board latent in the rules?
+  - We must show enough of the inner game state that a player can judge the
+    consequences of their actions. Is there a minimum amount we can get away
+    with?
 
-### compositional provenance
+### Compositional provenance
 
-Of course, a simple language is not enough to ensure readability. With enough
-fresh names, any complex imperative program could be translated into a rule
-set, and its structure would be just as complex as the original.
+With enough fresh names, any complex imperative program could be translated
+into a rule set, and its structure would be just as complex as the original.
+How do we scale up causality analysis to larger programs?
 
-We must find a way of contextualizing provenance. There should be no unique
-answer to "why" something happened: any particular answer can take into
-account the viewpoint of who is asking. When a program is chopped into very
-small rules, we have a multitude of "viewpoints", each defined by some subset
-of the program's relations.
+We want to find a way of contextualizing provenance. There should be no unique
+answer to "why" something happened: any particular answer can take into account
+the viewpoint of who is asking. When a program is chopped into small rules, we
+have a multitude of "viewpoints", each defined by some subset of the program's
+relations.
 
-For instance, the "naive user" viewpoint considers only primary input/output relations
-visible.  They *see* only the explicit visual actions built into the
+For instance, the "naive user" viewpoint considers only primary input/output
+relations visible.  They see only the explicit visual actions built into the
 application, and expect explanations in the grammar of the application. A
 "programmer" who has a code buffer open might also consider the messages sent
 by that fragment of code visible. They see more, and thus an explanation can be
-more fine-grained. A dynamic system should build its own model of what the user
-sees and specialize itself. The goal is not to obscure details from the user,
-but rather gradually reveal detail efficiently.
+more refined.
 
-### optimization
+A dynamic system should build its own model of what the user sees and
+specialize itself. The goal is not to obscure details from the user, but rather
+gradually reveal detail efficiently to help them learn.
 
-The language should be expressive enough for tasks related to compilation and
-static analysis. We plan to explore its suitability for general-purpose
-programming by developing a basic query-optimizer and compiler to eliminate the
-cost of joins where possible.
+### Optimization
 
-### live collaboration/scopes
+The language is expressive enough for tasks related to compilation and static
+analysis. We plan to explore its suitability for general-purpose programming by
+developing a basic query-optimizer and compiler to eliminate the cost of joins
+where possible. A self-hosted compiler would have the benefit of producing
+explanations for its optimizations.
+
+### Live Collaboration/Scopes
 Our server can already handle multiple connections, and it sends updates to all
-clients over websockets, so real time collaboration is already possible in
-theory. A little work is needed to allow different users to have distinct views
-of the resulting system.
+clients over websockets. Real time collaboration is possible in theory, but a
+little work is needed to allow different users to have distinct views of the
+resulting system.
 
-### language semantics
+### Language Semantics
+
+We hope to simplify the language further and produce a proof that the fixed
+point algorithm is well-behaved. We also hope to produce a usable termination
+checker and a variety of static checks as part of the web editor.
 
 # Appendix
 
 ### Go
 ### Rule Rendering
-This rule set defines a dom representation for any set of rules; shown is the
-result of rendering itself (CSS not included):
+This rule set defines a dom representation for any set of rules; shown is its self-portrait
+(CSS not included):
 
-todo: make labels easier to read:
-
-![there is a bug in the rules... can you find it?](rules2.jpg){width=100% height=100%}
+![there is a bug in the rules... can you find it?](rules2.jpg){width=80% height=80%}
