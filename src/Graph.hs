@@ -115,7 +115,7 @@ solveSteps g c es = foldM (solveStep g) c es
 -- Main matching function --
 getMatches :: Tuple -> RankedRule -> Graph -> [Match]
 -- A rule with empty lhs (that somehow received a message) has a unique match:
-getMatches _ r@(RankedRule _ (Rule p [] rhs)) _ = [(Provenance r Nothing [] [], [], [])]
+getMatches _ r@(RankedRule _ (Rule { lhs = [], rhs = rhs })) _ = [(Provenance r Nothing [] [], [], [])]
 getMatches ev rule g = takeValid [] . map toMatch . go $ triggers
   where
     triggers = indLookup (label ev, tpolarity ev) (indexRule $ ranked_rule rule)

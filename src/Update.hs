@@ -61,6 +61,25 @@ updateDB (MT Positive t) db = db { tuples = insertTuple t (tuples db) }
 updateDB (MT Negative t) db = db { tuples = removeTuple t (tuples db)
                                  , removed_tuples = t : removed_tuples db }
 
+updatePS :: [Rule] -> PS -> PS
+updatePS rs ps = foldr fix ps rules
+  where
+    converted = rankRules $ convertRules (zip [1..] rs)
+    rules = converted
+    fix (RankedRule _ Rule { rule_id = Nothing }) _ = error "missing rule id"
+    fix rrule ps@PS{..} = 
+        ps { dependencies = dependencies2
+           , processors = M.insert actor proc' processors }
+      where
+        actor = (ActorRule (ranked_id rrule))
+        proc' = case look actor processors of
+                  ObsProc _ graph -> ObsProc rrule graph
+                  ViewProc _ graph ws -> ViewProc rrule graph ws
+
+        dependencies1 = fmap (filter (/= actor)) dependencies
+        dependencies2 = M.unionWith (++) dependencies1
+          (M.fromList $ zip (lhsRels $ ranked_rule rrule) (repeat [actor]))
+
 initPS :: ProgramName -> [Rule] -> Graph -> M2 PS
 initPS name rs graph = do
   return PS
@@ -108,7 +127,7 @@ initMetaPS ruleSets = do
     let metaDeps = zip commandRelations (repeat [creator])
 
     -- sets the program_map
-    mapM (uncurry loadProgram) ruleSets
+    mapM (uncurry newProgram) ruleSets
 
     --rankedRuleSets <- mapM (secondM rankRules) ruleSets
     --(ruleSetPairs, rc) <- runReflection (mapM (secondM fix) rankedRuleSets) emptyReflContext
@@ -253,49 +272,105 @@ stepRule mq@MQ{m_pos = pos, m_neg = neg} rule g = tr "stepRule" $ do
 stepWorker :: MsgQueue -> SM ([Msg], Processor)
 stepWorker mq@MQ{m_pos, m_neg} = tr ("stepWorker" ++ unlines (map ppMsg (toMsgs mq))) $ do
     envPS <- gets environment
-    tupleIds <- gets tuple_ids
+    tupleIds0 <- gets tuple_ids
+    allTuples0 <- gets all_tuples
     (msgs, env') <- solve (toMsgs mq) envPS
     setEnv env'
     -- keep tuples up to date
-    let tupleIds1 = foldr (IM.delete . tid) tupleIds m_neg
-    let tupleIds2 = foldr (\t -> IM.insert (tid t) t) tupleIds1 m_pos
-    modify $ \ss -> ss { tuple_ids = tupleIds2 }
+    --let tupleIds1 = foldr (IM.delete . tid) tupleIds0 m_neg
+    let posMsgs = m_pos ++ (mapMaybe mpos msgs)
+    let tupleIds2 = foldr (\t -> IM.insert (tid t) t) tupleIds0 posMsgs
+    let allTuples1 = foldr S.insert allTuples0 posMsgs
+    modify $ \ss -> ss { tuple_ids = tupleIds2, all_tuples = allTuples1 }
     return (msgs, WorkerProc)
-  where
-    commands = mapMaybe (\t -> (t,) <$> parseWorkerCommand t) m_pos
+  -- where
+  --   commands = mapMaybe (\t -> (t,) <$> parseWorkerCommand t) m_pos
 
 stepCreator :: MsgQueue -> Actor -> SM ([Msg], Processor)
 stepCreator mq@MQ{m_pos, m_neg} worker = tr "stepCreator" $ do
     SS{..} <- get
     output <- concat <$> mapM handleCommand commands
-    return (output, CreatorProc worker)
+    return (map (MActor worker) output, CreatorProc worker)
   where
     commands = mapMaybe (\t -> (t,) <$> parseMetaCommand t) m_pos
 
-    cause t = Provenance (RankedRule 0 (Rule Event [] [])) (Just t) [t] []
+    cause t = Provenance (RankedRule 0 (Rule Nothing Event [] [])) (Just t) [t] []
 
-    handleCommand (t, DoReflect target tid) = do
+    reflected t target rootTID =
+      lift $ MT Positive <$> packTuple (LA "reflected" 2, [rootTID, target]) (cause t)
+
+    handleCommand (t, DoReflect tid target) = do
       -- TODO correct?
       -- _ <- lift flushEvents
       rc <- gets refl_context
       tlookup <- gets tuple_ids
       let tuple = (fromJust . flip IM.lookup tlookup) tid
-      (_, rc') <- lift $ runReflection (flattenTuple tuple) rc
-      modify $ \ss -> ss { refl_context = rc' }
       -- TODO better way to get these out
-      map (MActor worker) <$> (lift $ flushEvents)
+      (rootTID, rc') <- lift $ runReflection (flattenTuple tuple) rc
+      modify $ \ss -> ss { refl_context = rc' }
+      reflectionMsgs <- lift flushEvents
+      --marker <- lift $ MT Positive <$> packTuple (LA "reflected" 2, [rootTID, target]) (cause t)
+      marker <- reflected t target rootTID
+      return $ marker : reflectionMsgs
 
     handleCommand (t, MakeApp node name) =
-      map (MActor worker) <$> newProgramProc (cause t) node name
+      newProgramProc (cause t) node name
 
+    handleCommand (t, Attributes node target) = do
+      allTuples <- gets all_tuples
+      rc <- gets refl_context
+      let ts = S.toList $ S.filter (\t -> node `elem` nodes t) allTuples
+      (roots, rc') <- lift $ runReflection (mapM flattenTuple ts) rc
+      modify $ \ss -> ss { refl_context = rc' }
+      reflectionMsgs <- lift flushEvents
+      ms <- mapM (reflected t target) roots
+      -- return ms
+      return (ms ++ reflectionMsgs)
+
+    handleCommand (t, EditRule node) = do
+      (_, str) <- gets (look node . rule_map)
+      msg <- lift $ MT Positive <$> packTuple (LA "rule-string" 2, [NString str, node]) (cause t)
+      return [msg]
+
+    handleCommand (t, ChangeRule node str) =
+      case replParse str of
+        Right (ARule parsed) -> do
+          modify $ \ss -> ss { rule_map = M.insert node (parsed, str) (rule_map ss) }
+          programName <- findContainingProgram node
+          rules <- getProgramRules programName
+          updateRunningSubProgram programName rules
+          return []
+        other -> error $ show other
+
+    -- TODO should just pass
     handleCommand (t, _) = error $ "command unimplemented: " ++ ppTuple t
+
+getProgramRules :: ProgramName -> SM [Rule]
+getProgramRules name = do
+  SS{program_map, rule_map} <- get
+  let ruleIds = look name program_map
+      rules = map (\i -> (fst $ look i rule_map){rule_id = Just i}) ruleIds
+  return rules
+
+findContainingProgram :: Node -> SM ProgramName
+findContainingProgram node = do
+  pm <- gets program_map
+  case M.toList (M.filter (node `elem`) pm) of
+    [(name, _)] -> return name
+    _ -> error "TODO: rule used in multiple programs; editing not supported."
+
+updateRunningSubProgram :: ProgramName -> [Rule] -> SM ()
+updateRunningSubProgram name rules = modify $ \ss -> ss {
+    environment = (environment ss) { processors = fmap fix (processors (environment ss)) } }
+  where
+    fix :: Processor -> Processor
+    fix (SubProgram act name' ps) | name' == name =
+      SubProgram act name' (updatePS rules ps)
+    fix proc = proc
 
 newProgramProc :: Provenance -> Node -> ProgramName -> SM [Msg]
 newProgramProc cause node name = do
-  SS{program_map, rule_map} <- get
-  let ruleIds = look name program_map
-      rules = map (\i -> fst $ look i rule_map) ruleIds
-      -- watches = inputRelations rules
+  rules <- getProgramRules name
   let actor = ActorObject node
   proc <- SubProgram actor name <$> lift (initPS name rules emptyGraph)
   --let inputs = M.fromList $ zip watches (repeat [actor])
@@ -364,24 +439,24 @@ solve msgs proc = tr ("solve: " ++ ps_name proc ++ "\n") $ do
 -- TODO RELOCATE THIS
 --
 -- TODO refactor this into Graph?
-step2 :: Rule -> Tuple -> (Graph, [Context]) -> (Graph, [Context])
-step2 rule t (g, out) = (g2, cs ++ out)
-  where
-    matches = map fix $ getMatches t (unsafeRanked 0 rule) g
-    cs :: [Context]
-    cs = map snd matches
-    removed = concatMap fst matches
-    g2 = foldr removeTuple (insertTuple t g) removed
-    fix (p,c,_) = (consumed p, c)
-
-eval :: Action -> Graph -> M2 Out
-eval (ARule (rule, _)) g = do
-  NNode rid <- freshNode
-  let ts = step1 [rule] g
-  (output, _) <- stepRule (MQ { m_pos = ts, m_neg = [] }) (RankedRule rid rule) g
-  return (ORule output)
-eval (AQuery q) g = do
-  let rule = Rule Event q [] -- fake rule
-  let ts = step1 [rule] g
-      (_, cs) = foldr (step2 rule) (g, []) ts
-  return (OQuery cs)
+-- step2 :: Rule -> Tuple -> (Graph, [Context]) -> (Graph, [Context])
+-- step2 rule t (g, out) = (g2, cs ++ out)
+--   where
+--     matches = map fix $ getMatches t (unsafeRanked 0 rule) g
+--     cs :: [Context]
+--     cs = map snd matches
+--     removed = concatMap fst matches
+--     g2 = foldr removeTuple (insertTuple t g) removed
+--     fix (p,c,_) = (consumed p, c)
+-- 
+-- eval :: Action -> Graph -> M2 Out
+-- eval (ARule rule) g = do
+--   NNode rid <- freshNode
+--   let ts = step1 [rule] g
+--   (output, _) <- stepRule (MQ { m_pos = ts, m_neg = [] }) (RankedRule rid rule) g
+--   return (ORule output)
+-- eval (AQuery q) g = do
+--   let rule = Rule Event q [] -- fake rule
+--   let ts = step1 [rule] g
+--       (_, cs) = foldr (step2 rule) (g, []) ts
+--   return (OQuery cs)

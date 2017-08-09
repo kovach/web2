@@ -48,8 +48,8 @@ instance FromJSON Command where
 
 decodeCommand = decode
 
-convert :: Msg -> Maybe (Polarity, Label, [Node], Int, Bool)
-convert (MT p T{..}) = Just (p, label, nodes, tid, fix tval)
+convert :: Msg -> Maybe (Polarity, Label, [Node], Node, Bool)
+convert (MT p T{..}) = Just (p, label, nodes, NNode tid, fix tval)
   where
     fix (Truth t) = t
     fix NoVal = True
@@ -127,8 +127,11 @@ makeDB = do
         --("test1", "examples/test.arrow")
         -- , ("test2", "examples/test2.arrow")
          --("button", "examples/test.arrow")
-         --("button", "ui/components/button.arrow")
-         ("files", "ui/components/files.arrow")
+          ("base", "ui/components/base.arrow")
+         , ("refl", "ui/components/refl.arrow")
+         , ("button", "ui/components/button.arrow")
+         , ("editor", "ui/components/rule-edit.arrow")
+         --("files", "ui/components/files.arrow")
         ]
   strs <- mapM (readFile . snd) files
   let fix s = do
@@ -165,7 +168,7 @@ handler connId msg s0@(State ps ss is) =
           let ns = rawNodes -- NInt connId : rawNodes
               l = LA (lstring rawLabel) (length ns)
           t <- lift $ packTuple (l, ns) (Extern [])
-          worker <- gets worker_id
+          worker <- trace ("HEY: " ++ (ppTuple t)) $ gets worker_id
           let msg = (MActor worker (MT Positive t))
           solve [msg] ps
 
@@ -175,6 +178,7 @@ handler connId msg s0@(State ps ss is) =
       unless noDebug $ do
         putStrLn "new"
         mapM_ (putStrLn . ppMsg) msgs
+      putStrLn "done"
       return (Just (encodeEvents msgs), State ps' ss' is')
     Nothing -> do
       putStrLn "decode failed"

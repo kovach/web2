@@ -106,12 +106,24 @@ import Graph
 
 type M3 = StateT ReflContext M2
 
+freshProv = do
+  NNode n <- freshNode
+  return $ Extern [n]
+
 makeT :: Label -> [Node] -> M3 ()
+-- makeT (L f) p = lift $ do
+--   t <- packTuple (LA f (length p), p) nullProv
+--   scheduleAdd t
+-- makeT f p = lift $ do
+--   t <- packTuple (f, p) nullProv
+--   scheduleAdd t
 makeT (L f) p = lift $ do
-  t <- packTuple (LA f (length p), p) nullProv
+  pr <- freshProv
+  t <- packTuple (LA f (length p), p) pr
   scheduleAdd t
 makeT f p = lift $ do
-  t <- packTuple (f, p) nullProv
+  pr <- freshProv
+  t <- packTuple (f, p) pr
   scheduleAdd t
 
 fresh :: M3 Node
@@ -283,12 +295,13 @@ flattenRule rs rr@(RankedRule i rule) = withR rr $ do
     r <- fresh
     makeT "rule" [r]
     maybe (return ()) (\rs -> makeT "rule" [r, rs]) rs
+    maybe (return ()) (\id -> makeT "rule-id" [id, r]) (rule_id rule)
     makeT "rank" [NInt i, r]
     c <- foldM (flattenQ r) [] qs
     _ <- foldM (flattenA r) c as
-    case rule of
-      Rule Event _ _ -> makeT "imperative" [r]
-      Rule View _ _ -> makeT "logical" [r]
+    case rtype rule of
+      Event -> makeT "imperative" [r]
+      View -> makeT "logical" [r]
     return r
   where
     qs = lhs rule
@@ -335,6 +348,7 @@ flattenProv p@(Extern ids) = withP p $ do
 flattenProv p@(Provenance{}) = withP p $ do
   i <- fresh
   makeT "cause" [i]
+  makeT "event" [i]
   r <- flattenRule Nothing (rule_src p)
   makeT "rule" [r, i]
   case tuple_src p of
@@ -354,6 +368,7 @@ flattenProv p@(Provenance{}) = withP p $ do
 flattenProv p@(Reduction{}) = withP p $ do
   i <- fresh
   makeT "cause" [i]
+  makeT "reduced" [i]
   let ops = case reduction_op p of
         Or -> "or"
   makeT "op" [NString ops, i]

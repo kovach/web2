@@ -22,7 +22,7 @@ var initSock = function() {
 
     console.log("msgs received: ", msgs.length);
 
-    if (msgs.length < 50) {
+    if (msgs.length < 30) {
       _.each(msgs, function(obj) {
         console.log(JSON.stringify(obj));
       });
@@ -90,8 +90,8 @@ var mkTuple = function(label, nodes) {
   });
 }
 
-var clickCommand = function(id, button) {
-  sock.send(mkTuple("click", [ buttonVal(button), id, ]));
+var clickCommand = function(id, tid, button) {
+  sock.send(mkTuple("raw-click", [ buttonVal(button), id, tid, ]));
 }
 
 // TODO remove
@@ -351,15 +351,19 @@ var parseTuple = function(sock) {
         break;
       case "text-editor":
         var id = nodes[0];
+        var ruleid = nodes[1];
+        var str = nodes[2].contents;
         if (sign) {
-          var body = nodes[1].contents; // string
-          var parent = nodes[2];
-          var el = mkEditor(body, id, sock, textEditHandler, getObjAttr(parent, "elem"));
-          setObjAttr(id, "type", "edit");
-          setObjAttr(id, "elem", el);
+          //var body = nodes[1].contents; // string
+          //var parent = nodes[2];
+          //var el = mkEditor(body, id, sock, textEditHandler, getObjAttr(parent, "elem"));
+          //setObjAttr(id, "type", "edit");
+          //setObjAttr(id, "elem", el);
+          var el = makeLineCM(id, ruleid, str, sock);
+          console.log(el);
           el.focus();
           //setSelection(el);
-        } else {
+        } else if (tval) {
           removeObject(id);
         }
         break;
@@ -368,10 +372,10 @@ var parseTuple = function(sock) {
         if (sign && tval) {
           var body = toString(nodes[1]); // string
           var parent = nodes[2];
-          //var el = mkNode(body, id, sock, textNodeHandler, getObjAttr(parent, "elem"));
-          var el = mkNode(body, id, sock, textNodeHandler);
+          var el = mkNode(body, id, tid, sock, textNodeHandler);
           setObjAttr(id, "type", "text-node");
           setObjAttr(id, "elem", el);
+          setObjAttr(id, "tid", tid);
         } else if (tval) {
           removeObject(id);
         }
@@ -448,6 +452,8 @@ var parseTuple = function(sock) {
         console.log(c);
         break;
     }
+    var lg = get("log");
+    lg.scrollTop = lg.scrollHeight;
   }
 }
 
@@ -461,22 +467,28 @@ var makeMainCM = function() {
   });
 }
 
-var makeLineCM = function(sock) {
-  var lineCM = CodeMirror(get("edit"), {
+var makeLineCM = function(id, ruleid, str, sock) {
+  var lineCM = CodeMirror(get("log"), {
     smartIndent: false,
     keyMap: "emacs",
     cursorBlinkRate: 0,
+    lineWrapping: true,
   });
 
   lineCM.setOption("extraKeys", {
     Enter: function() {
       var v = lineCM.getValue();
+      sock.send(mkTuple("raw-update-rule", [ruleid, strNode(v)]));
+      lineCM.setValue("");
+      //lineCM.setOption({readOnly: true });
+      return;
       if (v.length == 0) {
         return;
       }
       if (v[v.length-1] == ".") {
         console.log('SEND');
-        mainCM.setValue(mainCM.getValue()+v.slice(0,v.length-1)+"\n");
+        var value = v.slice(0,v.length-1);
+        sock.send(mkTuple("update-rule", [ruleid, strNode(value)]));
         lineCM.setValue("");
       } else if (v[v.length-1] == "!") {
         console.log('cancel');
@@ -492,6 +504,9 @@ var makeLineCM = function(sock) {
     console.log('change');
   });
 
+  lineCM.setValue(str);
+
+  return lineCM;
 }
 
 window.onload = function() {
@@ -504,7 +519,7 @@ window.onload = function() {
 
   sock = initSock();
 
-  makeLineCM(sock);
+  //makeLineCM(sock);
 
 
   //document.addEventListener('keydown', bodyHandler(sock));

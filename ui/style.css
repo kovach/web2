@@ -9,7 +9,7 @@ body {
 
 .CodeMirror {
   font-family: "Roboto Mono", monospace;
-	font-size: 14pt;
+	font-size: 9pt;
   color: #eee;
   background-color: #333;
   outline: none;
@@ -42,13 +42,23 @@ body {
 }
 
 #rules, #log {
-  width: 25%;
+  width: 35%;
   font-family: "Roboto Mono", monospace;
   font-size: 14pt;
   background-color: transparent;
   outline: none;
   overflow: auto;
-  height: 600px;
+  vertical-align: top;
+  height: 350px;
+}
+
+#rules {
+  /*width: 20%;*/
+  width: 200px;
+}
+
+#log {
+  width: 400px;
 }
 
 ::-webkit-scrollbar {
@@ -70,7 +80,7 @@ body {
   outline: none;
 }
 
-.button {
+.button, .prov, .extern, .inline, .block, .rule_node {
   display: inline-block;
   border: solid;
   border-width: 2px;
@@ -82,6 +92,19 @@ body {
   text-align: center;
   user-select: none;
   -moz-user-select: none;
+}
+
+.prov, .block {
+  font-size: 9pt;
+  display: block;
+}
+
+.extern {
+  color: #d38;
+}
+
+.rule_node {
+  color: #8d3;
 }
 
 .query, .assert, .sep {

@@ -39,7 +39,7 @@ instance Show Label where
 lstring :: Label -> String
 lstring (L s) = s
 lstring (LA s _) = s
-lstring (LRaw s _) = s
+lstring (LRaw s _) = ":"++s
 
 nullLabel = L ""
 
@@ -101,9 +101,6 @@ type CProof = (Provenance, [Tuple])
 tuple_cause p@(Provenance{}) = tuple_src p
 tuple_cause Reduction{} = Nothing
 tuple_cause Extern{} = Nothing
-
-nullProv :: Provenance
-nullProv = Provenance (RankedRule 0 nullRule) Nothing [] []
 
 externProv = Extern []
 
@@ -281,14 +278,13 @@ type RHS = [Assert]
 data RType = Event | View
   deriving (Eq, Show, Ord)
 
-data Rule
-  = Rule  { rtype :: RType, lhs :: LHS, rhs :: RHS }
+data Rule = Rule
+  { rule_id :: Maybe Node
+  , rtype :: RType
+  , lhs :: LHS
+  , rhs :: RHS
+  }
   deriving (Eq, Show, Ord)
-
-nullRule :: Rule
-nullRule = Rule Event [] []
-
-lhsRule (Rule _ r _) = r
 
 type Signature = (Label, Maybe TVal)
 type Pattern = Set Query
@@ -376,6 +372,9 @@ epNodes (EP _ _ ns) = ns
 epNodes (LP _ _ ns) = ns
 epLinear (EP l _ _) = l
 epLinear _ = NonLinear
+
+mpos (MT Positive t) = Just t
+mpos _ = Nothing
 
 wrapp s = "(" ++ s ++ ")"
 ppId i = "#"++show i

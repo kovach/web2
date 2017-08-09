@@ -146,7 +146,6 @@ type ProgramName = String
 data SystemState = SS
   -- map id to parsed Rule
   { rule_map :: Map RuleId (Rule, String)
-
   -- environment holds dynamically created actors
   -- managed by external PS with two actors:
   --   creator <-> worker
@@ -156,10 +155,12 @@ data SystemState = SS
   , program_map :: Map ProgramName [RuleId]
   , refl_context :: ReflContext
   , tuple_ids :: IntMap Tuple
+  , all_tuples :: Set Tuple
   , worker_id :: Actor
   }
 
-emptySS = SS M.empty emptyPS M.empty emptyReflContext IM.empty undefined
+emptySS :: SystemState
+emptySS = SS M.empty emptyPS M.empty emptyReflContext mempty mempty undefined
 
 type SM = StateT SystemState M2
 

@@ -19,26 +19,26 @@ var mkText = function(str, elem) {
 }
 
 // TODO codemirror
-var mkEditor = function(str, id, sock, special_key_handler, other) {
-  var el = document.createElement("textarea");
-  el.setAttribute("id", JSON.stringify(id));
-  el.setAttribute("tabindex", 0);
-  el.className = "editor";
-  el.innerHTML= str;
-  el.addEventListener("keydown", special_key_handler(el, id, sock));
-  addClickHandlers(el, id, sock);
-  if (other)
-    append(el, other);
-  return el;
-}
+//var mkEditor = function(str, id, sock, special_key_handler, other) {
+//  var el = document.createElement("textarea");
+//  el.setAttribute("id", JSON.stringify(id));
+//  el.setAttribute("tabindex", 0);
+//  el.className = "editor";
+//  el.innerHTML= str;
+//  el.addEventListener("keydown", special_key_handler(el, id, sock));
+//  addClickHandlers(el, id, sock);
+//  if (other)
+//    append(el, other);
+//  return el;
+//}
 
-var mkNode = function(str, id, sock, special_key_handler, other) {
+var mkNode = function(str, id, tid, sock, special_key_handler, other) {
   var el = document.createElement("div");
   el.setAttribute("id", JSON.stringify(id));
   el.setAttribute("tabindex", 0);
   el.className = "node";
   el.innerHTML = str;
-  addClickHandlers(el, id, sock);
+  addClickHandlers(el, id, tid, sock);
   if (other)
     append(el, other);
   return el;
@@ -62,7 +62,7 @@ var mkLine = function() {
 var mkToken = function(id, sock) {
   var el = mkCircle();
   el.setAttribute("visibility", "hidden");
-  addClickHandlers(el, id, sock);
+  addClickHandlers(el, id, undefined, sock);
   el.addEventListener("mouseover", function() {
     //TODO
     //overCommand(id);
@@ -89,15 +89,17 @@ var mkBox = function(str, id, other) {
   return el;
 }
 
-var addClickHandlers = function(el, id, sock) {
+var addClickHandlers = function(el, id, tid, sock) {
   el.addEventListener("click", function(ev) {
-    clickCommand(id, ev.button);
+    console.log('lclick');
+    clickCommand(id, tid, ev.button);
     ev.stopPropagation();
   });
   el.addEventListener("contextmenu", function(ev) {
+    console.log('rclick');
     ev.stopPropagation();
     ev.preventDefault();
-    clickCommand(id, ev.button);
+    clickCommand(id, tid, ev.button);
   });
 }
 

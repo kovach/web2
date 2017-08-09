@@ -40,7 +40,7 @@ trueInputs l rules init = filter (not . (`elem` initRels)) $ inputRelations rule
 logicalRelations :: [Rule] -> [Label]
 logicalRelations = nub . concatMap getLRHS
   where
-    getLRHS (Rule View _ rhs) = map assertRel rhs
+    getLRHS Rule {rtype = View, rhs = rhs} = map assertRel rhs
     getLRHS _ = []
 
 eventRelations :: [Rule] -> [Label]
@@ -79,15 +79,15 @@ convertRules rules = result
       error $ "Cannot negate event relation: "++show l ++ ". error on line " ++ show line ++ ":\n" ++ show rule
     convertq _ q = q
 
-    check (line, rule@(Rule Event _ _)) (Assert l _) | l `elem` logRels =
+    check (line, rule@(Rule {rtype = Event})) (Assert l _) | l `elem` logRels =
       error $ "Event rule (=>) may not assert logical tuple. error on line " ++ show line ++ ":\n" ++ show rule
-    check (line, rule@(Rule View _ _)) (Assert l _) | l `elem` impRels =
+    check (line, rule@(Rule {rtype = View})) (Assert l _) | l `elem` impRels =
       error $ "Logical rule (~>) may not assert event tuple. error on line " ++ show line ++ ":\n" ++ show rule
     check _ a = a
 
     fix r@(_, rule) = result
       where
-        result = Rule (rtype rule) lhs'' rhs''
+        result = rule {lhs = lhs'', rhs = rhs''}
         lhs' = map (convertq r) (lhs rule)
         rhs' = map (check r) (rhs rule)
 
