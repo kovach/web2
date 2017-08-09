@@ -80,7 +80,6 @@ data RedOp = Or
   deriving (Eq, Show, Ord)
 
 -- An instance of a match
--- TODO include context bindings?
 data Provenance = Provenance
   -- The rule of this match
   { rule_src :: RankedRule
@@ -90,10 +89,11 @@ data Provenance = Provenance
   -- Tuples matched by this match instance
   , matched :: Dependency
   -- Tuples removed from the world by this match instance
-  , consumed :: Consumed
-  }
-  | Extern [Int] -- TODO ??
+  , consumed :: Consumed }
+  -- The output of a fold operation
   | Reduction { reduction_op :: RedOp, reduced :: [Tuple] }
+  -- An external input
+  | Extern [Int]
   deriving (Eq, Show, Ord)
 
 type CProof = (Provenance, [Tuple])

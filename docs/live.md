@@ -1,5 +1,3 @@
-**document in progress**
-
 # Introduction
 We tend to see program code and program behavior as two ends of a spectrum of
 abstraction. While working, a programmer tries to maintain a unified view, but
@@ -24,22 +22,19 @@ them from there:
 In either case, it is important to have a formal sense of location in order for
 an interpreter to reduce the cognitive burden on the user. If we can specify a
 specific piece of output, say, a single value or a graphical element, and if
-our interpreter maintains adequate provenance information for its output, then
+our interpreter maintains adequate information about how it was computed, then
 we may hope to give a compact explanation for it in terms of intermediate
-values and code.
+values and code. We define *provenance* to be any concrete explanation of the
+history of a program value.
 
 We are developing a prototype programming environment called
-[**anansi**](https://github.com/kovach/web2). It is directed mainly from the
-second viewpoint, and tries to follow this **axiom**:
+[**anansi**](https://github.com/kovach/web2). It aspires to be a computational
+"story-telling" assistant by making provenance a first-class value. 
+As anansi evalutes a program, it generates primitive provenance values that
+closely mirror each step taken. When they are taken together and made
+accessible with the right tools, they form an interactive narrative.
 
-  > provenance should be easy to work with
-
-It aspires to be a sort of computational "story-telling" assistant.
-We want to enable the construction of systems whose users are free
-to "continuously" learn about them, by localizing explanations at their
-effects.
-
-It is composed of these layers:
+The system is composed of  a few layers:
 
   - a time-varying database,
   - datalog style language, composing programs from rules,
@@ -47,17 +42,18 @@ It is composed of these layers:
   - Javascript API for building graphical interfaces,
   - (aspirationally) a robust mathematical semantics.
 
-In the following sections, we discuss each layer, how it is informed by the
-axiom above, and how it contributes to our goal. We conclude by discussing some
-ongoing work.
+In the following sections, we discuss how each layer contributes to our goal of
+making provenance easy to work with. We conclude by discussing some ongoing
+work.
 
-# Tuples
+# Data Model/Overview
 
-To satisfy the axiom, we must first of all pick a concrete representation of
-provenance. We intend to choose a computation mechanism and a syntax for
-causal relationships between the values it manipulates.
+We must first of all pick a concrete representation of provenance. We need a
+computation mechanism and a syntax for causal relationships between the values
+it manipulates.
 
-Dynamic provenance analysis of imperative or functional programs is hard, and seems to have only recently received serious attention
+Dynamic provenance analysis of imperative or functional programs is hard, and
+seems to have only recently received serious attention
 [[Perera et al. 2012](http://dl.acm.org/citation.cfm?doid=2364527.2364579)]
 .
 
@@ -73,10 +69,10 @@ output:
   - a tuple $t \in proj_L A$ depends on those tuples $u \in A$ whose restriction to $L$ agrees with $t$.
   - tuples resulting from selection are exactly those input tuples satisfying some predicate
 
-Also, since provenance implicitly refers to all intermediate state, the global,
+Also, since provenance indirectly refers to all intermediate state, the global,
 flat nature of a database is natural.
 
-In anansi, all program values are *labelled tuples*. For example:
+In anansi, all program values are immutable *labeled tuples*. For example:
 
 ```
 adjacent l1 l2
@@ -125,11 +121,14 @@ means of rules means that each tuple has a simple immediate cause, and that
 these immediate causes link together to form a directed graph. Graphs are
 easily represented as sets of tuples, so with the right machinery, our rule
 based language will serve us in analyzing provenance. We discuss this further
-in the later section on reflection.
+in the section on reflection.
+
+The datatypes used internally for our immediate cause relationship are given in
+the appendix.
 
 # Syntax Features
-We have attempted to avoid novelty in the language design. It extends
-traditional datalog with the following features:
+We have tried to avoid novelty in the language design. It extends traditional
+datalog with the following features:
 
   - unbound variables in rule heads
   - tuple deletion
@@ -186,7 +185,7 @@ The second line is an input handler. The relation `click button element`
 registers clicks on a given DOM element. The database is a multiset, so each
 `click` tuple, even when applied several times to the same element, registers a
 distinct event. The handler creates a button element, which is subject to
-further rules.
+additional rules.
 
 ### Tuple deletion
 
@@ -268,18 +267,18 @@ We are experimenting with certain other reduction operations:
 
 ### Summary
 Programs have a simple structure: an ordered list of rules. Thus it is easy to
-localize changes to a program, and the immediate provenance of an output tuple
+localize changes to a program, and the immediate cause of an output tuple
 need only refer to one rule or reduction operation. Logical rules give a way to
 fold together equivalent proofs for relations that are like properties, and
-ordinary `=>` rules support relations that are more like events.
+`=>` rules support relations that are more like events.
 
-Since a provenance record stores the rule that was matched, we want our rule code to be easily manipulated as data.
-Each rule has a simple syntax: a body and a head, each of which is an
-unordered collection of tuple clauses or constraints. They are amenable to *reflection*:
-representation as tuples.
+Since a provenance record stores the rule that was matched, we want our rule
+code to be easily manipulated as data.  Each rule has a simple syntax: a body
+and a head, each of which is an unordered collection of tuple clauses or
+constraints. They are amenable to *reflection*: representation as tuples.
 
 ### Further notes
-see
+See the
 [language reference](https://kovach.github.io/web2/docs/)
 for more detailed information.
 
@@ -288,8 +287,8 @@ for more detailed information.
 The reflection layer of the system allows us to run anansi programs that
 operate on other anansi programs or their provenance graphs. Our interpreter
 can *reflect* a database of tuples, provenance terms, and rules into a
-secondary database with a fixed schema.  This allows us to write "higher order"
-programs that operate over the computation histories of others.
+secondary database with a fixed schema.  This allows us to write higher order
+programs that operate over computation histories of others.
 
 ### Demo
 
@@ -308,7 +307,7 @@ The appendix shows a few other miscellaneous examples:
 
 The GUI system is crude. It has two pieces:
  
-  - a Javascript client, with an API of about 20 "IO relations"
+  - a Javascript client, with an API of about 20 IO relations
   - a language interpreter server
 
 Note that all screenshots and videos shown here are taken from running anansi
@@ -341,11 +340,11 @@ handled by the client.
 We see the current system as a sort of "assembly language" for provenance
 experiments. We are not far off from a self-hosted REPL and programming
 environment. This will make programming more comfortable, but we also envision
-some higher level ways of building up.
+some higher level ways of building programs.
 
 ### UI synthesis
 
-We are experimenting with "GUI inference": generation of a minimal external
+We are experimenting with *GUI inference*: generation of a minimal external
 interface that allows interaction with a ruleset. This problem has several
 steps:
 
@@ -363,7 +362,7 @@ for the additional rules we use to display a game and play. In order to generate
   - Some rules are meant only for initialization; the relations they set up are
     static. What is the natural way to specify that a relation is dynamic?
   - Given a family of valid inputs (in the Go case, a list of `place-stone/3`
-    tuples for the current player, that target empty locations), how do we
+    tuples for the current player that target empty locations), how do we
     display them? An explicit listing is unnatural. Is the geometry of the Go
     board latent in the rules?
   - We must show enough of the inner game state that a player can judge the
@@ -377,21 +376,23 @@ into a rule set, and its structure would be just as complex as the original.
 How do we scale up causality analysis to larger programs?
 
 We want to find a way of contextualizing provenance. There should be no unique
-answer to "why" something happened: any particular answer can take into account
+answer to why something happened: any particular answer can take into account
 the viewpoint of who is asking. When a program is chopped into small rules, we
 have a multitude of "viewpoints", each defined by some subset of the program's
 relations.
 
 For instance, the "naive user" viewpoint considers only primary input/output
 relations visible.  They see only the explicit visual actions built into the
-application, and expect explanations in the grammar of the application. A
+application, and they expect explanations in the grammar of the application. A
 "programmer" who has a code buffer open might also consider the messages sent
 by that fragment of code visible. They see more, and thus an explanation can be
 more refined.
 
-A dynamic system should build its own model of what the user sees and
+A dynamic system should build its own model of what the user knows and
 specialize itself. The goal is not to obscure details from the user, but rather
-gradually reveal detail efficiently to help them learn.
+gradually reveal detail efficiently. We want to enable the construction of
+systems whose users are free to continuously learn about them by localizing
+explanations at their effects.
 
 ### Optimization
 
@@ -415,7 +416,49 @@ checker and a variety of static checks as part of the web editor.
 
 # Appendix
 
+### Provenance schema
+
+in haskell:
+
+```haskell
+-- An instance of a match
+data Provenance = Provenance
+  -- The rule of this match
+  { rule_src :: RankedRule
+  -- The tuple that triggered this match instance
+  -- Nothing for rules with empty LHS, or external inputs
+  , tuple_src :: Maybe Tuple
+  -- Tuples matched by this match instance
+  , matched :: Dependency
+  -- Tuples removed from the world by this match instance
+  , consumed :: Consumed }
+  -- The output of a fold operation
+  | Reduction { reduction_op :: RedOp, reduced :: [Tuple] }
+  -- An external input
+  | Extern [Int]
+  deriving (Eq, Show, Ord)
+```
+
+in tuples:
+
+```
+cause p
+  rule r p
+  trigger t p
+  matched t p
+  consumed t p
+
+extern p
+  id num p
+
+reduction p
+  matched t p
+```
+
+
+
 ### Go
+<video src="go1.mp4" width=70% controls="">test</video>
 ### Rule Rendering
 This rule set defines a dom representation for any set of rules; shown is its self-portrait
 (CSS not included):

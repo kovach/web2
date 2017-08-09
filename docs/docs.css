@@ -35,3 +35,8 @@ blockquote {
   background: #f0f0f0;
   text-align: center;
 }
+
+img, video {
+  margin: auto;
+  display: block;
+}
