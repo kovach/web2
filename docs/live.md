@@ -29,10 +29,10 @@ history of a program value.
 
 We are developing a prototype programming environment called
 [**anansi**](https://github.com/kovach/web2). It aspires to be a computational
-"story-telling" assistant by making provenance a first-class value. 
-As anansi evalutes a program, it generates primitive provenance values that
-closely mirror each step taken. When they are taken together and made
-accessible with the right tools, they form an interactive narrative.
+"story-telling" assistant by making provenance a first-class value.  As anansi
+evalutes a program, it generates primitive provenance values that closely
+mirror each step taken. When they are taken together and made accessible with
+the right tools, they form an interactive narrative.
 
 The system is composed of  a few layers:
 
@@ -292,16 +292,16 @@ programs that operate over computation histories of others.
 
 ### Demo
 
+This demo makes use of a small
+[program](https://github.com/kovach/web2/blob/deadline/ui/components/refl.arrow)
+for exploring provenance of graphical elements. First, I show how to summon the
+rule that created a visual element and explore related objects. Second, I
+change a value indirectly associated with it by querying the application
+database.
+
+(listen for more detailed explanation)
+
 <video src="edit2.mp4" width=100% controls=""></video>
-
-In the video above, you can hear me explain a simple live edit.  The code is
-available
-[here](https://github.com/kovach/web2/blob/deadline/ui/components/refl.arrow).
-
-The appendix shows a few other miscellaneous examples:
-
-  - go example
-  - program self-portrait
 
 # GUI Implementation
 
@@ -335,6 +335,13 @@ The server interprets a program. It consumes input events, one at a time, and
 iterates any applicable rules until fixpoint. It outputs DOM tuples, to be
 handled by the client. 
 
+### Examples
+
+The appendix shows a few other miscellaneous graphical examples:
+
+  - Go
+  - program self-portrait
+
 # Future work
 
 We see the current system as a sort of "assembly language" for provenance
@@ -344,8 +351,8 @@ some higher level ways of building programs.
 
 ### UI synthesis
 
-We are experimenting with *GUI inference*: generation of a minimal external
-interface that allows interaction with a ruleset. This problem has several
+We are experimenting with *UI inference*: generation of a minimal external
+interface that allows interaction with a rule set. This problem has several
 steps:
 
   - specify a program
@@ -357,7 +364,8 @@ Our
 [go](https://github.com/kovach/web2/blob/master/examples/go.arrow)
 example exposes some of the difficulties. See
 [ui/go](https://github.com/kovach/web2/blob/master/ui/go.arrow)
-for the additional rules we use to display a game and play. In order to generate a similar ruleset automatically, some questions need to be answered:
+for the additional rules we use to display a game and play. In order to
+generate a similar rule set automatically, some questions need to be answered:
 
   - Some rules are meant only for initialization; the relations they set up are
     static. What is the natural way to specify that a relation is dynamic?
@@ -391,8 +399,7 @@ more refined.
 A dynamic system should build its own model of what the user knows and
 specialize itself. The goal is not to obscure details from the user, but rather
 gradually reveal detail efficiently. We want to enable the construction of
-systems whose users are free to continuously learn about them by localizing
-explanations at their effects.
+systems whose users are free to learn continuously.
 
 ### Optimization
 
@@ -455,12 +462,10 @@ reduction p
   matched t p
 ```
 
-
-
 ### Go
 <video src="go1.mp4" width=70% controls="">test</video>
 ### Rule Rendering
 This rule set defines a dom representation for any set of rules; shown is its self-portrait
 (CSS not included):
 
-![there is a bug in the rules... can you find it?](rules2.jpg){width=80% height=80%}
+![there is a bug in the rules... can you find it?](rules3.jpg){width=80%}
