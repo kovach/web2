@@ -1,21 +1,35 @@
-an interpreter for a rule based language
+# Intro
 
-see documentation [here](docs/index.md)
+an interaction language
+
+see documentation [here](docs/index.md).
+
+# Building
+
+building the server requires [stack](https://docs.haskellstack.org/en/stable/README/)
+
+building the client requires [npm](https://www.npmjs.com/get-npm)
+
+## Server
 
 ```
 stack build --profile
+stack exec arrow-server
 ```
 
-to test:
+for tests:
 
 ```
 stack test
 ```
 
-to run the server (from root project directory):
+## Client
 
 ```
-stack exec arrow-server
+cd ui/
+npm install
 ```
 
-you'll need underscore.js under ui/ to use the client
+this installs `underscore.js` and `CodeMirror`
+
+open `index.html`.

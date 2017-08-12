@@ -3,15 +3,14 @@ dist/
 tags
 main.*
 arrow-profile.*
-examples/test.arrow
-examples/test.graph
 notes
 game-notes
 old/
 *.o
 *.a
 *.so
-anansi-c/main
 *.prof
 *.mp4
 *.jpg
+ui/node_modules
+ui/package-lock.json

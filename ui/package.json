@@ -1,0 +1,14 @@
+{
+  "name": "pace-editor",
+  "version": "0.2.0",
+  "description": "an interaction interpreter",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kovach/web2.git"
+  },
+  "dependencies": {
+    "codemirror": "^5.28.0",
+    "underscore": "^1.8.3"
+  }
+}
