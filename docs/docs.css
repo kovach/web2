@@ -10,7 +10,6 @@ body {
   font-size: 12pt;
 	max-width: 42em;
 	margin: auto;
-	text-align: justify;
 }
 
 code {
@@ -32,8 +31,8 @@ pre {
 }
 
 blockquote {
-  background: #f0f0f0;
-  text-align: center;
+  /*background: #f0f0f0;
+  text-align: center;*/
 }
 
 img, video {

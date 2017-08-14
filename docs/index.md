@@ -24,10 +24,17 @@ the forbidden characters:
 #",.;@()[]{}!
 ```
 
-An *identifier* is any name, **except** the forbidden names `~>` and `=>`.
+An *identifier* is any name, except the forbidden names `~>` and `=>`. For example:
 
-A *symbol literal* is a single `'` character followed by a name.  For instance,
-`'apple` or `'ripe_banana22`.
+```
+step α hi-there x+1 間 rel/n →
+```
+
+A *symbol literal* is a single `'` character followed by a name. For example:
+
+```
+'apple 'ripe_banana22
+```
 
 An *integer literal* is a sequence of digits, possibly preceded by a hyphen
 to indicate a negative number.
@@ -112,18 +119,55 @@ examples:
 
   - `adj-to i i` matches all loops.
 
-  - `adj-to x y, adj-to y z` matches all paths of two edges.
+  - `adj-to x y, adj-to y _` matches all paths of two edges, where we don't care about the endpoint.
 
 **NOTE:** given `n ≠ m`, `r/n` and `r/m` are considered distinct relations.
 
-#### Negation
+### Special Patterns
+
+#### Negation: !
 
 ```
-!r x1 ... xn,
+!r x1 ... xn
 ```
 
-when `r` is a logical relation, matches exactly when there are no proofs of the
+When `r` is a logical relation, `!r` matches exactly when there are no proofs of the
 fact present. It requires that the variables be bound elsewhere by the query.
+
+#### Restriction: .
+
+```
+.event x, p x, r x y, ...
+```
+
+A tuple pattern preceded by `.` prevents new tuples for other relations in the
+query from causing a match. In the above example, the rule will only match when
+a new `event` tuple is observed.
+
+More semantically: given a match for the dotted clauses of a query, in order to
+extend it to a full match, only older tuples can be used.
+
+
+#### Consumption: ..
+
+```
+..event x, p x, r x y, ...
+```
+
+Marking a tuple pattern with `..` makes it a *linear pattern*. A successful
+match of a query will *consume* any tuples bound by linear patterns. They are
+removed from the database and cannot match any pattern in the future. Linear
+patterns are only allowed in imperative rules.
+
+example [(Go):](https://github.com/kovach/web2/blob/86b7f2ff04287f57d513eb2a769067526a18f1f8/examples/go.arrow#L24)
+
+```
+dying s, ..stone s l _ => empty l 'black, empty l 'white
+```
+
+This query matches any stone `s` that has been marked as `dying`.  Once the
+query matches and the rule is selected for application, it consumes the
+`stone` tuple that was matched.
 
 ### Constraints
 
@@ -155,23 +199,9 @@ program's logical rules. A fact is *true* if its tuple is currently present in
 a database; otherwise it is *false*.
 
 ### Events
-*Imperative rules* are marked with the `=>` arrow. They are free to *consume*
-events matched by their query and *construct* new events.
+*Imperative rules* are marked with the `=>` arrow. 
 
-To consume an event, an imperative rule marks some pattern in its query with
-the `..` marker. The pattern clause is said to be *linear*.
-
-  > example [(Go):](https://github.com/kovach/web2/blob/86b7f2ff04287f57d513eb2a769067526a18f1f8/examples/go.arrow#L24)
-  > ```
-  > dying s, ..stone s l _ => empty l 'black, empty l 'white
-  > ```
-  > This query matches any stone `s` that has been marked as `dying`.  Once the
-  > query matches and the rule is selected for application, it consumes the
-  > `stone` tuple that was matched.
-
-A tuple that has been consumed cannot match any pattern in the future.
-
-The right side of an imperative rule constructs new tuples. In the example
+The right side of an imperative rule *constructs* new tuples. In the Go example
 above, two tuples in the `empty/2` relation are created. The variable `l` is
 bound by the query, and the symbols `'black` and `'white` are symbol literals.
 
@@ -215,23 +245,20 @@ or shrink.
 All relations appearing on the right hand side of a logical rule are defined to
 be logical relations. They cannot be modified by imperative rules.
 
-## Rule Summary
+## Rule Type Summary
 
-An application of an imperative rule may
+A match for an imperative rule may consume events and create new events. Each
+new event has a unique identity. They persist unless they are consumed.
 
-- create new events;
-- consume events, using linear patterns; and
-- create new node values within events.
-
-In contrast, logical rules do not *mutate* the database:
-
-- A given fact is true only if some logical rule requires it.
-- Linear patterns may not appear in the query.
+A match for a logical rule represents a conditional proof of some fact. If its
+conditions become false, it is retracted. Multiple proofs of a single fact are
+combined; patterns can only observe a fact's truth value. If all proofs of a
+fact are retracted, the consequent fact is also retracted.
 
 Logical rules are useful for computing dynamic properties of objects.
 
 Imperative rules are useful for interacting with external input, describing
-mutations, and breaking nondeterminism.
+state machines, and emulating function evaluation.
 
 # Rule Evaluation Order
 Rules are not generally required to be
