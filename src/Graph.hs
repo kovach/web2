@@ -116,6 +116,7 @@ solveSteps g c es = foldM (solveStep g) c es
 getMatches :: Tuple -> RankedRule -> Graph -> [Match]
 -- A rule with empty lhs (that somehow received a message) has a unique match:
 getMatches _ r@(RankedRule _ (Rule { lhs = [], rhs = rhs })) _ = [(Provenance r Nothing [] [], [], [])]
+-- Normal case
 getMatches ev rule g = takeValid [] . map toMatch . go $ triggers
   where
     triggers = indLookup (label ev, tpolarity ev) (indexRule $ ranked_rule rule)
@@ -159,27 +160,9 @@ getMatches ev rule g = takeValid [] . map toMatch . go $ triggers
       then m : takeValid (consumed pr ++ removed) ms
       else takeValid removed ms
 
-    -- checks to see if the tuples a match depends on have been consumed by an earlier match
+    -- Checks to see if the tuples a match depends on have been consumed by an earlier match
     matchValid :: Dependency -> Consumed -> Bool
     matchValid deps ts = not $ any (`elem` ts) deps
-
-    -- Disabling this for now: I don't like how its behavior is so closely tied
-    -- to the order that step3 processes events. It would be more reasonable at
-    -- the level of step4.
-    --
-    -- Instead, the "first" match will always win out, consuming the tuple.
-    -- Order of matches within a call to `solve` still generally unspecified.
-    --
-    -- Prevents any members of a match group (a set of matches from a
-    -- particular Trigger) that consume the same tuple from firing.
-    -- TODO: should this cause a runtime error?
-    --removeConflicts :: [Match] -> [Match]
-    --removeConflicts matches = filter matchOK matches
-    --  where
-    --    removed = concatMap (consumed . fst) matches
-    --    doubles = findDoubles removed
-    --    matchOK = not . any (`elem` doubles) . consumed . fst
-    --    findDoubles = map head . filter ((> 1) . length) . group . sort
 
 applyLookups c es = second reverse <$> foldM step (c, []) es
   where

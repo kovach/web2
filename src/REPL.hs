@@ -42,6 +42,7 @@ newRule (_, rule, str) = do
   modify $ \s -> s { rule_map = M.insert i (rule, str) (rule_map s) }
   return i
 
+-- TODO reorg rule parsing
 newProgram :: String -> String -> SM ()
 newProgram name str =
   case parseRuleFile str of

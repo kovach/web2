@@ -321,13 +321,7 @@ var removeObject = function(id) {
   elem.parentNode.removeChild(elem);
 }
 
-//setSelection = function(el) {
-//  el.focus();
-//  var node = el.firstChild;
-//  var range = document.createRange();
-//  range.setStart(node, 0)
-//}
-
+// TODO abstract the repeated structure of this switch
 var parseTuple = function(sock) {
   return function(t) {
 

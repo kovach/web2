@@ -1,4 +1,3 @@
--- TODO print gas used
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -12,12 +11,9 @@ import Control.Monad.State
 import qualified Data.ByteString.Lazy as T (ByteString)
 import Data.Aeson
 import GHC.Generics
-import Control.Monad (foldM)
 
 import Types
 import Monad
-import Reflection
-import REPL
 import Iterate
 
 import BroadcastServer

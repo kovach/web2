@@ -3,20 +3,16 @@
 module Iterate where
 
 import Data.Maybe (mapMaybe, fromJust)
-import Data.List (delete, foldl')
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Map (Map)
 import qualified Data.Map as M
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IM
-import Control.Monad
 import Control.Monad.State
 
 import Types
-import Rules
 import Monad
-import Graph (getMatches, applyMatch)
 import Reflection
 import REPL
 import Update
@@ -56,6 +52,8 @@ stepWorker mq@MQ{m_pos, m_neg} = tr ("stepWorker" ++ unlines (map ppMsg (toMsgs 
     modify $ \ss -> ss { tuple_ids = tupleIds2, all_tuples = allTuples1 }
     return (msgs, WorkerProc)
 
+-- stepCreator handles various "Interpreter API" messages, including
+-- reflection, rule parsing, rule set changes
 stepCreator :: MsgQueue -> Actor -> SM ([ControlMsg], MetaProcessor)
 stepCreator mq@MQ{m_pos, m_neg} worker = tr "stepCreator" $ do
     output <- concat <$> mapM handleCommand commands

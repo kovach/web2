@@ -1,3 +1,4 @@
+-- Basic functions for running programs stored as text files
 {-# LANGUAGE OverloadedStrings #-}
 module Convert
   ( readRules, readDBFile, runProgram
@@ -29,7 +30,6 @@ readRules f = do
   rs <- readFile f
   case parseRuleFile rs of
     Right rs -> return $ convertRules $ map (\(l,a,_) -> (l,a)) rs
-
     Left err -> error $ err
 
 -- 1. treats the input RHS as a set of tuples to add
@@ -65,14 +65,19 @@ programWithDB edgeBlocks rules = prog2
 runProgramWithDB :: [RHS] -> [Rule] -> (([Tuple], [Msg], PS), InterpreterState)
 runProgramWithDB e r = runStack1 $ programWithDB e r
 
+-- edgeFile: a file containing tuples, one per line.
+--    empty lines separate blocks. each block is added simultaneously;
+--    a fixed point is computed after each block
+-- ruleFile: a file containing an ordered list of rules, one per line.
+--    rules may not be split across lines.
 loadProgram :: FilePath -> FilePath -> IO ([RHS], [Rule])
 loadProgram edgeFile ruleFile = do
     edgeBlocks <- readDBFile edgeFile
     rules <- readRules ruleFile
     return (edgeBlocks, rules)
 
--- Program execution
--- Main function
+-- Main program execution function
+--    returns result, but not the full execution context
 runProgram :: FilePath -> FilePath -> IO ([Tuple], [Msg], [Rule], InterpreterState)
 runProgram edgeName ruleName = do
     (edgeBlocks, rules) <- loadProgram edgeName ruleName

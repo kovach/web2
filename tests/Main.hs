@@ -1,6 +1,5 @@
 -- TODO use a unit test framework
 --      check for multiple deletion
---      check size of FactState
 --      validate actual output
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
