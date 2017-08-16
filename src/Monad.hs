@@ -47,13 +47,11 @@ toMsgs mq = map (MT Positive) (m_pos mq)
          ++ map (MT Negative) (m_neg mq)
 
 -- TODO give Provenance a unique id
+-- tuple-id t -> (provenance p dependent on t -> tuples dependent on p)
 type WatchedSet = IntMap (Map Provenance [Tuple])
 
 type ReducedCache = Map [Node] [Tuple]
 type ReducedValue  = Map [Node] Tuple
-
-emptyProcessor r = ObsProc r (toGraph [])
-emptyReducer l = Reducer Or l M.empty M.empty
 
 -- These actors process individual rule updates
 data Processor
@@ -67,15 +65,17 @@ data Processor
   -- currently only logical ("or") reduction is supported
   | Reducer RedOp Label ReducedCache ReducedValue
 
--- These actors handle interaction between sub-programs
+emptyProcessor r = ObsProc r (toGraph [])
+emptyReducer l = Reducer Or l mempty mempty
+
+-- These actors handle interaction between subprograms
 data MetaProcessor
   = CreatorProc Actor
   | WorkerProc
   | SubProgram Actor ProgramName PS
-  | JSProc
+  | REPL Rule Graph
   | BaseProc Processor
 
--- add output
 data PS = PS
   { dependencies :: Map Label [Actor]
   , queues :: Map Actor MsgQueue

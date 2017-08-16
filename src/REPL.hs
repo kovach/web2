@@ -16,13 +16,6 @@ import Graph
 import Monad
 import Reflection
 
-step1 :: [Rule] -> Graph -> [Tuple]
-step1 rules g = ts
-  where
-    rels = nub . concatMap lhsRels $ rules
-    ts = S.toList $ mconcat $ M.elems $ subg
-    subg = M.filterWithKey (\k _ -> k `elem` rels) $ relations g
-
 data Action = AQuery LHS | ARule Rule
   deriving (Show)
 
@@ -103,8 +96,6 @@ commandRelations =
   , LA "add-rule" 2
   ]
 
--- TODO jsRelations
-
 parseMetaCommand :: Tuple -> Maybe MetaCommand
 parseMetaCommand T {label = LA "make-app" 2, nodes = [n1@(NNode _), n2@(NString name)] } =
   Just $ MakeApp n1 name
@@ -144,6 +135,13 @@ setEnv e = modify $ \ss -> ss { environment = e }
 --     removed = concatMap fst matches
 --     g2 = foldr removeTuple (insertTuple t g) removed
 --     fix (p,c,_) = (consumed p, c)
+--
+-- step1 :: [Rule] -> Graph -> [Tuple]
+-- step1 rules g = ts
+--   where
+--     rels = nub . concatMap lhsRels $ rules
+--     ts = S.toList $ mconcat $ M.elems $ subg
+--     subg = M.filterWithKey (\k _ -> k `elem` rels) $ relations g
 --
 -- eval :: Action -> Graph -> M2 Out
 -- eval (ARule rule) g = do

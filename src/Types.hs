@@ -13,6 +13,9 @@ import Data.Map (Map)
 import qualified Data.Map as M
 import Data.IntMap (IntMap)
 import qualified Data.IntMap as IM
+import Data.HashMap.Strict (HashMap)
+import qualified Data.HashMap.Strict as HM
+import Data.Hashable
 
 data Label = L String | LA String Int | LRaw String Int
   deriving (Eq, Ord)
@@ -162,11 +165,24 @@ type Count = Int
 
 -- Tuple Index ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~--
 data Graph = G
-  { relations :: Map Label (Set Tuple)
-  , index :: Map TPattern (Set Tuple)
+  { relations :: HashMap Label (Set Tuple)
+  , index :: HashMap TPattern (Set Tuple)
   }
 
-emptyGraph = (G M.empty M.empty)
+emptyGraph = (G HM.empty HM.empty)
+
+-- TODO more performance testing
+-- currently no speed up over Map
+instance Hashable Label where
+  hashWithSalt s (L str) = s `hashWithSalt` (0::Int) `hashWithSalt` str
+  hashWithSalt s (LA str arity) = s `hashWithSalt` (1::Int) `hashWithSalt` str `hashWithSalt` arity
+  hashWithSalt s (LRaw str arity) = s `hashWithSalt` (2::Int) `hashWithSalt` str `hashWithSalt` arity
+
+instance Hashable Node where
+  hashWithSalt s (NInt v) = s `hashWithSalt` (0::Int) `hashWithSalt` v
+  hashWithSalt s (NNode v) = s `hashWithSalt` (1::Int) `hashWithSalt` v
+  hashWithSalt s (NSymbol str) = s `hashWithSalt` (2::Int) `hashWithSalt` str
+  hashWithSalt s (NString str) = s `hashWithSalt` (3::Int) `hashWithSalt` str
 
 projections :: Tuple -> [(TPattern, Tuple)]
 projections t | [] <- nodes t = []
@@ -178,14 +194,14 @@ projections t = [(TP1 (label t) 0 (nodes t !! 0), t)]
 
 insertTuple :: Tuple -> Graph -> Graph
 insertTuple t (G m i) = G
-  { relations = M.insertWith (S.union) (label t) (S.singleton t) m
-  , index = foldr (\(p, t) -> M.insertWith (S.union) p (S.singleton t)) i (projections t)
+  { relations = HM.insertWith (S.union) (label t) (S.singleton t) m
+  , index = foldr (\(p, t) -> HM.insertWith (S.union) p (S.singleton t)) i (projections t)
   }
 
 removeTuple :: Tuple -> Graph -> Graph
 removeTuple t (G m i) = G
-  { relations = M.adjust (S.delete t) (label t) m
-  , index = foldr (\(p, t) -> M.adjust (S.delete t) p) i (projections t)
+  { relations = HM.adjust (S.delete t) (label t) m
+  , index = foldr (\(p, t) -> HM.adjust (S.delete t) p) i (projections t)
   }
 
 toGraph :: [Tuple] -> Graph
@@ -194,22 +210,25 @@ toGraph = foldr step emptyGraph
     step t = insertTuple t
 
 fromGraph :: Graph -> [Tuple]
-fromGraph = concat . map (S.toAscList . snd) . M.toList . relations
+fromGraph = concat . map (S.toAscList . snd) . HM.toList . relations
 
 constrainRelation :: Label -> Graph -> [Tuple]
 constrainRelation l (G g _) =
-  case M.lookup l g of
+  case HM.lookup l g of
     Nothing -> []
     Just x -> S.toAscList x
 
 data TPattern = TP1 Label Int Node
   deriving (Eq, Show, Ord)
 
+instance Hashable TPattern where
+  hashWithSalt s (TP1 l i n) = hashWithSalt s (l,i,n)
+
 m2l Nothing = []
 m2l (Just x) = x
 
 constrainRelation1 :: TPattern -> Graph -> [Tuple]
-constrainRelation1 t@(TP1 l _ _) (G g i) = m2l (S.toAscList <$> M.lookup t i)
+constrainRelation1 t@(TP1 l _ _) (G g i) = m2l (S.toAscList <$> HM.lookup t i)
 -- ~~~~~~~~~~~ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~--
 
 type Name = String
@@ -285,6 +304,8 @@ data Rule = Rule
   , rhs :: RHS
   }
   deriving (Eq, Show, Ord)
+
+emptyRule = Rule Nothing Event [] []
 
 type Signature = (Label, Maybe TVal)
 type Pattern = Set Query
