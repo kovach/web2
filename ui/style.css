@@ -5,6 +5,7 @@ body {
   color: #eee;
   background-color: #222;
   outline: none;
+  overflow-x: scroll;
 }
 
 .CodeMirror {
@@ -34,22 +35,30 @@ body {
   display: inline-block;
 }
 
-#rules, #program, #log {
+#app, #rules, #log {
   display: inline-block;
   padding: 3px;
   margin: 0 auto;
   outline: none;
 }
 
-#rules, #log {
-  width: 40%;
+#app, #rules, #log {
+  width: 40vw;
   font-family: "Roboto Mono", monospace;
   font-size: 14pt;
   background-color: transparent;
   outline: none;
   overflow: auto;
   vertical-align: top;
-  height: 700px;
+  height: 650px;
+}
+
+#app {
+  width: 20vw;
+}
+
+#rules {
+  width: 40vw;
 }
 
 #rules {

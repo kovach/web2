@@ -246,10 +246,13 @@ flattenRule rs rr@(RankedRule i rule) = withR rr $ do
     case rule_id rule of
       Just id -> makeT "rule-id" [id, r]
       Nothing -> makeT "extern" [r]
+    case rule_str rule of
+      Just str -> makeT "rule-str" [NString str, r]
+      Nothing -> return ()
     makeT "rank" [NInt i, r]
     c <- foldM (flattenQ r) [] qs
     _ <- foldM (flattenA r) c as
-    case rtype rule of
+    case rule_type rule of
       Event -> makeT "imperative" [r]
       View -> makeT "logical" [r]
     return r
@@ -291,7 +294,7 @@ flattenFact f@(l,ns) = withF f $ do
 flattenProv p@(Extern ids) = withP p $ do
   i <- fresh
   makeT "extern" [i]
-  let fix (n,num) = makeT "id" [NInt num, i, NInt n]
+  let fix (n,num) = makeT "id" [NNode num, i, NInt n]
   mapM_ fix $ zip [1..] ids
   return i
 flattenProv p@(Provenance{}) = withP p $ do
@@ -319,7 +322,7 @@ flattenProv p@(Reduction{}) = withP p $ do
   makeT "cause" [i]
   makeT "reduced" [i]
   let ops = case reduction_op p of
-        Or -> "or"
+        ReduceOr -> "or"
   makeT "op" [NString ops, i]
   let doT t = do
         ti <- flattenTuple t

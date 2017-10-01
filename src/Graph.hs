@@ -49,11 +49,11 @@ edgeMatch _ c vs nodes =
     matchStep c (node, NHole) = Just c
 
 -- Label passed only for arity error reporting
-solvePattern :: Label -> [Event] -> Bindings -> Linear -> [NodeVar] -> [Bindings]
+solvePattern :: Label -> [Tuple] -> Bindings -> Linear -> [NodeVar] -> [Bindings]
 solvePattern l es (ctxt, bound, deps, forced) linear nvs =
     let pairs =
           mapMaybe (\t -> fmap (t,) $ edgeMatch l ctxt nvs (nodes t))
-          . filter (not . (`elem` (map toEvent bound)))
+          . filter (not . (`elem` bound))
           $ es
     in do
       (e, newC) <- pairs
@@ -63,9 +63,9 @@ solvePattern l es (ctxt, bound, deps, forced) linear nvs =
 solveStep :: Graph -> Bindings -> Query -> [Bindings]
 solveStep g b@(c, _, _, _) (Query _ (EP linear e vs@(NVar v : _)))
   | Just l <- lookup v c =
-    solvePattern e (map toEvent $ constrainRelation1 (TP1 e 0 l) g) b linear vs
+    solvePattern e (constrainRelation1 (TP1 e 0 l) g) b linear vs
 solveStep g b@(c, _, _, _) (Query _ (EP linear e vs)) =
-    solvePattern e (map toEvent $ constrainRelation e g) b linear vs
+    solvePattern e (constrainRelation e g) b linear vs
 
 solveStep g b@(c, _, _, _) q@(Query _ (LP Positive e ns@(NVar v : _)))
   | Just l <- lookup v c =
@@ -91,7 +91,8 @@ solveStep g b@(c, bound, deps, forced) q@(Query _ (LP polarity e ns)) =
             [isTrue] | tval isTrue == Truth True -> []
             [isFalse] -> return (c, bound, isFalse : deps, forced)
             _ -> return (c, bound, deps, (fact, Truth False) : forced)
-            ts -> error $ "solveStep. INTERNAL ERROR. duplicate proofs of reduced tuple:\n" ++ unlines (map ppTuple ts)
+            -- TODO remove?
+            -- ts -> error $ "solveStep. INTERNAL ERROR. duplicate proofs of reduced tuple:\n" ++ unlines (map ppTuple ts)
   where
     es = constrainRelation e g
     trueEs = filter isPositive es
@@ -181,8 +182,8 @@ applyMatch (prov, ctxt, forced) =
       -- but the negative tuples might enable a match.
       -- We create and emit them alone.
       _ -> do
-        (ms2, c2) <- foldM force ([], ctxt) forced
-        return (reverse ms2, c2)
+        ms <- mapM force forced
+        return (reverse ms, ctxt)
   where
     removed = map (MT Negative) $ consumed prov
 
@@ -198,8 +199,8 @@ applyMatch (prov, ctxt, forced) =
     validForced = const True
 
     -- TODO could generate fresh ids here if we didn't force it to be fully bound at the query stage
-    force (ms, c) (fact, val) = do
+    force (fact, val) = do
       t <- packTuple fact prov
       -- TODO dumb negation (-) trick: interacts with use of Set.toAscList later.
       -- We want to process forced negatives before other tuples; not sure if strictly necessary.
-      return (MT Positive t { tid = - (tid t), tval = val } : ms, c)
+      return $ MT Positive t { tid = - (tid t), tval = val }

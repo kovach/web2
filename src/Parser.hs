@@ -1,5 +1,5 @@
 module Parser
-  (rquery_, isComment
+  (assert_, isComment
   , LineRule, parseRuleFile
   , parseTupleFile
   , Error, runParser, lhs_, lexLine, line_
@@ -18,7 +18,7 @@ type L = Lex String
 
 type LParser = ParseEither [L] Error
 
-type LineRule = (Int, Rule, String)
+type LineRule = (Int, Rule)
 
 ppLex :: [L] -> String
 ppLex = unwords . map fix
@@ -31,7 +31,7 @@ isComment (Comment _) = True
 isComment _ = False
 
 forbidden_characters :: String
-forbidden_characters = " \t\n,.;@()[]{}!"
+forbidden_characters = " \t\n,.;:@()[]{}!"
 -- ... and \" implicitly
 
 forbidden_identifier = ["~>", "=>", ",", "!"]
@@ -170,29 +170,33 @@ expr_ =
   <|> (wrap_ $ EConcat <$> expr_ <*> (string "++" *> expr_))
 
 -- allow trailing whitespace?
-rquery_ = Assert <$> rel_ <*> many expr_
-rclause_ = rquery_
+assert_ = Assert <$> rel_ <*> many expr_
+vassert_ = do
+  val <- (TValExpr <$> expr_) <|> (pure TValNull)
+  string ":"
+  VAssert val <$> rel_ <*> many expr_
+rclause_ = assert_ <|> vassert_
 rhs_ = sepBy comma_ rclause_
 
 arrow_ = string "=>"
 larrow_ = string "~>"
 
-rule_ = (Rule Nothing Event <$> lhs_ <*> (arrow_ *> rhs_))
-lrule_ = (Rule Nothing View <$> lhs_ <*> (larrow_ *> rhs_))
+rule_ = (Rule Nothing Nothing Event <$> lhs_ <*> (arrow_ *> rhs_))
+lrule_ = (Rule Nothing Nothing View <$> lhs_ <*> (larrow_ *> rhs_))
 
 line_ = rule_ <|> lrule_
 
 parseLine line s =
   let str = ppLex s in
   case runParser line_ s of
-    Right (r, []) -> (line, r , str)
+    Right (r, []) -> (line, r { rule_str = Just str })
     p -> error $ "line " ++ show line ++ ": incomplete parse.\n  " ++ show p
 
 removeComments = filter (not . isComment)
 
 parseTuple :: [L] -> Either Error Assert
 parseTuple ls =
-  case runParser rquery_ ls of
+  case runParser rclause_ ls of
     Left (err, _) -> Left err
     Right (v, []) -> Right v
     Right v -> Left $ "incomplete parse: " ++ show v

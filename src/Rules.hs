@@ -2,6 +2,8 @@ module Rules where
 
 import Data.Maybe (mapMaybe)
 import Data.List (nub, (\\))
+import Data.Set (Set)
+import qualified Data.Set as S
 
 import Types
 import Parser (LineRule)
@@ -40,8 +42,14 @@ trueInputs l rules init = filter (not . (`elem` initRels)) $ inputRelations rule
 logicalRelations :: [Rule] -> [Label]
 logicalRelations = nub . concatMap getLRHS
   where
-    getLRHS Rule {rtype = View, rhs = rhs} = map assertRel rhs
+    getLRHS Rule {rule_type = View, rhs = rhs} = map assertRel rhs
     getLRHS _ = []
+
+reducedRelations :: Rule -> Set Label
+reducedRelations = S.fromList . mapMaybe isValued . rhs
+  where
+    isValued (VAssert _ l _) = Just l
+    isValued _ = Nothing
 
 eventRelations :: [Rule] -> [Label]
 eventRelations rs = allRelations rs \\ logicalRelations rs
@@ -61,7 +69,7 @@ labelQueryArity q = q
 labelLHSArity = map labelQueryArity
 
 -- "Type inference"
-convertRules :: [(Int, Rule)] -> [Rule]
+convertRules :: [(Int, Rule)] -> Either String [Rule]
 convertRules rules = result
   where
     -- NOTE!
@@ -70,26 +78,24 @@ convertRules rules = result
     logRels = logicalRelations $ map snd rules
     impRels = eventRelations $ map snd rules
 
-    result = map fix rules
+    result = mapM fix rules
 
     convertq (line, rule) q@(Query d ep@(EP Linear l ns)) | l `elem` logRels =
-      error $ "Rules may not consume logical tuples. error on line " ++ show line ++ ":\n" ++ show rule
-    convertq _ (Query d ep@(EP _ l ns)) | l `elem` logRels = Query d (LP Positive l ns)
+      Left $ "Rules may not consume logical tuples. error on line " ++ show line ++ ":\n" ++ show rule
+    convertq _ (Query d ep@(EP _ l ns)) | l `elem` logRels = Right $ Query d (LP Positive l ns)
     convertq (line, rule) (Query d lp@(LP _ l ns)) | l `elem` impRels =
-      error $ "Cannot negate event relation: "++show l ++ ". error on line " ++ show line ++ ":\n" ++ show rule
-    convertq _ q = q
+      Left $ "Cannot negate event relation: "++show l ++ ". error on line " ++ show line ++ ":\n" ++ show rule
+    convertq _ q = Right q
 
-    check (line, rule@(Rule {rtype = Event})) (Assert l _) | l `elem` logRels =
-      error $ "Event rule (=>) may not assert logical tuple. error on line " ++ show line ++ ":\n" ++ show rule
-    check (line, rule@(Rule {rtype = View})) (Assert l _) | l `elem` impRels =
-      error $ "Logical rule (~>) may not assert event tuple. error on line " ++ show line ++ ":\n" ++ show rule
-    check _ a = a
+    check (line, rule@(Rule {rule_type = Event})) (Assert l _) | l `elem` logRels =
+      Left $ "Event rule (=>) may not assert logical tuple. error on line " ++ show line ++ ":\n" ++ show rule
+    check (line, rule@(Rule {rule_type = View})) (Assert l _) | l `elem` impRels =
+      Left $ "Logical rule (~>) may not assert event tuple. error on line " ++ show line ++ ":\n" ++ show rule
+    check _ a = Right a
 
-    fix r@(_, rule) = result
-      where
-        result = rule {lhs = lhs'', rhs = rhs''}
-        lhs' = map (convertq r) (lhs rule)
-        rhs' = map (check r) (rhs rule)
-
-        lhs'' = labelLHSArity lhs'
-        rhs'' = labelRHSArity rhs'
+    fix r@(_, rule) = do
+      lhs' <- mapM (convertq r) (lhs rule)
+      rhs' <- mapM (check r) (rhs rule)
+      let lhs'' = labelLHSArity lhs'
+      let rhs'' = labelRHSArity rhs'
+      return $ rule {lhs = lhs'', rhs = rhs''}

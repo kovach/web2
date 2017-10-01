@@ -374,6 +374,15 @@ var parseTuple = function(sock) {
           removeObject(id);
         }
         break;
+      case "refresh-code-mirror":
+        var id = nodes[0];
+        var par = nodes[1];
+        var handler = function() {
+          var cm = getObjAttr(id, "code-mirror");
+          cm.refresh();
+          cm.focus();
+        }
+        mkFrame([id, par], handler);
       case "area":
         break;
       case "x-rank":
@@ -461,54 +470,13 @@ var makeMainCM = function() {
   });
 }
 
-var makeLineCM = function(id, ruleid, str, sock) {
-  // TODO don't just attach to log
-  var lineCM = CodeMirror(get("log"), {
-    smartIndent: false,
-    keyMap: "emacs",
-    cursorBlinkRate: 0,
-    lineWrapping: true,
-  });
-
-  lineCM.setOption("extraKeys", {
-    Enter: function() {
-      var v = lineCM.getValue();
-      sock.send(mkTuple("raw-update-rule", [ruleid, strNode(v)]));
-      lineCM.setValue("");
-      //lineCM.setOption({readOnly: true });
-      return;
-      if (v.length == 0) {
-        return;
-      }
-      if (v[v.length-1] == ".") {
-        console.log('SEND');
-        var value = v.slice(0,v.length-1);
-        sock.send(mkTuple("update-rule", [ruleid, strNode(value)]));
-        lineCM.setValue("");
-      } else if (v[v.length-1] == "!") {
-        console.log('cancel');
-        lineCM.setValue("");
-        // update id
-      } else {
-        console.log(v);
-      }
-    }
-  });
-
-  lineCM.on("change", function() {
-    console.log('change');
-  });
-
-  lineCM.setValue(str);
-
-  return lineCM;
-}
-
 window.onload = function() {
-  var rulesId = strNode("rules");
-  setObjAttr(rulesId, "elem", get("rules"));
-  var rulesId = strNode("log");
-  setObjAttr(rulesId, "elem", get("log"));
+  // TODO bad
+  var rootElems = ["rules", "app", "log"];
+  rootElems.forEach(function(str) {
+    var rulesId = strNode(str);
+    setObjAttr(rulesId, "elem", get(str));
+  });
   // Some components will use right-click inputs; best to disable it everywhere?
   //document.addEventListener('contextmenu', event => event.preventDefault());
 

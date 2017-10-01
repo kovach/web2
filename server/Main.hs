@@ -69,7 +69,9 @@ type Init = (PS, DB, [Msg])
 --  return (ps, result, msgs)
 
 makeDB = do
-  let files = [ ("refl", "ui/components/refl.arrow") , ("button", "ui/components/button.arrow") ]
+  let files = [ ("refl", "ui/components/refl.arrow")
+              , ("button", "ui/components/button.arrow")
+              , ("rules",  "ui/components/rule-set.arrow") ]
   strs <- mapM (readFile . snd) files
   let fix s = do
         n1 <- freshNode

@@ -10,11 +10,27 @@ import qualified Data.Map as M
 import Debug.Trace
 
 import Types
+import Parse
 import Parser
 import Rules
 import Graph
 import Monad
 import Reflection
+
+newRule :: LineRule -> SM RuleId
+newRule (_, rule) = do
+  i <- lift freshNode
+  modify $ \s -> s { rule_map = M.insert i rule (rule_map s) }
+  return i
+
+-- TODO reorg rule parsing
+newProgram :: String -> String -> SM ()
+newProgram name str =
+  case parseRuleFile str of
+    Right rs -> do
+      ids <- mapM newRule rs
+      modify $ \s -> s { program_map = M.insert name ids (program_map s) }
+    Left _ -> error $ "Cannot load invalid program: " ++ name
 
 data Action = AQuery LHS | ARule Rule
   deriving (Show)
@@ -29,35 +45,12 @@ parseString p s = do
   ls <- lexLine s
   mapLeft fst $ runParser p ls
 
-newRule :: LineRule -> SM RuleId
-newRule (_, rule, str) = do
-  i <- lift freshNode
-  modify $ \s -> s { rule_map = M.insert i (rule, str) (rule_map s) }
-  return i
-
--- TODO reorg rule parsing
-newProgram :: String -> String -> SM ()
-newProgram name str =
-  case parseRuleFile str of
-    Right rs -> do
-      ids <- mapM newRule rs
-      modify $ \s -> s { program_map = M.insert name ids (program_map s) }
-    Left _ -> error $ "Cannot load invalid program: " ++ name
-
 replParse :: String -> Either Error Action
-replParse s = do
-  let doError err1 err2 = Left $ unlines ["couldn't parse query or rule:", err1, err2]
-  let tryRule err1 =
-        case parseString line_ s of
-          Right (r, []) -> Right (ARule r)
-          Right _ -> doError err1 ""
-          Left err2 -> doError err1 err2
-  let tryQuery =
-        case parseString lhs_ s of
-          Right (q, []) -> Right (AQuery q)
-          Right _ -> tryRule ""
-          Left err1 -> tryRule err1
-  tryQuery
+replParse s =
+  case parseString ((ARule <$> line_)  <|> (AQuery <$> lhs_)) s of
+    Right (v, []) -> Right v
+    Right _ -> Left "incomplete parse"
+    Left err -> Left err
 
 freshActor :: SM Actor
 freshActor = lift $ ActorObject <$> freshNode
@@ -71,7 +64,7 @@ removeActor act ps@PS{..} = ps
 
 data MetaCommand
   = MakeApp Node String
-  | DoReflect Int Node
+  | DoReflect Id Node
   | Attributes Node Node
   | EditRule Node
   | MakeRepl Node

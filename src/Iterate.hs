@@ -61,7 +61,7 @@ stepCreator mq@MQ{m_pos, m_neg} worker = tr "stepCreator" $ do
   where
     commands = mapMaybe (\t -> (t,) <$> parseMetaCommand t) m_pos
 
-    cause t = Provenance (RankedRule 0 (Rule Nothing Event [] [])) (Just t) [t] []
+    cause t = Provenance (RankedRule 0 (Rule Nothing Nothing Event [] [])) (Just t) [t] []
 
     tupleMsg f p = lift $ MT Positive <$> packTuple f p
 
@@ -93,14 +93,14 @@ stepCreator mq@MQ{m_pos, m_neg} worker = tr "stepCreator" $ do
       return (ms ++ reflectionMsgs)
 
     handleCommand (t, EditRule node) = do
-      (_, str) <- gets (look node . rule_map)
+      str <- gets (fromJust . rule_str . look node . rule_map)
       msg <- tupleMsg (LA "rule-string" 2, [NString str, node]) (cause t)
       return [msg]
 
     handleCommand (t, ChangeRule node str) =
       case replParse str of
         Right (ARule parsed) -> do
-          modify $ \ss -> ss { rule_map = M.insert node (parsed, str) (rule_map ss) }
+          modify $ \ss -> ss { rule_map = M.insert node parsed (rule_map ss) }
           programName <- findContainingProgram node
           rules <- getProgramRules programName
           updateRunningSubProgram programName rules
@@ -114,7 +114,10 @@ getProgramRules :: ProgramName -> SM [Rule]
 getProgramRules name = do
   SS{program_map, rule_map} <- get
   let ruleIds = look name program_map
-      rules = map (\i -> (fst $ look i rule_map){rule_id = Just i}) ruleIds
+      fix i =
+        let rule = look i rule_map
+        in rule {rule_id = Just i}
+      rules = map fix ruleIds
   return rules
 
 findContainingProgram :: Node -> SM ProgramName

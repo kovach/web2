@@ -19,20 +19,6 @@ var mkText = function(str, elem) {
   return t;
 }
 
-// TODO codemirror
-//var mkEditor = function(str, id, sock, special_key_handler, other) {
-//  var el = document.createElement("textarea");
-//  el.setAttribute("id", JSON.stringify(id));
-//  el.setAttribute("tabindex", 0);
-//  el.className = "editor";
-//  el.innerHTML= str;
-//  el.addEventListener("keydown", special_key_handler(el, id, sock));
-//  addClickHandlers(el, id, sock);
-//  if (other)
-//    append(el, other);
-//  return el;
-//}
-
 var mkNode = function(str, id, tid, sock, special_key_handler, other) {
   var el = document.createElement("div");
   el.setAttribute("id", JSON.stringify(id));
@@ -43,6 +29,55 @@ var mkNode = function(str, id, tid, sock, special_key_handler, other) {
   if (other)
     append(el, other);
   return el;
+}
+
+var makeLineCM = function(id, ruleid, str, sock) {
+  // TODO don't just attach to log
+  // nb: doesn't attach anything
+  var attacher = function(el) {
+    setObjAttr(id, "elem", el);
+  }
+  var lineCM = CodeMirror(attacher, {
+    smartIndent: false,
+    keyMap: "emacs",
+    cursorBlinkRate: 0,
+    lineWrapping: true,
+  });
+
+  setObjAttr(id, "code-mirror", lineCM);
+
+  lineCM.setOption("extraKeys", {
+    Enter: function() {
+      var v = lineCM.getValue();
+      sock.send(mkTuple("raw-update-rule", [ruleid, strNode(v)]));
+      lineCM.setValue("");
+      return;
+      // TODO:
+      if (v.length == 0) {
+        return;
+      }
+      if (v[v.length-1] == ".") {
+        console.log('SEND');
+        var value = v.slice(0,v.length-1);
+        sock.send(mkTuple("update-rule", [ruleid, strNode(value)]));
+        lineCM.setValue("");
+      } else if (v[v.length-1] == "!") {
+        console.log('cancel');
+        lineCM.setValue("");
+        // update id
+      } else {
+        console.log(v);
+      }
+    }
+  });
+
+  lineCM.on("change", function() {
+    console.log('change');
+  });
+
+  lineCM.setValue(str);
+
+  return lineCM;
 }
 
 var svgurl = 'http://www.w3.org/2000/svg';
