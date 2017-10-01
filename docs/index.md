@@ -21,7 +21,7 @@ A *name* is a sequence of unicode characters not including whitespace or any of
 the forbidden characters:
 
 ```
-#",.;@()[]{}!
+#",.;:@()[]{}!
 ```
 
 An *identifier* is any name, except the forbidden names `~>` and `=>`. For example:

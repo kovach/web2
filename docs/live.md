@@ -160,7 +160,7 @@ We explain each one by stepping through this small program:
 8:  on i ~> background-color i "#555"
 ```
 
-<video src="button2.mp4" controls="">test</video>
+<video src="button2.mp4" controls="">button demo video</video>
 
 ### Unbound variables
 
@@ -309,7 +309,7 @@ database.
 
 (listen for more detailed explanation)
 
-<video src="edit2.mp4" width=100% controls=""></video>
+<video src="edit2.mp4" width=100% controls="">debugging demo video</video>
 
 # GUI Implementation
 
@@ -471,7 +471,7 @@ reduction p
 ```
 
 ### Go
-<video src="go1.mp4" width=70% controls="">test</video>
+<video src="go1.mp4" width=70% controls="">go demo video</video>
 ### Rule Rendering
 This rule set defines a dom representation for any set of rules; shown is its self-portrait
 (CSS not included):
