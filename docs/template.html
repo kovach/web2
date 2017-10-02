@@ -34,7 +34,6 @@ $for(header-includes)$
 $endfor$
 </head>
 <body>
-<div class=date>modified: $date$</div>
 $for(include-before)$
 $include-before$
 $endfor$
@@ -49,6 +48,9 @@ $for(author)$
 $endfor$
 $if(date)$
 <h3 class="date">$date$</h3>
+$endif$
+$if(abstract)$
+$abstract$
 $endif$
 </div>
 $endif$

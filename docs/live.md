@@ -1,89 +1,85 @@
-# Abstract
+---
+title: "Anansi: a Tracing Interpreter"
+author:
+- Scott Kovach
+abstract: |
+  We are interested in building applications that give users concise, local explanations of their behavior.
+  In this document we discuss a language and programming environment for building interactive graphical systems that are backed by a concrete data provenance structure.
+  Using this data, we show that interesting live programming experiences can be built from simple queries.
 
-We are interested in building applications that give their users clear, local
-explanations of their behavior. In this paper we discuss **anansi**, a language
-and programming environment for building interactive graphical systems that are
-backed by precise data provenance. Using this data, we show that interesting
-live programming experiences can be built from simple queries.
+  Accepted to [LIVE2017](https://2017.splashcon.org/track/live-2017#event-overview)
+
+  Original version [here](http://cutfree.net/live0.html)
+...
 
 # Introduction
-We tend to see program code and program behavior as two ends of a spectrum of
-abstraction. While working, a programmer tries to maintain a unified view, but
-doing so is a struggle. Live programming systems must be sensitive to this
-struggle.
+We tend to see program code and program behavior as two ends of a spectrum of abstraction.
+Programmers struggle to maintain a unified view as the program evolves.
 
-Ideally, the abstract form of a program and its dynamics would inhabit the same
-"space", so that a viewer of any part could trace along related information.
-As long as we struggle to conceptualize this space, our solutions tend to adopt
-one of two directions; since a programmer can only see so much at a time, we
-assume they are either looking at code or looking at output, and try to connect
-them from there:
+Ideally, the abstract form of a program and its dynamics would inhabit the same "space", so that a viewer of any part could trace along related information.
+Partial descriptions of this space tend to adopt one of two orientations; since a programmer can only see so much at a time, we assume they are either looking at code or looking at output, and try to connect them from there:
 
-  1. (starting from syntax)
+  1. starting from syntax (*sense*)
     - embed the editor inside a running program, or a sampling of executions, so changes are immediately seen in a proper context
     - use abstract execution to quantify possible executions
-  2. (starting from an output value)
-    - relate the value to computations that are adequate to explain it
-    - use the concreteness of the current trace to simplify the view of the program
+  2. starting from output (*denotation*)
+    - construct an explicit representation (a trace) of the process that computed the value
+    - use the concreteness of the current trace to simplify a view of the program
     - evaluate bidirectionally, so that changes in output are somehow translated to changes in the program
 
-In either case, it is important to have a formal sense of location in order for
-an interpreter to reduce the cognitive burden on the user. If we can specify a
-specific piece of output, say, a single value or a graphical element, and if
-our interpreter maintains adequate information about how it was computed, then
-we may hope to give a compact explanation for it in terms of intermediate
-values and code. We define *provenance* to be any concrete explanation of the
-history of a program value.
+We would like to address the gap between these techniques.
+In this paper, we consider the problem of generating and manipulating local program traces.
+Our programs are rule based and operate on a database, so these traces are localized at particular tuples and rules.
+We call a dynamic slice of a program responsible for a particular tuple its *provenance*.
 
-We are developing a prototype programming environment called
-[**anansi**](https://github.com/kovach/web2). It aspires to be a computational
-"story-telling" assistant by making provenance a first-class value.  As anansi
-evalutes a program, it generates primitive provenance values that closely
-mirror each step taken. When they are taken together and made accessible with
-the right tools, they form an interactive narrative.
+We are developing a prototype programming environment, currently called
+[**anansi**](https://github.com/kovach/web2).
+It aspires to be a computational "story-telling" assistant:
+as it derives the consequences of a user's action, it constructs primitive provenance values that mirror each of its steps.
+Using a reflection mechanism, we make these values first-class within the programming environment.
+Users can query and manipulate them using the same language.
 
-The system is composed of  a few layers:
+We hope that this line of thinking will help developers create applications that respect their users right to understand and modify the software they use.
+
+The system is composed of a few layers:
 
   - a time-varying database,
   - datalog style language, composing programs from rules,
   - reflection mechanism,
-  - Javascript API for building graphical interfaces,
+  - JavaScript API for building graphical interfaces,
   - (aspirationally) a robust mathematical semantics.
 
-In the following sections, we discuss how each layer contributes to our goal of
-making provenance easy to work with. We conclude by discussing some ongoing
+In the following, we discuss how each layer contributes to our goal of
+making provenance easier to work with. We conclude by discussing some ongoing
 work.
 
-# Data Model/Overview
+# Data Model Overview
 
-We must first of all pick a concrete representation of provenance. We need a
-computation mechanism and a syntax for causal relationships between the values
-it manipulates.
-
-Dynamic provenance analysis of imperative or functional programs is hard, and
-seems to have only recently received serious attention
-[[Perera et al. 2012](http://dl.acm.org/citation.cfm?doid=2364527.2364579)]
+We have chosen to implement a programming language inspired by Datalog
+(see for example: [[Abiteboul, Vianu 1991](http://www.sciencedirect.com/science/article/pii/002200009190032Z)])
 .
+Datalog variants generally provide a simple programming mechanism by means of *rules*.
+A rule consists of a body, which is a database query, and a head, which when instantiated with variable bindings coming from a query match creates new tuples:
 
-In contrast, the database community has a more developed notion of provenance
-[[Green et al. 2007](http://web.cs.ucdavis.edu/~green/papers/pods07.pdf)]
-[[Buneman et al. 2001](http://db.cis.upenn.edu/DL/whywhere.pdf)].
-This seems to stem from the fact that the basic relational operations (natural
-join, project, select) each establish a simple causal link between input and
-output:
+```
+factorial acc n, n > 0 => factorial (acc * n) (n - 1)
+
+adjacent r s, path s t => path r t
+```
+
+The head may contain zero or more clauses, and is written on the right.
+A tuple created by a rule has a simple causal relationship with the tuples bound by the query.
+In terms of the standard relational operations natural join, project, select, we have:
 
   - a tuple $t \in A \Join B$, the join of A and B, depends on one tuple of $A$
     and one of $B$.
   - a tuple $t \in proj_L A$ depends on those tuples $u \in A$ whose restriction to $L$ agrees with $t$.
   - tuples resulting from selection are exactly those input tuples satisfying some predicate
 
-Also, since provenance indirectly refers to all intermediate state, the global,
-flat nature of a database is natural.
-
-In anansi, all program values are immutable *labeled tuples*. For example:
+In our language, all program values are immutable *labeled tuples*. For example:
 
 ```
-adjacent l1 l2
+adjacent L1 L2
 foo
 path s t
 visible s
@@ -95,44 +91,32 @@ In each, the label is written first, followed by the tuple's *arguments*. A
 tuple pattern occuring in a program may refer to variables; otherwise arguments will be
 literal values, which may be strings, integers, or unique identifiers, also
 called *nodes*. We sometimes write relations along with their arity, for
-instance `cons/3`, as in prolog.
+instance `cons/3`, as in Prolog.
 
 A program operates on a database, which is a time-varying multiset of tuples.
-Tuples are optionally annotated with a value, used to support a sort of logic
-programming, described later. A program is given by a set of *datalog* rules.
+Tuples are optionally annotated with a value, used to support a sort of logic programming, described later.
+In a style similar to
+[[Granger et al.](http://witheve.com/)]
+programs are evaluated bottom-up against the database.
+This means that all input and output is mediated through tuples, and given a new input, we incrementally compute matching rule bodies and apply their corresponding updates until no further consequences are derivable.
 
-By datalog, we mean a family of languages
-[[Abiteboul, Vianu 1991](http://www.sciencedirect.com/science/article/pii/002200009190032Z)]
-that provide a simple programming mechanism by means of *rules*. A rule
-consists of a body, which is a database query, and a head, which when
-instantiated with variable bindings coming from a query match creates new
-tuples:
-
-```
-factorial acc n, n > 0 => factorial (acc * n) (n - 1)
----
-adjacent r s, path s t => path r t
-```
-
-Our syntax writes the head on the right.
-
-In a style similar to [[Granger et al.](http://witheve.com/)] we apply our
-datalog variant to a time-varying database using bottom-up evaluation
-semantics. All input and output is mediated through tuples. A program is a
-sequence of rules. Given new input, we incrementally compute matching rule
-bodies and apply their corresponding updates until no further consequences are
-derivable.
+We plan to better explain our reasons for choosing a relational language later.
+In particular, we would like to relate it to the slicing approach based on adjunctions described in
+[[Perera et al. 2012](http://dl.acm.org/citation.cfm?doid=2364527.2364579)].
+The approach is partly inspired by work in the database community
+[[Green et al. 2007](http://web.cs.ucdavis.edu/~green/papers/pods07.pdf)]
+[[Buneman et al. 2001](http://db.cis.upenn.edu/DL/whywhere.pdf)].
+Also, since provenance indirectly refers to all intermediate state, the global, flat nature of a database is natural.
 
 ### Summary
 The use of tuples gives a fine-grained notion of data locality. Computing by
 means of rules means that each tuple has a simple immediate cause, and that
 these immediate causes link together to form a directed graph. Graphs are
 easily represented as sets of tuples, so with the right machinery, our rule
-based language will serve us in analyzing provenance. We discuss this further
-in the section on reflection.
+based language will serve us in analyzing provenance.
+We discuss this in the section on reflection.
 
-The datatypes used internally for our immediate cause relationship are given in
-the appendix.
+The datatypes used internally for our immediate cause relationship are given in the appendix.
 
 # Syntax Features
 We have tried to avoid novelty in the language design. It extends traditional
@@ -170,7 +154,7 @@ We explain each one by stepping through this small program:
 
 The first line is a rule with empty body; such rules run once at program start.
 It creates several tuples defining a button: the `text-node`, `parent`, and
-`class` relations are part of a JS API (described later).
+`class` relations are part of a JavaScript API (described later).
 
 The unbound variable `i` is assigned a fresh value, guaranteed to be distinct
 from all other values in the current database. This language feature is like a
@@ -292,20 +276,18 @@ for more detailed information.
 
 # Reflection
 
-The reflection layer of the system allows us to run anansi programs that
-operate on other anansi programs or their provenance graphs. Our interpreter
-can *reflect* a database of tuples, provenance terms, and rules into a
-secondary database with a fixed schema.  This allows us to write higher order
-programs that operate over computation histories of others.
+To help a user understand the effects of programs, we need the ability to write programs that operate simultaneously on programs and their execution traces.
+To approach this problem, we have augmented our interpreter with a *reflection* mechanism.
+This mechanism translates a database along with its provenance terms and rules into a secondary database with a fixed schema.
+This allows us to write higher order programs that operate over computation histories of others.
 
 ### Demo
 
 This demo makes use of a small
 [program](https://github.com/kovach/web2/blob/deadline/ui/components/refl.arrow)
-for exploring provenance of graphical elements. First, I show how to summon the
-rule that created a visual element and explore related objects. Second, I
-change a value indirectly associated with it by querying the application
-database.
+for exploring provenance of graphical elements.
+First, I show how to summon the rule that created a visual element and explore related objects.
+Second, I change a value indirectly associated with it by querying the application database.
 
 (listen for more detailed explanation)
 
@@ -314,8 +296,8 @@ database.
 # GUI Implementation
 
 The GUI system is crude. It has two pieces:
- 
-  - a Javascript client, with an API of about 20 IO relations
+
+  - a JavaScript client, with an API of about 20 IO relations
   - a language interpreter server
 
 Note that all screenshots and videos shown here are taken from running anansi
@@ -341,7 +323,7 @@ normally.
 ### Interpreter Server
 The server interprets a program. It consumes input events, one at a time, and
 iterates any applicable rules until fixpoint. It outputs DOM tuples, to be
-handled by the client. 
+handled by the client.
 
 ### Examples
 
@@ -377,10 +359,9 @@ generate a similar rule set automatically, some questions need to be answered:
 
   - Some rules are meant only for initialization; the relations they set up are
     static. What is the natural way to specify that a relation is dynamic?
-  - Given a family of valid inputs (in the Go case, a list of `place-stone/3`
-    tuples for the current player that target empty locations), how do we
-    display them? An explicit listing is unnatural. Is the geometry of the Go
-    board latent in the rules?
+  - Given a family of valid inputs (in the Go case, a list of `place-stone/3` tuples for the current player that target empty locations), how do we display them?
+    An explicit listing is unnatural.
+    How is the geometry of the Go board latent in the rules?
   - We must show enough of the inner game state that a player can judge the
     consequences of their actions. Is there a minimum amount we can get away
     with?
