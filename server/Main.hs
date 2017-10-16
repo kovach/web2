@@ -26,9 +26,12 @@ data Command = Reset | Connect
              -- | Hover {ref :: Node} | UnHover {ref :: Node}
   deriving (Generic, Show)
 deriving instance Generic Label
+deriving instance Generic Id
 deriving instance Generic Node
 deriving instance Generic Polarity
 instance ToJSON Label where
+  toEncoding = genericToEncoding defaultOptions
+instance ToJSON Id where
   toEncoding = genericToEncoding defaultOptions
 instance ToJSON Node where
   toEncoding = genericToEncoding defaultOptions
@@ -37,13 +40,14 @@ instance ToJSON Polarity where
 instance ToJSON Command where
   toEncoding = genericToEncoding defaultOptions
 instance FromJSON Label where
+instance FromJSON Id where
 instance FromJSON Node where
 instance FromJSON Command where
 
 decodeCommand = decode
 
 convert :: Msg -> Maybe (Polarity, Label, [Node], Node, Bool)
-convert (MT p T{..}) = Just (p, label, nodes, NNode tid, fix tval)
+convert (MT p T{..}) = Just (p, label, nodes, NNode (Id tid), fix tval)
   where
     fix (Truth t) = t
     fix NoVal = True

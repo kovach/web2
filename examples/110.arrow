@@ -1,25 +1,25 @@
 # doubly linked row
 go n => make-cell (n - 1) a id a id r
-.make-cell n c1 c2 l a r, n > 1 => cell n l a r, make-cell (n - 1) c1 c2 a r new
-.make-cell 1 c1 c2 l a r => cell 1 l a c1, cell 0 a c1 c2
+@make-cell n c1 c2 l a r, n > 1 => cell n l a r, make-cell (n - 1) c1 c2 a r new
+@make-cell 1 c1 c2 l a r => cell 1 l a c1, cell 0 a c1 c2
 
 # compute n rows
 eval-to 0 => eval 0
 eval-to n, n > 0 => eval n, eval-to (n - 1)
 
 # initial values
-.eval 0, cell i _ a r, i = 0  => ival i 1
-.eval 0, cell i _ a r, i /= 0 => ival i 0
-eval 0, cell i l a r, ival i j ~> val 1 a j
+@eval 0, cell i _ a r, i = 0  => ival i 1
+@eval 0, cell i _ a r, i /= 0 => ival i 0
+eval 0, cell i l a r, ival i j ~> :val 1 a j
 
 # compute automaton
-eval n, cell _ l a r, val n l v1, val n a v2, val n r v3, table v1 v2 v3 o ~> val (n + 1) a o
+eval n, cell _ l a r, :val n l v1, :val n a v2, :val n r v3, table v1 v2 v3 o ~> :val (n + 1) a o
 
 # gui
-val t i v, cell p _ i _ ~> mk-elem ((100 * (t - 1)) + p) t p v
-mk-elem id t p 0 ~> mk-elem-color id t p "#444"
-mk-elem id t p 1 ~> mk-elem-color id t p "#ddd"
-mk-elem-color id t p col ~> elem id, x-rank id (p + 1), y-rank id t, color id col, size id 6
+:val t i v, cell p _ i _ ~> :mk-elem ((100 * (t - 1)) + p) t p v
+:mk-elem id t p 0 ~> :mk-elem-color id t p "#444"
+:mk-elem id t p 1 ~> :mk-elem-color id t p "#ddd"
+:mk-elem-color id t p col ~> :elem id, :x-rank id (p + 1), :y-rank id t, :color id col, :size id 6
 
 # TODO: there is a bug here when `.` is used?
 ..click _ _ v,  ..ival v 1 => ival v 0

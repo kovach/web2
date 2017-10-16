@@ -38,7 +38,6 @@ test-suite unit-tests
   default-language:    Haskell2010
   other-extensions:    TupleSections, OverloadedStrings
   ghc-options:         -fwarn-unused-binds
-                       -fwarn-unused-imports
                        -fwarn-incomplete-patterns
 
 executable arrow-server
@@ -50,5 +49,4 @@ executable arrow-server
                       text, bytestring, aeson
   default-language:    Haskell2010
   ghc-options:         -fwarn-unused-binds
-                       -fwarn-unused-imports
                        -fwarn-incomplete-patterns

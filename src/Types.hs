@@ -26,7 +26,7 @@ fromRaw l = error "fromRaw: expect only tuples tagged with arity"
 
 toRaw :: Label -> Label
 toRaw (LA s i) = LRaw s i
-toRaw l = error "toRaw: expect only tuples tagged with arity"
+toRaw l = error $ "toRaw: expect only tuples tagged with arity\n" ++ show l
 
 notRaw m | LRaw{} <- mlabel m = False
 notRaw _ = True
@@ -57,7 +57,7 @@ data Node = NInt !Int | NNode Id | NSymbol String | NString String
 
 instance Show Node where
   show (NInt i) = show i
-  show (NNode i) = "#"++show i
+  show (NNode i) = show i
   show (NSymbol s) = "'"++s
   show (NString s) = show s
 
@@ -86,7 +86,7 @@ unsafeRanked = RankedRule
 
 -- TODO
 -- sum, argmax (or "most recent"), rand?
-data ReduceOp = ReduceOr | ReducePush | ReduceSum
+data ReduceOp = ReduceOr | ReduceSum
   deriving (Eq, Show, Ord)
 
 -- An instance of a match
@@ -306,8 +306,7 @@ data Rule = Rule
   , rule_str  :: Maybe String
   , rule_type :: RType
   , lhs       :: LHS
-  , rhs       :: RHS
-  }
+  , rhs       :: RHS }
   deriving (Eq, Show, Ord)
 
 emptyRule = Rule Nothing Nothing Event [] []
@@ -414,7 +413,7 @@ ppMatch :: Provenance -> String
 ppMatch (Provenance{..}) = intercalate ", " (map ppTuple matched)
 ppMatch (Reduction ReduceOr r) = "\\/"++"["++(unwords $ map ppTuple r)++"]"
 ppMatch (Reduction ReduceSum r) = "+/"++"["++(unwords $ map ppTuple r)++"]"
-ppMatch (Reduction ReducePush r) = "top"++"["++(unwords $ map ppTuple r)++"]"
+--ppMatch (Reduction ReducePush r) = "top"++"["++(unwords $ map ppTuple r)++"]"
 ppMatch (Extern ids) = "[EXTERN: "++show ids++"]"
 ppActor a = show a
 ppMsg :: Msg -> String

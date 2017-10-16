@@ -99,7 +99,9 @@ initPS name rs graph = do
     step1 :: [RankedRule] -> Map Label [Actor]
     step1 = foldr (M.unionWith (++)) M.empty . map step0
 
-    Right rsConverted = convertRules (zip [1..] rs)
+    rsConverted = case convertRules (zip [1..] rs) of
+      Left err -> error err
+      Right rc -> rc
     rrs = rankRules rsConverted
     events = step1 rrs
     processors = map processor rrs
@@ -108,13 +110,15 @@ initPS name rs graph = do
       filter (null . lhs . ranked_rule) rrs
     unitQueues = M.fromList $ zip unitRules (repeat $ pushQueue unitMsg mempty)
 
-    viewRels = logicalRelations rsConverted
+    viewRels = viewRelations rsConverted
 
-    rdep v = (toRaw v, [ActorReducer v])
-    reducer v = (ActorReducer v, emptyReducer v)
-    reducers = map reducer viewRels
+    reducedRels = reducedRelations rsConverted
 
-    rdeps = M.fromList $ map rdep viewRels
+    rdep (v, _) = (toRaw v, [ActorReducer v])
+    reducer (v, op) = (ActorReducer v, emptyReducer op v)
+    reducers = map reducer reducedRels
+
+    rdeps = M.fromList $ map rdep reducedRels
 
     processor rr@(RankedRule i rule) =
       case rule_type rule of
@@ -199,10 +203,11 @@ stepProcessor ms@(MQ {m_neg = neg}) (ViewProc rule g ws) = do
       return (output, ViewProc rule g1 ws2)
   where
     -- Underlying call to stepRule should only return positive MT
-    --   these are tuples created by some rule head
-    rawFact (MT Positive t@T{tval = NoVal}) = Left t { label = toRaw (label t), tval = Truth True }
     --   these are negative tuples suggested by some rule body
-    rawFact (MT Positive t) = Right t { label = toRaw (label t) }
+    -- TODO move toRaw into solveStep?
+    rawFact (MT Positive t@T{tval = Truth False}) = Right t { label = toRaw (label t) }
+    --   these are tuples created by some rule head
+    rawFact (MT Positive t) = Left t
     --   error
     rawFact (MT Negative t) = error $ "internal error: view processor attached to linear rule! consumed tuple:\n" ++ ppTuple t
 
@@ -210,14 +215,13 @@ stepProcessor ms@(MQ {m_neg = neg}) (ViewProc rule g ws) = do
     falsify :: [Tuple] -> WatchedSet -> (WatchedSet, [Tuple])
     falsify ts ws = runWriter $ foldM falsifyOne ws ts
     falsifyOne :: WatchedSet -> Tuple -> Writer [Tuple] WatchedSet
-    falsifyOne ws t = writer (ws2, falsem)
+    falsifyOne ws t = writer (ws2, falseTuples)
       where
         false :: Map Provenance [Tuple]
         false = ilookDefault (tid t) ws
-        falsep = M.keys false
-        falsem = concat $ M.elems false
+        falseTuples = concat $ M.elems false
         ws1 = IM.insert (tid t) M.empty ws
-        ws2 = foldr removeProof ws1 falsep
+        ws2 = foldr removeProof ws1 (M.keys false)
         removeProof :: Provenance -> WatchedSet -> WatchedSet
         removeProof p ws = foldr (IM.adjust (M.delete p)) ws (map tid $ matched p)
 
@@ -237,11 +241,11 @@ stepProcessor mq@MQ{m_pos = pos, m_neg = neg} (ObsProc rule g) = tr "stepRule" $
   where
     -- TODO WriterT
     findMatches rule (g, out) t = do
-      -- Combine all new Msgs from matches
-      new <- concat . map fst <$> mapM applyMatch matches
-      -- Insert current tuple; immediately remove consumed tuples
-      let g2 = foldr removeConsumed (insertTuple t g) new
-      return (g2, new ++ out)
+        -- Combine all new Msgs from matches
+        new <- concat . map fst <$> mapM applyMatch matches
+        -- Insert current tuple; immediately remove consumed tuples
+        let g2 = foldr removeConsumed (insertTuple t g) new
+        return (g2, new ++ out)
       where
         -- find matches
         matches = getMatches t rule g

@@ -39,23 +39,25 @@ trueInputs l rules init = filter (not . (`elem` initRels)) $ inputRelations rule
   where
     initRels = takeWhile (/= l) (map assertRel init)
 
-logicalRelations :: [Rule] -> [Label]
-logicalRelations = nub . concatMap getLRHS
+viewRelations :: [Rule] -> [Label]
+viewRelations = nub . concatMap getLRHS
   where
     getLRHS Rule {rule_type = View, rhs = rhs} = map assertRel rhs
     getLRHS _ = []
 
-reducedRelations :: Rule -> Set Label
-reducedRelations = S.fromList . mapMaybe isValued . rhs
+reducedRelations :: [Rule] -> [(Label, ReduceOp)]
+reducedRelations = nub . mapMaybe isValued . concatMap rhs
   where
-    isValued (VAssert _ l _) = Just l
+    isValued (VAssert TValNull l _) = Just (l, ReduceOr)
+    isValued (VAssert (TValExpr _) l _) = Just (l, ReduceSum)
     isValued _ = Nothing
 
 eventRelations :: [Rule] -> [Label]
-eventRelations rs = allRelations rs \\ logicalRelations rs
+eventRelations rs = allRelations rs \\ viewRelations rs
 
 labelAssertArity :: Assert -> Assert
 labelAssertArity (Assert (L s) ns) = Assert (LA s (length ns)) ns
+labelAssertArity (VAssert e (L s) ns) = VAssert e (LA s (length ns)) ns
 labelAssertArity a = a
 labelRHSArity = map labelAssertArity
 
@@ -64,6 +66,7 @@ labelQueryArity (Query d p) = Query d (fix p)
   where
     fix (EP lin (L l) ns) = EP lin (LA l (length ns)) ns
     fix (LP pol (L l) ns) = LP pol (LA l (length ns)) ns
+    fix (VP v (L l) ns) = VP v (LA l (length ns)) ns
     fix p = p
 labelQueryArity q = q
 labelLHSArity = map labelQueryArity
@@ -75,22 +78,22 @@ convertRules rules = result
     -- NOTE!
     --   relation/n is given the same type, "logical" or "event", for all n.
     --   bad convention?
-    logRels = logicalRelations $ map snd rules
+    logRels = viewRelations $ map snd rules
     impRels = eventRelations $ map snd rules
 
     result = mapM fix rules
 
     convertq (line, rule) q@(Query d ep@(EP Linear l ns)) | l `elem` logRels =
-      Left $ "Rules may not consume logical tuples. error on line " ++ show line ++ ":\n" ++ show rule
+      Left $ "Rules may not consume dynamical tuples. error on line " ++ show line ++ ":\n" ++ show rule
     convertq _ (Query d ep@(EP _ l ns)) | l `elem` logRels = Right $ Query d (LP Positive l ns)
     convertq (line, rule) (Query d lp@(LP _ l ns)) | l `elem` impRels =
-      Left $ "Cannot negate event relation: "++show l ++ ". error on line " ++ show line ++ ":\n" ++ show rule
+      Left $ "Syntax error: `:` used with persistent relation: "++show l ++ ". error on line " ++ show line ++ ":\n" ++ show rule ++ "\n" ++ show impRels
     convertq _ q = Right q
 
     check (line, rule@(Rule {rule_type = Event})) (Assert l _) | l `elem` logRels =
-      Left $ "Event rule (=>) may not assert logical tuple. error on line " ++ show line ++ ":\n" ++ show rule
+      Left $ "Event rule (=>) may not assert dynamic tuple. error on line " ++ show line ++ ":\n" ++ show rule
     check (line, rule@(Rule {rule_type = View})) (Assert l _) | l `elem` impRels =
-      Left $ "Logical rule (~>) may not assert event tuple. error on line " ++ show line ++ ":\n" ++ show rule
+      Left $ "Logical rule (~>) may not assert persistent tuple. error on line " ++ show line ++ ":\n" ++ show rule
     check _ a = Right a
 
     fix r@(_, rule) = do

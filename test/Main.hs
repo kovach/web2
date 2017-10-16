@@ -59,10 +59,14 @@ runTextDemo start_marker pr edgeFile ruleFile do_print = do
 
     --let resultTrees = map (makeTree (removed_tuples result) (allTuples result)) roots
 
-    putStrLn "imperative relations:"
+    mapM print rules
+
+    putStrLn "persistent relations:"
     mapM_ (putStrLn . ("  " ++) . show) $ eventRelations rules
-    putStrLn "logical relations:"
-    mapM_ (putStrLn . ("  " ++) . show) $ logicalRelations rules
+    putStrLn "dynamic relations:"
+    mapM_ (putStrLn . ("  " ++) . show) $ viewRelations rules
+    putStrLn "reduced relations:"
+    mapM_ (putStrLn . ("  " ++) . show) $ reducedRelations rules
     putStrLn "input relations:"
     mapM_ (putStrLn . ("  " ++) . show) $ inputRelations rules
     putStrLn "output relations:"

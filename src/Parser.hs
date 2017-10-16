@@ -139,18 +139,32 @@ ineq_ =
   (string "<" *> return QLess) <|>
   (string ">" *> return QMore)
 qbin_ = flip QBinOp <$> expr_ <*> ineq_ <*> expr_
-ep_ lin = EP lin <$> rel_ <*> many q_
-lp_ p = LP p <$> rel_ <*> many q_
+--ep_ lin = EP lin <$> rel_ <*> many q_
+--lp_ p = LP p <$> rel_ <*> many q_
 
-query_ = Query Low <$> ep_ NonLinear
-dotquery_ = string "." *> (Query High <$> ep_ NonLinear)
-linearquery_ = string "." *> string "." *> (Query Low <$> ep_ Linear)
-dotlinearquery_ = string "." *> string "." *> string "." *> (Query High <$> ep_ Linear)
-lnlogicquery  = string "!" *> (Query Low <$> lp_ Negative)
-hnlogicquery  = string ".!" *> (Query High <$> lp_ Negative)
+query_ = Query <$> ((string "@" *> pure High) <|> pure Low) <*> pattern_
+--query_ = Query Low <$> ep_ NonLinear
+--dotquery_       = string "." *> (Query High <$> ep_ NonLinear)
+--linearquery_    = string ".." *> (Query Low <$> ep_ Linear)
+--dotlinearquery_ = string "..." *> (Query High <$> ep_ Linear)
+--lnlogicquery_   = string "!" *> (Query Low <$> lp_ Negative)
+--hnlogicquery_   = string ".!" *> (Query High <$> lp_ Negative)
 
-clause_ = qbin_ <|> dotquery_ <|> linearquery_ <|> dotlinearquery_ <|> query_
-        <|> lnlogicquery <|> hnlogicquery
+polarity_  = (string "!" *> string ":" *> pure Negative) <|> (string ":" *> pure Positive)
+linearity_ = (string "." *> string "." *> pure Linear) <|> (pure NonLinear)
+
+rp_ = VP <$> (q_ <* string ":" ) <*> rel_ <*> many q_
+lp_ = LP <$> polarity_ <*> rel_ <*> many q_
+ep_ = EP <$> linearity_ <*> rel_ <*> many q_
+pattern_ = lp_ <|> ep_ <|> rp_
+
+
+
+clause_ = qbin_ <|> query_
+
+--clause_ = qbin_ <|> dotquery_ <|> linearquery_ <|> dotlinearquery_ <|> query_
+--        <|> lnlogicquery_ <|> hnlogicquery_
+
 lhs_ = sepBy comma_ clause_
 
 wrap_ p = (string "(") *> p <* (string ")")

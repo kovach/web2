@@ -67,12 +67,12 @@ stepCreator mq@MQ{m_pos, m_neg} worker = tr "stepCreator" $ do
 
     reflected t target rootTID = tupleMsg (LA "reflected" 2, [rootTID, target]) (cause t)
 
-    handleCommand (t, DoReflect tid target) = do
+    handleCommand (t, DoReflect (Id tid) target) = do
       -- TODO correct?
       -- _ <- lift flushEvents
       rc <- gets refl_context
       tlookup <- gets tuple_ids
-      let tuple = (fromJust . flip IM.lookup tlookup) tid
+      let tuple = fromJust $ IM.lookup tid tlookup
       (rootTID, rc') <- lift $ runReflection (flattenTuple tuple) rc
       modify $ \ss -> ss { refl_context = rc' }
       reflectionMsgs <- lift flushEvents

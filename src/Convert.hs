@@ -40,7 +40,7 @@ readRules f = do
 processInputTuples :: PS -> Context -> RHS -> SM (Tuple, [Msg], Context, PS)
 processInputTuples ps c es = do
   let initMatch t edges c =
-        (Provenance (unsafeRanked (-1) $ Rule Nothing Nothing Event [] edges) (Just $ toEvent t) [] [], c, [])
+        (Provenance (unsafeRanked (-1) $ Rule Nothing Nothing Event [] edges) (Just t) [] [], c, [])
   root <- lift $ makeTuple ("_root", []) externProv
   (msgs, c') <- lift $ applyMatch $ initMatch root es c
   (out, ps') <- solve (map CMsg msgs) ps

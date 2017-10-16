@@ -33,6 +33,10 @@ applyLookup NHole c = do
 applyLookup (NVal v) c = return (v, c)
 
 -- process all unification instances for a given tuple
+tupleMatch :: Label -> Context -> [NodeVar] -> Tuple -> Maybe Context
+tupleMatch l c vs t@T { tval = TVNode n } = edgeMatch l c vs (n:nodes t)
+tupleMatch l c vs t = edgeMatch l c vs (nodes t)
+
 edgeMatch :: Label -> Context -> [NodeVar] -> [Node] -> Maybe Context
 -- TODO check this statically
 edgeMatch l c vs nodes | length nodes /= length vs = error $ "relation/pattern arity mismatch! tuple involved: " ++ unwords (show l : (map show nodes))
@@ -52,7 +56,7 @@ edgeMatch _ c vs nodes =
 solvePattern :: Label -> [Tuple] -> Bindings -> Linear -> [NodeVar] -> [Bindings]
 solvePattern l es (ctxt, bound, deps, forced) linear nvs =
     let pairs =
-          mapMaybe (\t -> fmap (t,) $ edgeMatch l ctxt nvs (nodes t))
+          mapMaybe (\t -> fmap (t,) $ tupleMatch l ctxt nvs t)
           . filter (not . (`elem` bound))
           $ es
     in do
@@ -96,6 +100,9 @@ solveStep g b@(c, bound, deps, forced) q@(Query _ (LP polarity e ns)) =
   where
     es = constrainRelation e g
     trueEs = filter isPositive es
+
+solveStep g b@(c, _, _, _) q@(Query _ (VP val e vs)) =
+  solvePattern e (constrainRelation e g) b NonLinear (val:vs)
 
 solveStep _ b@(c, _, _, _) (QBinOp op v1 v2) =
     case (matchLookup (reduce c v1) c, matchLookup (reduce c v2) c) of
@@ -191,10 +198,22 @@ applyMatch (prov, ctxt, forced) =
     implication = rhs $ ranked_rule $ rule_src prov
 
     applyStep :: ([Msg], Context) -> Assert -> M2 ([Msg], Context)
+    -- Ordinary tuple
     applyStep (ms, c0) (Assert label exprs) = do
       (c1, nodes) <- applyLookups c0 exprs
       t <- packTuple (label, nodes) prov
       return (MT Positive t : ms, c1)
+    -- Logical tuple
+    applyStep (ms, c0) (VAssert e label exprs) = do
+      (c1, nodes) <- applyLookups c0 exprs
+      (c2, e1) <- case e of
+        TValNull -> return (c1, Truth True)
+        TValExpr e' -> do
+          (c2, [e1]) <- applyLookups c1 [e']
+          return (c2, TVNode e1)
+      t <- packTuple (toRaw label, nodes) prov
+      let t1 = t { tval = e1 }
+      return (MT Positive t1 : ms, c2)
 
     validForced = const True
 
