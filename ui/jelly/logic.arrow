@@ -1,0 +1,54 @@
+# each jelly initially gets a block
+jelly j => block b j
+
+=> height 4
+# make the grid
+height n => row n, col 10
+row r, r > 1 => row (r - 1)
+col c, c > 1 => col (c - 1)
+row r, col c => pos p, x c p, y r p
+
+# floor
+height n, col c, x c p, y n p => jelly j, pos p j, wall j
+
+# the cardinal directions
+=> dir 'down 0 1, dir 'up 0 -1, dir 'left -1 0, dir 'right 1 0
+# the adjacency relation for positions
+dir dir dx dy, x x1 p1, y y1 p1, x x2 p2, y y2 p2, x1 = (dx + x2), y1 = (dy + y2) ~> :adjacent dir p1 p2
+
+# Main Game Logic #
+# The following rules determine when a jelly is free to move in a direction.
+# every jelly blocks its block
+block b j, dir dir _ _ ~> :blocking 0 dir j b
+# if a jelly blocks, and jelly' is (adjacent dir), jelly' blocks
+:blocking _ dir j b, pos p j, adjacent dir p' p, pos p' j' ~> :blocking 0 dir j' b
+# when a jelly blocks, each of the jellies in its block blocks
+# (inequality not strictly necessary)
+:blocking 0 dir j b, block b' j, b /= b', block b' j' ~> :blocking 1 dir j' b
+# when a wall blocks, the block cannot move
+:blocking _ dir w b, wall w ~> :blocked dir b
+# a direction that isn't blocked is free
+!:blocked dir b, block b _, dir dir _ _ ~> :free dir b
+
+# input
+@ask-move-jelly dir j, :free dir b, block b j => move dir b
+
+# to move a block, move each of its jellies
+@move dir b, :blocking _ dir j b => move dir j
+# walls don't move
+..move dir j, wall j =>
+# to move a jelly, change its position
+@move dir j, ..pos p j, :adjacent dir p' p => pos p' j
+
+# gravity
+:free 'down b => check-gravity b
+..check-gravity b, :free 'down b => move 'down b, check-gravity b
+
+# "directed adjacency"
+:adjacent 'left p1 p2 ~> :semi-adj p1 p2
+:adjacent 'up p1 p2 ~> :semi-adj p1 p2
+:merge b _ new, ..block b j => block new j
+:merge _ b new, ..block b j => block new j
+# if two blocks are adjacent, observe (once!) that they should be merged
+:semi-adj p1 p2, pos p1 j1, pos p2 j2, block b1 j1, block b2 j2, b1 /= b2, color c j1, color c j2 => :merge b1 b2 new-block
+
