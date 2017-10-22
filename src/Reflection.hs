@@ -239,6 +239,18 @@ flattenA r c (Assert l es) = do
   makeT "label" [labelString l, q]
   foldM (\c -> uncurry $ flattenE q c) c (zip [1..] es)
 
+flattenA r c (VAssert tve l es) = do
+  q <- fresh
+  makeT "assert" [q, r]
+  makeT "label" [labelString l, q]
+  c1 <- case tve of
+    TValNull -> makeT "boolean" [q] >> return c
+    TValExpr e -> do
+      c1 <- flattenE q c 0 e
+      makeT "integral" [q]
+      return c1
+  foldM (\c -> uncurry $ flattenE q c) c1 (zip [1..] es)
+
 flattenRule :: Maybe Node -> RankedRule -> M3 Node
 flattenRule rs rr@(RankedRule i rule) = withR rr $ do
     r <- fresh

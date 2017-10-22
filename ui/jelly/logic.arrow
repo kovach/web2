@@ -1,9 +1,7 @@
 # each jelly initially gets a block
 jelly j => block b j
 
-=> height 4
 # make the grid
-height n => row n, col 10
 row r, r > 1 => row (r - 1)
 col c, c > 1 => col (c - 1)
 row r, col c => pos p, x c p, y r p

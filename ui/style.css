@@ -152,8 +152,12 @@ svg {
   width: 600px;
   height: 600px;
   display: block;
-  margin: 0 auto;
-  background-color: #eB6;
+  /*margin: 0 auto;*/
+  outline: none;
+}
+
+rect {
+  outline: none;
 }
 
 .editor {

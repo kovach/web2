@@ -19,20 +19,33 @@ var mkText = function(str, elem) {
   return t;
 }
 
-var mkNode = function(str, id, tid, sock, special_key_handler, other) {
+var mkElement = function(type, id, tid, sock) {
+  var el = document.createElement(type);
+  el.setAttribute("id", JSON.stringify(id));
+  el.setAttribute("tabindex", 0);
+  addClickHandlers(el, id, tid, sock);
+  return el;
+}
+
+var mkSVG = function(id, tid, sock) {
+  var el = document.createElementNS(svgurl, "svg");
+  el.setAttribute("id", JSON.stringify(id));
+  el.setAttribute("tabindex", 0);
+  addClickHandlers(el, id, tid, sock);
+  return el;
+}
+
+var mkNode = function(str, id, tid, sock) {
   var el = document.createElement("div");
   el.setAttribute("id", JSON.stringify(id));
   el.setAttribute("tabindex", 0);
   el.className = "node";
   el.innerHTML = str;
   addClickHandlers(el, id, tid, sock);
-  if (other)
-    append(el, other);
   return el;
 }
 
 var makeLineCM = function(id, ruleid, str, sock) {
-  // TODO don't just attach to log
   // nb: doesn't attach anything
   var attacher = function(el) {
     setObjAttr(id, "elem", el);
@@ -88,6 +101,14 @@ var mkCircle = function() {
   return el;
 }
 
+var mkRect = function(id, tid, sock) {
+  var el = document.createElementNS(svgurl, "rect");
+  el.setAttribute("id", JSON.stringify(id));
+  el.setAttribute("tabindex", 0);
+  addClickHandlers(el, id, tid, sock);
+  return el;
+}
+
 // TODO
 var mkLine = function() {
   var el = document.createElementNS(svgurl, "line");
@@ -127,15 +148,16 @@ var mkBox = function(str, id, other) {
 
 var addClickHandlers = function(el, id, tid, sock) {
   el.addEventListener("click", function(ev) {
-    console.log('lclick');
-    clickCommand(id, tid, ev.button);
+    console.log(ev);
+    console.log('left click');
+    clickCommand(id, tid, ev.button, ev.shiftKey);
     ev.stopPropagation();
   });
   el.addEventListener("contextmenu", function(ev) {
-    console.log('rclick');
+    console.log('right click');
     ev.stopPropagation();
     ev.preventDefault();
-    clickCommand(id, tid, ev.button);
+    clickCommand(id, tid, ev.button, ev.shiftKey);
   });
 }
 

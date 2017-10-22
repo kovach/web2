@@ -65,6 +65,9 @@ solvePattern l es (ctxt, bound, deps, forced) linear nvs =
       return (newC, newBound, e : deps, forced)
 
 solveStep :: Graph -> Bindings -> Query -> [Bindings]
+solveStep g b@(c, _, _, _) q@(Query _ (VP val e vs)) =
+  solvePattern e (constrainRelation e g) b NonLinear (val:vs)
+
 solveStep g b@(c, _, _, _) (Query _ (EP linear e vs@(NVar v : _)))
   | Just l <- lookup v c =
     solvePattern e (constrainRelation1 (TP1 e 0 l) g) b linear vs
@@ -101,9 +104,6 @@ solveStep g b@(c, bound, deps, forced) q@(Query _ (LP polarity e ns)) =
     es = constrainRelation e g
     trueEs = filter isPositive es
 
-solveStep g b@(c, _, _, _) q@(Query _ (VP val e vs)) =
-  solvePattern e (constrainRelation e g) b NonLinear (val:vs)
-
 solveStep _ b@(c, _, _, _) (QBinOp op v1 v2) =
     case (matchLookup (reduce c v1) c, matchLookup (reduce c v2) c) of
       (Just v1', Just v2') -> assert (op2fn op v1' v2') b
@@ -134,7 +134,7 @@ getMatches ev rule g = takeValid [] . map toMatch . go $ triggers
     pow (x:xs) = p ++ map (x:) p
       where p = pow xs
 
-    -- tail drops the [] case
+    -- tail drops the [] case; [] denotes a partial match that doesn't use the new tuple
     go = concatMap stepn . tail . pow
 
     pat (_,_,p,_) = p
@@ -155,6 +155,7 @@ getMatches ev rule g = takeValid [] . map toMatch . go $ triggers
         b0 = emptyMatchBindings
         bindings = do
           b1 <- foldM (\b (Query _ p) ->
+                        -- TODO!: don't special case this; use solveStep
                         solvePattern (label ev) [ev] b (epLinear p) (epNodes p)) b0 p1
           solveSteps g b1 (S.toAscList p2)
 

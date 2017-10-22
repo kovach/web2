@@ -12,6 +12,8 @@ import qualified Data.ByteString.Lazy as T (ByteString)
 import Data.Aeson
 import GHC.Generics
 
+import System.Directory (listDirectory)
+
 import Types
 import Monad
 import Iterate
@@ -72,10 +74,27 @@ type Init = (PS, DB, [Msg])
 --      msgs = netOutput s
 --  return (ps, result, msgs)
 
-makeDB = do
+makeDB1 = do
   let files = [ ("refl", "ui/components/refl.arrow")
               , ("button", "ui/components/button.arrow")
               , ("rules",  "ui/components/rule-set.arrow") ]
+  strs <- mapM (readFile . snd) files
+  let fix s = do
+        n1 <- freshNode
+        m1 <- packTuple (LA "make-app" 2, [n1, NString s]) (Extern [])
+        return $ CMsg (MT Positive m1)
+  return $ runStack emptySS emptyIS $ do
+    ps <- initMetaPS (zip (map fst files) strs)
+    ms <- lift $ mapM (fix . fst) files
+    -- register rulesets
+    (output1, ps1) <- solve ms ps
+    return (output1, ps1)
+
+makeDB2 = do
+  let files = [ ("ui", "ui/jelly/io.arrow")
+              , ("level", "ui/jelly/level.arrow")
+              , ("logic", "ui/jelly/logic.arrow")
+              ]
   strs <- mapM (readFile . snd) files
   let fix s = do
         n1 <- freshNode
@@ -94,7 +113,7 @@ handler connId msg s0@(State ps ss is) =
   case decodeCommand msg of
     Just Reset -> do
       putStrLn "reset"
-      (((msgs, ps'), ss'), is') <- makeDB
+      (((msgs, ps'), ss'), is') <- makeDB2
       -- TODO only send relevant tuples
       --let (_, outputEvents) = step2 msgs emptyFS
       putStrLn $ "init: " ++ unlines (map ppMsg msgs)

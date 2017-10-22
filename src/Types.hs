@@ -391,12 +391,15 @@ pattern MNeg t = MT Negative t
 epLabel :: EP -> Label
 epLabel (EP _ l _) = l
 epLabel (LP _ l _) = l
+epLabel (VP _ l _) = l
 epSign EP{} = Nothing
+epSign VP{} = Nothing
 epSign (LP Positive _ _) = Just (Truth True)
 epSign (LP Negative _ _) = Just (Truth False)
 epNodes :: EP -> [NodeVar]
 epNodes (EP _ _ ns) = ns
 epNodes (LP _ _ ns) = ns
+epNodes (VP n _ ns) = n:ns
 epLinear (EP l _ _) = l
 epLinear _ = NonLinear
 

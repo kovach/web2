@@ -17,7 +17,7 @@ var initSock = function() {
     var msgs = JSON.parse(event.data);
 
     //_.each(msgs, function(obj) {
-    //  console.log("hey: ", obj);
+    //  console.log("msg: ", obj);
     //});
 
     console.log("msgs received: ", msgs.length);
@@ -82,6 +82,10 @@ var buttonVal = function(code) {
   }
 }
 
+var shiftVal = function(code) {
+  return code ? symNode("shift") : symNode("no-shift");
+}
+
 var mkTuple = function(label, nodes) {
   return JSON.stringify({
     "tag": "RawTuple",
@@ -90,8 +94,8 @@ var mkTuple = function(label, nodes) {
   });
 }
 
-var clickCommand = function(id, tid, button) {
-  sock.send(mkTuple("raw-click", [ buttonVal(button), id, tid, ]));
+var clickCommand = function(id, tid, button, shiftDown) {
+  sock.send(mkTuple("raw-click", [ buttonVal(button), shiftVal(shiftDown), id, tid, ]));
 }
 
 // TODO remove
@@ -139,6 +143,7 @@ var objTypes = {
   "token":["elem", "x-rank", "y-rank", "color", "size"],
   "text-editor":["elem", "parent"],
   "text-node":["elem"],
+  "thing":["elem"]
 }
 
 var defined = function(obj) {
@@ -195,6 +200,9 @@ var setObjAttributes = function(obj) {
 
       break;
     default:
+      _.each(obj.queue, function(f) {
+        checkFrame(f);
+      });
       break;
   }
 }
@@ -343,20 +351,51 @@ var parseTuple = function(sock) {
           removeObject(id);
         }
         break;
+      case "js/rect":
+        var id = nodes[0];
+        if (sign) {
+          var elem = mkRect(id, tid, sock);
+          setObjAttr(id, "elem", elem);
+          setObjAttr(id, "type", "thing");
+        } else {
+          removeObject(id);
+        }
+        break;
+      case "js/element":
+        var id = nodes[0];
+        if (sign) {
+          var type = nodes[1].contents;
+          var elem = mkElement(type, id, tid, sock);
+          setObjAttr(id, "elem", elem);
+        } else {
+          removeObject(id);
+        }
+        break;
+      case "js/svg":
+        var id = nodes[0];
+        if (sign) {
+          var elem = mkSVG(id, tid, sock);
+          setObjAttr(id, "elem", elem);
+        } else {
+          removeObject(id);
+        }
+        break;
+      case "js/attr":
+        var attr = nodes[0].contents;
+        var val = nodes[1].contents;
+        var id = nodes[2];
+        if (sign) {
+          mkAttr(id, attr, val);
+        }
+        break;
       case "text-editor":
         var id = nodes[0];
         var ruleid = nodes[1];
         var str = nodes[2].contents;
         if (sign) {
-          //var body = nodes[1].contents; // string
-          //var parent = nodes[2];
-          //var el = mkEditor(body, id, sock, textEditHandler, getObjAttr(parent, "elem"));
-          //setObjAttr(id, "type", "edit");
-          //setObjAttr(id, "elem", el);
-          var el = makeLineCM(id, ruleid, str, sock);
-          console.log(el);
-          el.focus();
-          //setSelection(el);
+          var cm = makeLineCM(id, ruleid, str, sock);
+          console.log(cm);
+          cm.focus();
         } else if (tval) {
           removeObject(id);
         }
@@ -365,8 +404,7 @@ var parseTuple = function(sock) {
         var id = nodes[0];
         if (sign && tval) {
           var body = toString(nodes[1]); // string
-          var parent = nodes[2];
-          var el = mkNode(body, id, tid, sock, textNodeHandler);
+          var el = mkNode(body, id, tid, sock);
           setObjAttr(id, "type", "text-node");
           setObjAttr(id, "elem", el);
           setObjAttr(id, "tid", tid);
@@ -418,7 +456,7 @@ var parseTuple = function(sock) {
         var r = nodes[1].contents;
         setObjAttr(id, "size", r);
         break;
-      case "parent":
+      case "child":
         // child, parent
         var id1 = nodes[0];
         var id2 = nodes[1];
@@ -441,9 +479,14 @@ var parseTuple = function(sock) {
           mkStyle(id, "backgroundColor", "transparent");
         }
         break;
-      case "contents":
-        var id = nodes[0];
-        var r = nodes[1].contents;
+      // TODO: check this
+      case "js/style":
+        var attr = nodes[0].contents;
+        var value = nodes[1].contents;
+        var id = nodes[2];
+        if (sign) {
+          mkStyle(id, attr, value);
+        }
         break;
       case "class":
         var id = nodes[0];
@@ -455,15 +498,17 @@ var parseTuple = function(sock) {
         console.log(c);
         break;
     }
+    // TODO: ??
     var lg = get("log");
-    lg.scrollTop = lg.scrollHeight;
+    if (lg)
+      lg.scrollTop = lg.scrollHeight;
   }
 }
 
 var makeMainCM = function() {
   var mainCM = CodeMirror(get("edit"), {
     //keyMap: "vim",
-    value: "hi\nlol\nthere\n",
+    value: "hi\nthere\n",
     readOnly: true,
     cursorBlinkRate: 0,
     gutters: ["gutter"],
@@ -472,44 +517,24 @@ var makeMainCM = function() {
 
 window.onload = function() {
   // TODO bad
-  var rootElems = ["rules", "app", "log"];
+  //var rootElems = ["rules", "app", "log"];
+  var rootElems = [];
+  setObjAttr(strNode("body"), "elem", document.body);
   rootElems.forEach(function(str) {
     var rulesId = strNode(str);
     setObjAttr(rulesId, "elem", get(str));
   });
+
   // Some components will use right-click inputs; best to disable it everywhere?
   //document.addEventListener('contextmenu', event => event.preventDefault());
 
   sock = initSock();
-
-  //makeLineCM(sock);
-
-
-  //document.addEventListener('keydown', bodyHandler(sock));
-
 }
 
-// TODO delete
-  //var nextLine = function() {
-  //  console.log('nextLine');
-  //  var l = mainCM.getCursor().line;
-  //  mainCM.setCursor({line: l+1, ch: 0});
-  //}
-//  mainCM.setOption("extraKeys", {
-//    'j': nextLine,
-//    Escape: function() {
-//      console.log('escape');
-//    },
-//    LeftClick: function(cm, ev) {
-//      var line = ev.line;
-//      console.log('well', ev);
-//      cm.replaceRange("", {line:line}, {line:line+1});
-//      mainCM.setValue("");
-//    }
-//  });
-//  mainCM.on("gutterClick", function(cm, ev) {
-//    console.log('gutter', ev);
-//    cm.setSelection({line:ev});
-//    cm.replaceSelection("");
-//    //cm.replaceRange("", {line:ev-1}, {line:ev});
-//  });
+
+var parseURL = function(sock) {
+  var u = new URL(window.location.href)
+  var dir = u.searchParams.get("file")
+
+  sock.send(mkTuple("request-app", [strNode(dir)]));
+}

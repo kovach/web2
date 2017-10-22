@@ -73,6 +73,7 @@ data MetaCommand
   | ChangeRule Node String
   | DeleteRule Node ProgramName
   | AddRule Node ProgramName
+  | DoRefl
 
 commandRelations :: [Label]
 commandRelations =
@@ -87,6 +88,7 @@ commandRelations =
   , LA "parse-run" 2
   , LA "delete-rule" 2
   , LA "add-rule" 2
+  , LA "refl" 1
   ]
 
 parseMetaCommand :: Tuple -> Maybe MetaCommand
@@ -110,6 +112,8 @@ parseMetaCommand T {label = LA "delete-rule" 2, nodes = [n1@(NNode _), n2@(NStri
   Just $ DeleteRule n1 name
 parseMetaCommand T {label = LA "add-rule" 2, nodes = [n1@(NNode _), n2@(NString name)] } =
   Just $ AddRule n1 name
+parseMetaCommand T {label = LA "refl" 1, tid = tid, nodes = [n1@(NNode _)] } =
+  Just $ DoReflect (Id tid) n1
 
 parseMetaCommand _ = Nothing
 

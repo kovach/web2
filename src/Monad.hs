@@ -71,7 +71,7 @@ emptyReducer op l = Reducer op l mempty mempty
 -- These actors handle interaction between subprograms
 data MetaProcessor
   = CreatorProc Actor
-  | WorkerProc
+  | WorkerProc Actor
   | SubProgram Actor ProgramName PS
   | REPL Rule Graph
   | BaseProc Processor
@@ -132,6 +132,7 @@ emptySS :: SystemState
 emptySS = SS M.empty emptyPS M.empty emptyReflContext mempty mempty undefined
 
 type SM = StateT SystemState M2
+--type SM = StateT SystemState (StateT InterpreterState IO)
 
 defaultGas = 1000
 makeS2 db gas = IS db [] [] gas

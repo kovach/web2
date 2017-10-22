@@ -156,7 +156,7 @@ linearity_ = (string "." *> string "." *> pure Linear) <|> (pure NonLinear)
 rp_ = VP <$> (q_ <* string ":" ) <*> rel_ <*> many q_
 lp_ = LP <$> polarity_ <*> rel_ <*> many q_
 ep_ = EP <$> linearity_ <*> rel_ <*> many q_
-pattern_ = lp_ <|> ep_ <|> rp_
+pattern_ = rp_ <|> lp_ <|> ep_
 
 
 
@@ -189,7 +189,7 @@ vassert_ = do
   val <- (TValExpr <$> expr_) <|> (pure TValNull)
   string ":"
   VAssert val <$> rel_ <*> many expr_
-rclause_ = assert_ <|> vassert_
+rclause_ = vassert_ <|> assert_
 rhs_ = sepBy comma_ rclause_
 
 arrow_ = string "=>"

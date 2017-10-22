@@ -46,14 +46,20 @@ viewRelations = nub . concatMap getLRHS
     getLRHS _ = []
 
 reducedRelations :: [Rule] -> [(Label, ReduceOp)]
-reducedRelations = nub . mapMaybe isValued . concatMap rhs
+reducedRelations = nub . mapMaybe isV . concatMap rhs
   where
-    isValued (VAssert TValNull l _) = Just (l, ReduceOr)
-    isValued (VAssert (TValExpr _) l _) = Just (l, ReduceSum)
-    isValued _ = Nothing
+    isV (VAssert TValNull l _) = Just (l, ReduceOr)
+    isV (VAssert (TValExpr _) l _) = Just (l, ReduceSum)
+    isV _ = Nothing
 
 eventRelations :: [Rule] -> [Label]
-eventRelations rs = allRelations rs \\ viewRelations rs
+eventRelations = nub . mapMaybe ok . concatMap rhs . filter ((== Event) . rule_type)
+  where
+    ok (Assert l _) = Just l
+    ok _ = Nothing
+
+--eventRelations :: [Rule] -> [Label]
+--eventRelations rs = allRelations rs \\ viewRelations rs
 
 labelAssertArity :: Assert -> Assert
 labelAssertArity (Assert (L s) ns) = Assert (LA s (length ns)) ns
@@ -71,26 +77,36 @@ labelQueryArity (Query d p) = Query d (fix p)
 labelQueryArity q = q
 labelLHSArity = map labelQueryArity
 
--- "Type inference"
+-- "Type checking"
+--
+-- TODO better treatment of input relations
+--   should check they are used consistently
 convertRules :: [(Int, Rule)] -> Either String [Rule]
 convertRules rules = result
   where
     -- NOTE!
     --   relation/n is given the same type, "logical" or "event", for all n.
     --   bad convention?
-    logRels = viewRelations $ map snd rules
+    --    TODO: yes. fix
+    viewRels = viewRelations $ map snd rules
+    reducedRels = map fst $ reducedRelations $ map snd rules
     impRels = eventRelations $ map snd rules
 
     result = mapM fix rules
 
-    convertq (line, rule) q@(Query d ep@(EP Linear l ns)) | l `elem` logRels =
-      Left $ "Rules may not consume dynamical tuples. error on line " ++ show line ++ ":\n" ++ show rule
-    convertq _ (Query d ep@(EP _ l ns)) | l `elem` logRels = Right $ Query d (LP Positive l ns)
-    convertq (line, rule) (Query d lp@(LP _ l ns)) | l `elem` impRels =
-      Left $ "Syntax error: `:` used with persistent relation: "++show l ++ ". error on line " ++ show line ++ ":\n" ++ show rule ++ "\n" ++ show impRels
+    notReduced l = l `elem` impRels || (l `elem` viewRels && not (l `elem` reducedRels))
+
+    -- note, ..:p is not accepted by parser
+    convertq (line, rule) q@(Query _ (EP Linear l _)) | l `elem` viewRels =
+      Left $ "Rules may not consume tuples of dynamic relations. error on line " ++ show line ++ ":\n" ++ show rule
+
+    convertq (line, rule) (Query _ (LP _ l _)) | notReduced l =
+      Left $ "Syntax error: `:` used with non-reduced relation: "++show l ++ ". error on line " ++ show line ++ ":\n" ++ show rule ++ "\n" ++ show impRels
+    convertq (line, rule) (Query _ (VP _ l _)) | notReduced l =
+      Left $ "Syntax error: `:` used with non-reduced relation: "++show l ++ ". error on line " ++ show line ++ ":\n" ++ show rule
     convertq _ q = Right q
 
-    check (line, rule@(Rule {rule_type = Event})) (Assert l _) | l `elem` logRels =
+    check (line, rule@(Rule {rule_type = Event})) (Assert l _) | l `elem` viewRels =
       Left $ "Event rule (=>) may not assert dynamic tuple. error on line " ++ show line ++ ":\n" ++ show rule
     check (line, rule@(Rule {rule_type = View})) (Assert l _) | l `elem` impRels =
       Left $ "Logical rule (~>) may not assert persistent tuple. error on line " ++ show line ++ ":\n" ++ show rule

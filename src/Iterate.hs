@@ -3,6 +3,7 @@
 module Iterate where
 
 import Data.Maybe (mapMaybe, fromJust)
+import Data.List (foldl')
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Map (Map)
@@ -17,6 +18,28 @@ import Reflection
 import REPL
 import Update
 
+import Debug.Trace
+
+pushMsg :: ControlMsg -> PS -> PS
+pushMsg (CNotActor act m') ps = pushMsgTo m' actors ps
+  where
+    actors = S.toList . S.delete act . S.fromList $ (sinks ps) ++ concat (M.elems (dependencies ps))
+pushMsg (CActor act m') ps = pushMsgTo m' [act] ps
+pushMsg (CMsg m) ps = pushMsgTo m actors ps
+  where
+    actors = sinks ps ++ lookDefault (mlabel m) (dependencies ps)
+
+pushMsgTo m actors ps = ps { queues = queues', output = pushOutput m (output ps) }
+  where
+    queues' = foldr (adjustDefault $ pushQueue m) (queues ps) actors
+    pushOutput m s | not (notRaw m) = s
+    pushOutput (MT Positive t) (n, s) = (n, S.insert t s)
+    pushOutput (MT Negative t) (n, s) = (t:n, S.delete t s)
+
+sendMsgs :: [ControlMsg] -> PS -> PS
+-- this foldl' very important
+sendMsgs ms ps = foldl' (flip pushMsg) ps ms
+
 initMetaPS :: [(ProgramName, String)] -> SM PS
 initMetaPS ruleSets = do
     -- sets the program_map
@@ -25,7 +48,7 @@ initMetaPS ruleSets = do
     worker  <- freshActor
     creator <- freshActor
     modify $ \ss -> ss { worker_id = worker }
-    let procs = [ (worker, WorkerProc) , (creator, CreatorProc worker) ]
+    let procs = [ (worker, WorkerProc worker) , (creator, CreatorProc worker) ]
     let metaDeps = zip commandRelations (repeat [creator])
 
     return (PS
@@ -37,8 +60,8 @@ initMetaPS ruleSets = do
       , output = mempty
       })
 
-stepWorker :: MsgQueue -> SM ([Msg], MetaProcessor)
-stepWorker mq@MQ{m_pos, m_neg} = tr ("stepWorker" ++ unlines (map ppMsg (toMsgs mq))) $ do
+stepWorker :: Actor -> MsgQueue -> SM ([ControlMsg], MetaProcessor)
+stepWorker worker mq@MQ{m_pos, m_neg} = tr ("stepWorker" ++ unlines (map ppMsg (toMsgs mq))) $ do
     envPS <- gets environment
     tupleIds0 <- gets tuple_ids
     allTuples0 <- gets all_tuples
@@ -50,7 +73,20 @@ stepWorker mq@MQ{m_pos, m_neg} = tr ("stepWorker" ++ unlines (map ppMsg (toMsgs 
     let tupleIds2 = foldr (\t -> IM.insert (tid t) t) tupleIds0 posMsgs
     let allTuples1 = foldr S.insert allTuples0 posMsgs
     modify $ \ss -> ss { tuple_ids = tupleIds2, all_tuples = allTuples1 }
-    return (msgs, WorkerProc)
+    --reflMsgs <- concat <$> mapM reflectOne msgs
+    return (map CMsg msgs, WorkerProc worker)
+    --return (map (CActor worker) reflMsgs ++ map CMsg msgs, WorkerProc worker)
+    --return (msgs, WorkerProc)
+  where
+    reflectOne :: Msg -> SM [Msg]
+    reflectOne (MT Positive t) = do
+      rc <- gets refl_context
+      (rootTID, rc') <- lift $ runReflection (flattenTuple t) rc
+      modify $ \ss -> ss { refl_context = rc' }
+      reflectionMsgs <- lift flushEvents
+      return $ reflectionMsgs
+    reflectOne _ = return []
+
 
 -- stepCreator handles various "Interpreter API" messages, including
 -- reflection, rule parsing, rule set changes
@@ -67,6 +103,7 @@ stepCreator mq@MQ{m_pos, m_neg} worker = tr "stepCreator" $ do
 
     reflected t target rootTID = tupleMsg (LA "reflected" 2, [rootTID, target]) (cause t)
 
+    handleCommand :: (Tuple, MetaCommand) -> SM [Msg]
     handleCommand (t, DoReflect (Id tid) target) = do
       -- TODO correct?
       -- _ <- lift flushEvents
@@ -105,7 +142,8 @@ stepCreator mq@MQ{m_pos, m_neg} worker = tr "stepCreator" $ do
           rules <- getProgramRules programName
           updateRunningSubProgram programName rules
           return []
-        other -> error $ show other
+        _ -> return []
+        -- other -> error $ show other
 
     -- TODO implement the rest
     handleCommand (t, _) = return [] -- error $ "command unimplemented: " ++ ppTuple t
@@ -162,7 +200,7 @@ stepMeta ps = tr ("step: " ++ ps_name ps) $ do
         let pr = look act (processors ps')
         (output, pr') <- case pr of
           CreatorProc worker -> stepCreator msgs worker
-          WorkerProc -> first (map CMsg) <$> stepWorker msgs
+          WorkerProc worker -> stepWorker worker msgs
           SubProgram me name ps -> do
             (out, ps') <- solve (map CMsg $ toMsgs msgs) ps
             -- TODO fix this

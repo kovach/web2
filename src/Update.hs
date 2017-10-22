@@ -5,7 +5,7 @@
 module Update where
 
 import Data.Maybe (mapMaybe, fromJust)
-import Data.List (delete, foldl')
+import Data.List (delete)
 import Data.Set (Set)
 import qualified Data.Set as S
 import Data.Map (Map)
@@ -34,26 +34,6 @@ pushQueue m mq = tr ("push msg:\n" ++ ppMsg m) $ pushQueue' m mq
 pushQueue' (MT Positive t) m@(MQ{m_pos}) = m { m_pos = t : m_pos }
 pushQueue' (MT Negative t) MQ {m_pos, m_neg} =
   MQ { m_neg = t : m_neg, m_pos = delete t m_pos}
-
-pushMsg :: ControlMsg -> PS -> PS
-pushMsg (CNotActor act m') ps = pushMsgTo m' actors ps
-  where
-    actors = S.toList . S.delete act . S.fromList $ (sinks ps) ++ concat (M.elems (dependencies ps))
-pushMsg (CActor act m') ps = pushMsgTo m' [act] ps
-pushMsg (CMsg m) ps = pushMsgTo m actors ps
-  where
-    actors = sinks ps ++ lookDefault (mlabel m) (dependencies ps)
-
-pushMsgTo m actors ps = ps { queues = queues', output = pushOutput m (output ps) }
-  where
-    queues' = foldr (adjustDefault $ pushQueue m) (queues ps) actors
-    pushOutput m s | not (notRaw m) = s
-    pushOutput (MT Positive t) (n, s) = (n, S.insert t s)
-    pushOutput (MT Negative t) (n, s) = (t:n, S.delete t s)
-
-sendMsgs :: [ControlMsg] -> PS -> PS
--- this foldl' very important
-sendMsgs ms ps = foldl' (flip pushMsg) ps ms
 
 -- updates global DB
 updateDB :: Msg -> DB -> DB
@@ -176,17 +156,21 @@ stepProcessor mq (Reducer op l state vals) = do
       where
         p = Reduction op (look f state1)
 
-    valOr (Truth a) (Truth b) = Truth (a || b)
+    foldVal Positive (Truth a) (Truth b) = Truth (a || b)
+    foldVal Negative (Truth a) _ = Truth a
+    foldVal p (TVNode (NInt i1)) (TVNode (NInt i2)) = TVNode (NInt $ i1 `op` i2)
+      where
+        op = if p == Positive then (+) else (-)
 
     --  Main fold function
-    step ReduceOr (MT p t) (state, vals, touched) =
+    step _ (MT p t) (state, vals, touched) =
         {-# SCC step #-}
         (state1, vals1, S.insert f touched)
       where
         (_,f) = tfact t
         state1 = updateFact p t state
         -- removals handled by final check; see vals2 above
-        vals1 = if p == Positive then M.insertWith valOr f (tval t) vals else vals
+        vals1 = M.insertWith (foldVal p) f (tval t) vals
 
     updateFact :: Polarity -> Tuple -> ReducedCache -> ReducedCache
     updateFact Positive t = M.insertWith (++) (nodes t) [t]

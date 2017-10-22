@@ -65,7 +65,7 @@ var toString = function(node) {
     case "NNode":
       return "#"+node.contents;
     default:
-      console.log('wtf: ', node);
+      console.log('error: ', node);
       break;
   }
 }
