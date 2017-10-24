@@ -13,6 +13,7 @@ import Data.Aeson
 import GHC.Generics
 
 import System.Directory (listDirectory)
+import Data.List (isSuffixOf)
 
 import Types
 import Monad
@@ -46,13 +47,30 @@ instance FromJSON Id where
 instance FromJSON Node where
 instance FromJSON Command where
 
+jsCommands =
+  [ "js/element"
+  , "js/attr"
+  , "js/edit"
+  , "js/text"
+  , "refresh-code-mirror"
+  , "child"
+  , "background-color"
+  , "js/style"
+  , "class"
+  ]
+
 decodeCommand = decode
 
 convert :: Msg -> Maybe (Polarity, Label, [Node], Node, Bool)
+convert (MT p t) | not (fix (label t) `elem` jsCommands) = Nothing
+  where
+    fix (LA s _) = L s
 convert (MT p T{..}) = Just (p, label, nodes, NNode (Id tid), fix tval)
   where
     fix (Truth t) = t
     fix NoVal = True
+    -- TODO!
+    fix (TVNode n) = True
 
 -- TODO remove arity tags?
 encodeEvents :: [Msg] -> T.ByteString
@@ -62,21 +80,59 @@ data State = State PS SystemState InterpreterState
 
 type Init = (PS, DB, [Msg])
 
---initGoProgram :: IO Init
---initGoProgram = do
---  edgeBlocks <- readDBFile "server/go.graph"
---  rules <- readRules  "examples/go.arrow"
---  uiRules <- readRules "ui/go.arrow"
---  --let allRules = convertRules $ zip [1..] $ rules ++ uiRules
---  let allRules = rules ++ uiRules
---  let ((_, ps), s) = runProgramWithDB edgeBlocks allRules
---      result = db s
---      msgs = netOutput s
---  return (ps, result, msgs)
+-- returns result of removing suffix, if it is a suffix
+msuffix :: String -> String -> Maybe String
+msuffix suf s = fix (reverse suf) (reverse s)
+  where
+    fix [] s = Just $ reverse s
+    fix (a:as) (b:bs) | a == b = fix as bs
+    fix _ _ = Nothing
+
+scriptSuffix = ".arrow"
+dataSuffix = ".stuff"
+
+loadStuff dir str = do
+    f <- readFile (dir ++ "/" ++ str ++ dataSuffix)
+    let ls = lines f
+    return $ do
+      fid <- freshNode
+      ls <- mapM (uncurry $ toLine fid) $ zip [0..] ls
+      eof <- eof fid (length ls)
+      fmsg <- fileMsg fid
+      return $ fmsg : eof : ls
+  where
+    toLine f i l =
+      MT Positive <$> packTuple (LA "io/line" 3, [f, NInt i, NString l]) (Extern [])
+    eof f i =
+      MT Positive <$> packTuple (LA "io/eof" 2, [f, NInt i]) (Extern [])
+    fileMsg f =
+      MT Positive <$> packTuple (LA "io/file" 1, [f]) (Extern [])
+
+loadDirectory dir = do
+  dirfiles <- listDirectory dir
+  let scripts = mapMaybe (msuffix scriptSuffix) dirfiles
+      resources = mapMaybe (msuffix dataSuffix) dirfiles
+      files = map (\(i, s) -> (show i, dir ++ "/" ++ s ++ scriptSuffix)) (zip [1..] scripts)
+  fileMsgsM <- sequence <$> mapM (loadStuff dir) resources
+  strs <- mapM (readFile . snd) files
+  let fix s = do
+        n1 <- freshNode
+        m1 <- packTuple (LA "make-app" 2, [n1, NString s]) (Extern [])
+        return $ CMsg (MT Positive m1)
+  return $ runStack emptySS emptyIS $ do
+    ps <- initMetaPS (zip (map fst files) strs)
+    ms <- lift $ mapM (fix . fst) files
+    fileMsgs <- lift $ concat <$> fileMsgsM
+    -- register rulesets
+    (output1, ps1) <- solve ms ps
+    worker <- gets worker_id
+    (output2, ps2) <- solve (map (CActor worker) $ fileMsgs) ps1
+    return (output2++output1, ps2)
 
 makeDB1 = do
   let files = [ ("refl", "ui/components/refl.arrow")
               , ("button", "ui/components/button.arrow")
+              -- ? TODO not using this:
               , ("rules",  "ui/components/rule-set.arrow") ]
   strs <- mapM (readFile . snd) files
   let fix s = do
@@ -107,13 +163,15 @@ makeDB2 = do
     (output1, ps1) <- solve ms ps
     return (output1, ps1)
 
+makeDB4 = loadDirectory "ui/slides"
+
 noDebug = False
 
 handler connId msg s0@(State ps ss is) =
   case decodeCommand msg of
     Just Reset -> do
       putStrLn "reset"
-      (((msgs, ps'), ss'), is') <- makeDB2
+      (((msgs, ps'), ss'), is') <- makeDB4
       -- TODO only send relevant tuples
       --let (_, outputEvents) = step2 msgs emptyFS
       putStrLn $ "init: " ++ unlines (map ppMsg msgs)

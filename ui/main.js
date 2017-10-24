@@ -22,11 +22,11 @@ var initSock = function() {
 
     console.log("msgs received: ", msgs.length);
 
-    if (msgs.length < 30) {
-      _.each(msgs, function(obj) {
-        console.log(JSON.stringify(obj));
-      });
-    }
+    //if (msgs.length < 30) {
+    //  _.each(msgs, function(obj) {
+    //    console.log(JSON.stringify(obj));
+    //  });
+    //}
 
     _.each(msgs, parseTuple(sock));
 
@@ -141,8 +141,8 @@ var hasKeys = function(ks, obj) {
 
 var objTypes = {
   "token":["elem", "x-rank", "y-rank", "color", "size"],
-  "text-editor":["elem", "parent"],
-  "text-node":["elem"],
+  "js/edit":["elem", "parent"],
+  "js/text":["elem"],
   "thing":["elem"]
 }
 
@@ -184,7 +184,7 @@ var setObjAttributes = function(obj) {
         e.className = obj["class"];
       }
       break;
-    case "text-node":
+    case "js/text":
       var e = obj.elem;
       if ("background-color" in obj) {
         obj.elem.style.backgroundColor = obj["background-color"];
@@ -325,8 +325,9 @@ var textEditHandler = function(el, id, sock) {
 
 var removeObject = function(id) {
   var elem = objects[JSON.stringify(id)].elem;
-  console.log(id, elem);
-  elem.parentNode.removeChild(elem);
+  if (elem.parentNode) {
+    elem.parentNode.removeChild(elem);
+  }
 }
 
 // TODO abstract the repeated structure of this switch
@@ -348,7 +349,8 @@ var parseTuple = function(sock) {
           setObjAttr(id, "elem", elem);
           setObjAttr(id, "type", "token");
         } else {
-          removeObject(id);
+          mkDelete(id);
+          //removeObject(id);
         }
         break;
       case "js/rect":
@@ -358,17 +360,19 @@ var parseTuple = function(sock) {
           setObjAttr(id, "elem", elem);
           setObjAttr(id, "type", "thing");
         } else {
-          removeObject(id);
+          mkDelete(id);
+          //removeObject(id);
         }
         break;
       case "js/element":
         var id = nodes[0];
-        if (sign) {
+        if (sign && tval) {
           var type = nodes[1].contents;
           var elem = mkElement(type, id, tid, sock);
           setObjAttr(id, "elem", elem);
         } else {
-          removeObject(id);
+          mkDelete(id);
+          //removeObject(id);
         }
         break;
       case "js/svg":
@@ -377,39 +381,42 @@ var parseTuple = function(sock) {
           var elem = mkSVG(id, tid, sock);
           setObjAttr(id, "elem", elem);
         } else {
-          removeObject(id);
+          mkDelete(id);
+          //removeObject(id);
         }
         break;
       case "js/attr":
         var attr = nodes[0].contents;
         var val = nodes[1].contents;
         var id = nodes[2];
-        if (sign) {
+        if (sign && tval) {
           mkAttr(id, attr, val);
         }
         break;
-      case "text-editor":
+      case "js/edit":
         var id = nodes[0];
-        var ruleid = nodes[1];
-        var str = nodes[2].contents;
-        if (sign) {
-          var cm = makeLineCM(id, ruleid, str, sock);
+        //var ruleid = nodes[1];
+        var str = nodes[1].contents;
+        if (sign && tval) {
+          var cm = makeLineCM(id, str, sock);
           console.log(cm);
           cm.focus();
         } else if (tval) {
-          removeObject(id);
+          mkDelete(id);
+          //removeObject(id);
         }
         break;
-      case "text-node":
+      case "js/text":
         var id = nodes[0];
         if (sign && tval) {
           var body = toString(nodes[1]); // string
           var el = mkNode(body, id, tid, sock);
-          setObjAttr(id, "type", "text-node");
+          setObjAttr(id, "type", "js/text");
           setObjAttr(id, "elem", el);
           setObjAttr(id, "tid", tid);
         } else if (tval) {
-          removeObject(id);
+          mkDelete(id);
+          //removeObject(id);
         }
         break;
       case "refresh-code-mirror":
@@ -421,8 +428,6 @@ var parseTuple = function(sock) {
           cm.focus();
         }
         mkFrame([id, par], handler);
-      case "area":
-        break;
       case "x-rank":
         var id = nodes[0];
         var n = nodes[1].contents;
@@ -460,7 +465,7 @@ var parseTuple = function(sock) {
         // child, parent
         var id1 = nodes[0];
         var id2 = nodes[1];
-        if (sign) {
+        if (sign && tval) {
           if (arity == 2) {
             mkParent(id1, id2);
           } else if (arity == 3) {
@@ -484,7 +489,7 @@ var parseTuple = function(sock) {
         var attr = nodes[0].contents;
         var value = nodes[1].contents;
         var id = nodes[2];
-        if (sign) {
+        if (sign && tval) {
           mkStyle(id, attr, value);
         }
         break;
@@ -500,8 +505,14 @@ var parseTuple = function(sock) {
     }
     // TODO: ??
     var lg = get("log");
-    if (lg)
+    if (lg) {
       lg.scrollTop = lg.scrollHeight;
+    }
+    var rp = get("repl-log");
+    if (rp) {
+      console.log('ok');
+      rp.scrollTop = rp.scrollHeight;
+    }
   }
 }
 

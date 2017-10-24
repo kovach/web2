@@ -43,7 +43,7 @@ sendMsgs ms ps = foldl' (flip pushMsg) ps ms
 initMetaPS :: [(ProgramName, String)] -> SM PS
 initMetaPS ruleSets = do
     -- sets the program_map
-    mapM (uncurry newProgram) ruleSets
+    mapM_ (uncurry newProgram) ruleSets
 
     worker  <- freshActor
     creator <- freshActor
@@ -78,6 +78,7 @@ stepWorker worker mq@MQ{m_pos, m_neg} = tr ("stepWorker" ++ unlines (map ppMsg (
     --return (map (CActor worker) reflMsgs ++ map CMsg msgs, WorkerProc worker)
     --return (msgs, WorkerProc)
   where
+    -- TODO remove?
     reflectOne :: Msg -> SM [Msg]
     reflectOne (MT Positive t) = do
       rc <- gets refl_context
@@ -102,6 +103,14 @@ stepCreator mq@MQ{m_pos, m_neg} worker = tr "stepCreator" $ do
     tupleMsg f p = lift $ MT Positive <$> packTuple f p
 
     reflected t target rootTID = tupleMsg (LA "reflected" 2, [rootTID, target]) (cause t)
+
+    withReflContext :: M3 a -> SM (a, [Msg])
+    withReflContext m = do
+      rc <- gets refl_context
+      (a, rc') <- lift $ runReflection m rc
+      modify $ \ss -> ss { refl_context = rc' }
+      ms <- lift flushEvents
+      return (a, ms)
 
     handleCommand :: (Tuple, MetaCommand) -> SM [Msg]
     handleCommand (t, DoReflect (Id tid) target) = do
@@ -135,8 +144,8 @@ stepCreator mq@MQ{m_pos, m_neg} worker = tr "stepCreator" $ do
       return [msg]
 
     handleCommand (t, ChangeRule node str) =
-      case replParse str of
-        Right (ARule parsed) -> do
+      case parseRule str of
+        Right parsed -> do
           modify $ \ss -> ss { rule_map = M.insert node parsed (rule_map ss) }
           programName <- findContainingProgram node
           rules <- getProgramRules programName
@@ -144,6 +153,34 @@ stepCreator mq@MQ{m_pos, m_neg} worker = tr "stepCreator" $ do
           return []
         _ -> return []
         -- other -> error $ show other
+
+    handleCommand (t, DoParse out str) =
+      case parseRule str of
+        -- io/parsed-rule id id
+        Right parsed -> do
+          modify $ \ss -> ss { rule_map = M.insert out parsed (rule_map ss) }
+          msg <- tupleMsg (LA "io/parsed-rule" 1, [out]) (cause t)
+          return [msg]
+        -- io/parse-failed id
+        Left _ -> do
+          msg <- tupleMsg (LA "io/parse-failed" 1, [out]) (cause t)
+          return [msg]
+    handleCommand (t, RunReplQuery out str) = do
+      --rule <- gets (M.lookup rule . rule_map)
+      case replParse str of
+        Right query -> do
+          -- get graph
+          g <- lift $ gets (tuples . db)
+          -- handle query
+          (deletions, cs) <- lift $ queryEval g query
+          -- reflect query bindings
+          (_, ms) <- withReflContext (mapM (flattenContext out) cs)
+          -- return reflection msgs and deletions
+          msg <- tupleMsg (LA "io/query-ok" 1, [out]) (cause t)
+          return (msg : deletions ++ ms)
+        _ -> do
+          msg <- tupleMsg (LA "io/query-parse-failed" 1, [out]) (cause t)
+          return [msg]
 
     -- TODO implement the rest
     handleCommand (t, _) = return [] -- error $ "command unimplemented: " ++ ppTuple t

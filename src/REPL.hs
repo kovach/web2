@@ -24,13 +24,15 @@ newRule (_, rule) = do
   return i
 
 -- TODO reorg rule parsing
-newProgram :: String -> String -> SM ()
+newProgram :: String -> String -> SM Bool
 newProgram name str =
   case parseRuleFile str of
     Right rs -> do
       ids <- mapM newRule rs
       modify $ \s -> s { program_map = M.insert name ids (program_map s) }
-    Left _ -> error $ "Cannot load invalid program: " ++ name
+      return True
+    _ -> return False
+    --Left _ -> error $ "Cannot load invalid program: " ++ name
 
 data Action = AQuery LHS | ARule Rule
   deriving (Show)
@@ -45,12 +47,23 @@ parseString p s = do
   ls <- lexLine s
   mapLeft fst $ runParser p ls
 
-replParse :: String -> Either Error Action
-replParse s =
-  case parseString ((ARule <$> line_)  <|> (AQuery <$> lhs_)) s of
+fullParse p s =
+  case parseString p s of
     Right (v, []) -> Right v
     Right _ -> Left "incomplete parse"
     Left err -> Left err
+
+parseRule :: String -> Either Error Rule
+parseRule s =
+  case parseString line_ s of
+    Right (v, []) -> Right v
+    Right _ -> Left "incomplete parse"
+    Left err -> Left err
+
+replParse :: String -> Either Error LHS
+replParse s = do
+  lhs <- fullParse lhs_ s
+  return (labelLHSArity lhs)
 
 freshActor :: SM Actor
 freshActor = lift $ ActorObject <$> freshNode
@@ -84,8 +97,8 @@ commandRelations =
   , LA "update-rule" 2
   -- TODO
   , LA "make-repl" 1
-  , LA "parse" 2
-  , LA "parse-run" 2
+  , LA "io/parse-rule" 2
+  , LA "io/run-query" 2
   , LA "delete-rule" 2
   , LA "add-rule" 2
   , LA "refl" 1
@@ -104,9 +117,9 @@ parseMetaCommand T {label = LA "update-rule" 2, nodes = [n1@(NNode _), n2@(NStri
   Just $ ChangeRule n1 str
 parseMetaCommand T {label = LA "make-repl" 1, nodes = [n1@(NNode _)] } =
   Just $ MakeRepl n1
-parseMetaCommand T {label = LA "parse" 2, nodes = [n1@(NNode _), n2@(NString str)] } =
+parseMetaCommand T {label = LA "io/parse-rule" 2, nodes = [n1@(NNode _), n2@(NString str)] } =
   Just $ DoParse n1 str
-parseMetaCommand T {label = LA "parse-run" 2, nodes = [n1@(NNode _), n2@(NString str)] } =
+parseMetaCommand T {label = LA "io/run-query" 2, nodes = [n1@(NNode _), (NString str)] } =
   Just $ RunReplQuery n1 str
 parseMetaCommand T {label = LA "delete-rule" 2, nodes = [n1@(NNode _), n2@(NString name)] } =
   Just $ DeleteRule n1 name
@@ -119,6 +132,32 @@ parseMetaCommand _ = Nothing
 
 setEnv :: PS -> SM ()
 setEnv e = modify $ \ss -> ss { environment = e }
+
+
+-- TODO use standard code for this
+queryEval :: Graph -> LHS -> M2 ([Msg], [Context])
+queryEval g lhs = do
+    pairs <- mapM applyMatch matches
+    let (deletions, ctxts) = unzip pairs
+    return (concat deletions, ctxts)
+  where
+    rule = (Rule Nothing Nothing Event lhs [])
+    rrule = RankedRule 1 rule
+    rels = lhsRels rule
+    ts = filter (\t -> label t `elem` rels) $ fromGraph g
+
+    (matches, _) = foldl' step ([], emptyGraph) ts
+    step (ms, g) t = (getMatches t rrule g ++ ms, insertTuple t g)
+
+--foo str = do
+--  ok <- newProgram "query" str
+--  if ok
+--    then do
+--      -- run "query"
+--      return ()
+--    else do
+--      -- TODO return "bad parse"
+--      return ()
 
 -- TODO integrate this
 --

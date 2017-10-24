@@ -65,9 +65,6 @@ solvePattern l es (ctxt, bound, deps, forced) linear nvs =
       return (newC, newBound, e : deps, forced)
 
 solveStep :: Graph -> Bindings -> Query -> [Bindings]
-solveStep g b@(c, _, _, _) q@(Query _ (VP val e vs)) =
-  solvePattern e (constrainRelation e g) b NonLinear (val:vs)
-
 solveStep g b@(c, _, _, _) (Query _ (EP linear e vs@(NVar v : _)))
   | Just l <- lookup v c =
     solvePattern e (constrainRelation1 (TP1 e 0 l) g) b linear vs
@@ -103,6 +100,31 @@ solveStep g b@(c, bound, deps, forced) q@(Query _ (LP polarity e ns)) =
   where
     es = constrainRelation e g
     trueEs = filter isPositive es
+
+-- TODO check this, and allow n:pred matches to succeed when "n = 0"
+solveStep g b@(c, bound, deps, forced) q@(Query _ (VP (NVal (NInt 0)) e ns)) =
+      let vs = mapM (\n -> matchLookup n c) ns in
+      case vs of
+        -- TODO reorder queries; remove this constraint
+        Nothing -> error $ "negated queries must refer to bound values, or else be the sole clause of a query. offending clause:\n  " ++ show q
+        Just vs' ->
+          let fact = (e, vs') in
+          case filter ((== fact) . tfact) es of
+            -- TODO generalize default value based on type
+            -- should be able to use syntax (new field in LP)
+            [isTrue] | tval isTrue /= zero -> []
+            [isFalse] -> return (c, bound, isFalse : deps, forced)
+            _ -> return (c, bound, deps, (fact, zero) : forced)
+            -- TODO remove?
+            -- ts -> error $ "solveStep. INTERNAL ERROR. duplicate proofs of reduced tuple:\n" ++ unlines (map ppTuple ts)
+  where
+    zero = TVNode (NInt 0)
+    es = constrainRelation e g
+    trueEs = filter isPositive es
+
+solveStep g b@(c, _, _, _) q@(Query _ (VP val e vs)) =
+  solvePattern e (constrainRelation e g) b NonLinear (val:vs)
+
 
 solveStep _ b@(c, _, _, _) (QBinOp op v1 v2) =
     case (matchLookup (reduce c v1) c, matchLookup (reduce c v2) c) of

@@ -99,7 +99,6 @@ convertRules rules = result
     -- note, ..:p is not accepted by parser
     convertq (line, rule) q@(Query _ (EP Linear l _)) | l `elem` viewRels =
       Left $ "Rules may not consume tuples of dynamic relations. error on line " ++ show line ++ ":\n" ++ show rule
-
     convertq (line, rule) (Query _ (LP _ l _)) | notReduced l =
       Left $ "Syntax error: `:` used with non-reduced relation: "++show l ++ ". error on line " ++ show line ++ ":\n" ++ show rule ++ "\n" ++ show impRels
     convertq (line, rule) (Query _ (VP _ l _)) | notReduced l =

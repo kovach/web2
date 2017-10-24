@@ -96,7 +96,6 @@ data ReflContext = RC
 
 emptyReflContext = RC { rcf = M.empty , rcp = M.empty , rcr = M.empty , rct = M.empty }
 
--- remove new/out_unprocessed, processor
 data InterpreterState = IS
   { db :: DB
   , unprocessed :: [Msg]

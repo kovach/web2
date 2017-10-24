@@ -1,0 +1,57 @@
+# TODO list
+# X insert bad slides
+# X decide query format
+# X evaluate queries
+# X format result
+# X repl input box
+#   ? fix 0:foo
+# X test slide program
+#   idea: .resource files get automatically loaded, bound to some tuple
+#   main/server:load-directory
+#   avoids IO monad for now
+# X glue together demo
+#   slides
+#   repl
+#   tracer
+# X write query(s) for demo (remove bad slides)
+#   `js/text x y`
+#   `title "this slide intentionally left blank" x ~> 1:bad-slides; n:bad-slides.`...
+# ! fix rule numbering bug
+#
+# optional
+#   NO attach comments to rules in the tracer
+#   NO highlight while holding shift
+#   NO evaluate rules inside repl
+#   NO show all rules
+# NO calculate schema
+#   X idea: just use tracer for now
+
+# make question box
+mk-repl-link par ~> js/div i, child i par, js/attr "class" "color-box" i, repl-link i, js/text q "?", child q i, js/style "color" "#222" q
+raw-click _ _ i _, repl-link i ~> create-repl, js/style "visibility" "hidden" i
+#repl-link i ~> create-repl, js/style "visibility" "hidden" i
+
+# repl DOM element
+create-repl, top-pane p ~> js/div i, repl-app i, child i p 1, js/attr "id" "repl" i
+repl-app par ~> js/edit i "", child i par, repl-editor i
+repl-app par ~> js/div i, child i par, repl-log i
+#repl-log i ~> js/style "overflow" "auto" i, js/attr "id" "repl-log" i
+repl-log i ~> js/attr "id" "repl-log" i
+
+# forward queries to interpreter
+repl-editor i, js/text-entry i str => io/run-query _ str
+
+# report bad parse
+io/query-parse-failed _, repl-log par ~> js/text i "parse failed", child i par
+
+# render number of results
+io/query-ok out, repl-log par ~> js/div i, icon i out, child i par
+io/query-ok out, io/context _ out ~> 1:results out
+io/query-ok out, icon par out, n:results out ~> js/text l "results: ", child l par, js/text i n, child i par
+io/query-ok out, icon par out, 0:results out ~>
+
+# display matches
+match-block e ~> js/style "border-width" "1px" e, js/style "border" "solid" e, js/style "margin" "3px" e, js/style "border-radius" "6px" e, js/style "padding" "3px" e
+io/context b _, repl-log par ~> js/div i, icon i b, child i par, match-block i
+io/binding b c, icon par c ~> js/div i, icon i b, child i par
+icon par b, io/var var b, io/val val b ~> js/text v1 var, js/text c ":", js/text v2 val, child v1 par 1, child c par 2, child v2 par 3

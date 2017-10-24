@@ -1,0 +1,106 @@
+
+HELLO
+scott kovach
+cutfree.net
+"ANANSI"
+
+OBJECT ORIENTED GRAPHICAL DATALOG
+follow object oriented philosophy
+but write rule programs
+define GUIs
+
+Similarity to normal OO:
+behavior localized at "objects"
+extensible world built from small objects
+communicate uniformly by passing messages
+
+Deprioritize object boundaries
+no classes
+state represented by a database (collection of facts)
+write queries
+rules describe conditional transformations of state
+
+Example rules:
+  p x => q x
+  title s slide, icon p slide ~> js/text i s, child i p 1
+  click e, icon e t, tuple t, cause p t ~> :render-cause p
+  shift-click _ tid => reflect tid _
+
+Differences from typical OO:
+classes as queries
+  banana x
+  banana x, ripe x, on-shelf x s
+"an object is the set of propositions that are true of it"
+more symmetric treatment of interactions between objects
+
+Differences from typical datalog:
+programs elapse over time
+focus on reacting to external input
+bottom-up
+
+Why? "user respect"
+help domain knowledge translate into programming knowledge
+to an expert, application is like a second language
+graphical applications usually aren't extensible
+source code is like a book
+users have a right to understand and modify their programs
+
+Why datalog
+simple semantics
+no hidden context
+no hidden control flow
+  all "transitions" mediated explicitly by tuples
+
+Hilariously flexible combination
+delete any subset of lines from a program, get a valid program
+(will probably get stuck)
+has well-defined input/output relations
+
+Games
+interactive fiction
+roguelikes
+card games
+puzzles
+(games that are interesting because of their many interacting parts)
+many local actors and places whose combinations produce surprising events
+
+Verbal description
+rules resemble natural language descriptions
+"when a player passes go, they collect $200"
+  `player p, moving p p1 p2, Go-position g, p1 < g, g < p2 => collect 200 p`
+"when a player's hand is empty, they draw a card"
+  card-in-hand c player ~> 1:hand-size player
+  player p, 0:hand-size p => empty-hand p
+  empty-hand p => draw-card p
+
+Build your own model
+questions translate easily into queries
+observed consequences translate easily into rules
+build a partial model of a program this way
+trace backwards through the original program when you're stuck
+
+FUTURE WORK
+networked instances
+dynamic epistemic logic
+self hosted compiler
+natural language parsing
+bidirectionality 
+subtype inference
+Self-style optimization
+gui inference
+
+## => ~>
+- => "I saw that"
+- ~> "I see that"
+
+Some internal operational details
+actor model
+but runtime is an ordered list of actors
+control is always passed to the highest priority actor with nonempty queue
+each has a msg queue; records new messages, and old messages that have been reverted
+
+three types of actors:
+  each rule has a match processing actor. examines new tuples, generates matches, outputs new tuples
+    matches computed incrementally; old matches never reconsidered
+  each ~> rule also has a "view" processor; examines reverted tuples, invalidates matches that no longer hold, emits reverted tuples
+  each : relation has a reducer. consumes "raw" tuples emitted by other rules, produces a reduced result (sum of labels in case of counting reducer, boolean value in case of boolean relation)

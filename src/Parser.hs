@@ -2,7 +2,7 @@ module Parser
   (assert_, isComment
   , LineRule, parseRuleFile
   , parseTupleFile
-  , Error, runParser, lhs_, lexLine, line_
+  , Error, runParser, lhs_, lexLine, line_, lexFile
   ) where
 
 import Data.Char (isSpace)

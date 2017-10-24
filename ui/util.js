@@ -24,7 +24,10 @@ var mkFrame = function(ids, f) {
 
 var mkParent = function(child, par) {
   var handler = function() {
-    append(getObjAttr(child, "elem"), getObjAttr(par, "elem"));
+    // TODO clean this up
+    var c = getObjAttr(child, "elem");
+    if (c)
+      append(c, getObjAttr(par, "elem"));
   }
   mkFrame([child, par], handler);
 }
@@ -40,6 +43,14 @@ var mkStyle = function(id, name, val) {
   var handler = function() {
     var obj = getObjAttr(id, "elem");
     obj.style[name] = val;
+  }
+  mkFrame([id], handler);
+}
+
+// sometimes we get a delete message before we've created the element
+var mkDelete = function(id) {
+  var handler = function() {
+    removeObject(id);
   }
   mkFrame([id], handler);
 }

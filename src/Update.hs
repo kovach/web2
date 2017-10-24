@@ -138,8 +138,12 @@ stepProcessor mq (Reducer op l state vals) = do
     vals2 = foldr (M.adjustWithKey fixIfFalse) vals1 touchedList
       where
         fixIfFalse f v@(Truth True) = if all isFalse (look f state1) then Truth False else v
+        fixIfFalse f v@(TVNode _) = sumtvs (look f state1)
         fixIfFalse _ v = v
         isFalse t = Truth False == tval t
+        -- TODO this isn't needed
+        sumtvs = TVNode . NInt . sum . map (fromtvs . tval)
+        fromtvs (TVNode (NInt i)) = i
 
     -- these facts have new values
     changedf =
@@ -158,9 +162,11 @@ stepProcessor mq (Reducer op l state vals) = do
 
     foldVal Positive (Truth a) (Truth b) = Truth (a || b)
     foldVal Negative (Truth a) _ = Truth a
-    foldVal p (TVNode (NInt i1)) (TVNode (NInt i2)) = TVNode (NInt $ i1 `op` i2)
-      where
-        op = if p == Positive then (+) else (-)
+    foldVal _ (TVNode (NInt i1)) (TVNode (NInt i2)) = TVNode (NInt $ i1 + i2)
+
+    mneg Positive x = x
+    mneg Negative (TVNode (NInt i)) = TVNode $ NInt (-i)
+    mneg _ x = x
 
     --  Main fold function
     step _ (MT p t) (state, vals, touched) =
@@ -170,7 +176,7 @@ stepProcessor mq (Reducer op l state vals) = do
         (_,f) = tfact t
         state1 = updateFact p t state
         -- removals handled by final check; see vals2 above
-        vals1 = M.insertWith (foldVal p) f (tval t) vals
+        vals1 = M.insertWith (foldVal p) f (mneg p $ tval t) vals
 
     updateFact :: Polarity -> Tuple -> ReducedCache -> ReducedCache
     updateFact Positive t = M.insertWith (++) (nodes t) [t]
@@ -236,6 +242,7 @@ stepProcessor mq@MQ{m_pos = pos, m_neg = neg} (ObsProc rule g) = tr "stepRule" $
         removeConsumed (MT Negative t) g = removeTuple t g
         removeConsumed _ g = g
 
+-- Determines the next actor to receive control; empties its queue.
 takeQueue :: PS -> Maybe (PS, Actor, MsgQueue)
 takeQueue p =
   let work = M.filter (not . isEmptyQueue) (queues p) in

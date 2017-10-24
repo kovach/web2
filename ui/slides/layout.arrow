@@ -1,0 +1,7 @@
+# helper commands
+js/div i ~> js/element i "div"
+#js/div i ~> js/style "outline" "none" i
+#js/text i _ ~> js/style "outline" "none" i
+
+~> js/div i, child i "body", js/style "height" "50%" i, js/style "width" "90%" i, top-pane i, js/attr "class" "pane" i
+~> js/div i, child i "body", js/style "height" "30%" i, js/style "width" "90%" i, bottom-pane i, js/style "overflow-y" "hidden" i, js/attr "class" "pane" i

@@ -1,5 +1,5 @@
 # init DOM
-=> js/element i "div", log-root i, child i "body" 1, js/attr "id" "log" i
+bottom-pane p ~> js/element i "div", log-root i, child i p 1, js/attr "id" "log" i
 
 # helper relation
 node n _ _ ~> type-node n
@@ -8,20 +8,20 @@ shift-click _ tid => reflect tid _
 reflected t _, cause p t ~> :render-cause p
 ## Rendering
 # visual elements
-inline i s => text-node i s, class i "inline"
-block i s  => text-node i s, class i "block"
+inline i s ~> js/text i s, class i "inline"
+block i s  ~> js/text i s, class i "block"
 # tuple rendering
-tuple-node i t, fact f t, label l f => inline i l, icon i t
-tuple-node par t, fact f t, node n f rank => text-node i n, of-n i n, child i par rank, class i "literal"
+tuple-node i t, fact f t, label l f ~> inline i l, icon i t
+tuple-node par t, fact f t, node n f rank ~> js/text i n, of-n i n, child i par rank, class i "literal"
 # provenance rendering
-:render-cause p, log-root log            => block i "", child i log, icon i p
-:render-cause p, icon par p, event p     => text-node arr "<=", child arr par 1
-:render-cause p, icon par p, reduced p   => text-node arr "<~", child arr par 1
-:render-cause p, icon par p, cause p t   => tuple-node i t, child i par 0
-:render-cause p, icon par p, matched t p => tuple-node i t, child i par 2
-:render-cause p, icon par p, extern p    => text-node i "IO", child i par 2, class i "extern"
-:render-cause p, icon par p, rule r p, rule-id id r => text-node i "rule ", text-node l id, child i par, child l i, class i "rule_node", icon i r
-:render-cause p, icon par p, rule r p, extern r => text-node i "extern rule", child i par, class i "extern", icon i r
+:render-cause p, log-root log            ~> block i "", child i log, icon i p
+:render-cause p, icon par p, event p     ~> js/text arr "<=", child arr par 1
+:render-cause p, icon par p, reduced p   ~> js/text arr "<~", child arr par 1
+:render-cause p, icon par p, cause p t   ~> tuple-node i t, child i par 0
+:render-cause p, icon par p, matched t p ~> tuple-node i t, child i par 2
+:render-cause p, icon par p, extern p    ~> js/text i "IO", child i par 2, class i "extern"
+:render-cause p, icon par p, rule r p, rule-id id r ~> js/text i "rule ", js/text l id, child i par, child l i, class i "rule_node", icon i r
+:render-cause p, icon par p, rule r p, extern r ~> js/text i "extern rule", child i par, class i "extern", icon i r
 ## User actions
 #raw-click 'right _ i _, icon i _ => refl _
 raw-click 'left 'no-shift id _ => click id
@@ -35,12 +35,12 @@ click e, of-n e n, type-node n => attributes n _
 # click icon of a rule r -> request rule-string
 click e, icon e r, rule-id id r => edit-rule id
 # from interpreter api -> text-editor element
-rule-string str id, log-root log => text-editor i id str, child i log
+rule-string str id, log-root log ~> js/edit i str, child i log, editor i id
 # from text editor -> interpreter api
-raw-update-rule id str => update-rule id str
+js/text-entry i str, editor i rule-id => update-rule rule-id str
 
-text-editor i _ _, child i p   => refresh-code-mirror i p
-text-editor i _ _, child i p _ => refresh-code-mirror i p
+js/edit i _, child i p   ~> refresh-code-mirror i p
+js/edit i _, child i p _ ~> refresh-code-mirror i p
 
 highlight-val v, icon i v => highlight i
 highlight i, ..current-focus e =>

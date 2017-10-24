@@ -45,7 +45,7 @@ var mkNode = function(str, id, tid, sock) {
   return el;
 }
 
-var makeLineCM = function(id, ruleid, str, sock) {
+var makeLineCM = function(id, str, sock) {
   // nb: doesn't attach anything
   var attacher = function(el) {
     setObjAttr(id, "elem", el);
@@ -62,8 +62,8 @@ var makeLineCM = function(id, ruleid, str, sock) {
   lineCM.setOption("extraKeys", {
     Enter: function() {
       var v = lineCM.getValue();
-      sock.send(mkTuple("raw-update-rule", [ruleid, strNode(v)]));
-      lineCM.setValue("");
+      sock.send(mkTuple("js/text-entry", [id, strNode(v)]));
+      //lineCM.setValue("");
       return;
       // TODO:
       if (v.length == 0) {
@@ -148,13 +148,10 @@ var mkBox = function(str, id, other) {
 
 var addClickHandlers = function(el, id, tid, sock) {
   el.addEventListener("click", function(ev) {
-    console.log(ev);
-    console.log('left click');
     clickCommand(id, tid, ev.button, ev.shiftKey);
     ev.stopPropagation();
   });
   el.addEventListener("contextmenu", function(ev) {
-    console.log('right click');
     ev.stopPropagation();
     ev.preventDefault();
     clickCommand(id, tid, ev.button, ev.shiftKey);

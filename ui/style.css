@@ -1,16 +1,28 @@
 /* TODO remove css dependence */
+html {
+  width:99%;
+  height:99%;
+}
+
 body {
   font-family: 'Noto Sans';
 	font-size: 14pt;
   color: #eee;
   background-color: #222;
   outline: none;
-  overflow-x: scroll;
+
+  user-select: none;
+  width:99%;
+  height:99%;
+}
+
+.div {
+  outline: none;
 }
 
 .CodeMirror {
   font-family: "Roboto Mono", monospace;
-	font-size: 9pt;
+	font-size: 11pt;
   color: #eee;
   background-color: #333;
   outline: none;
@@ -35,22 +47,65 @@ body {
   display: inline-block;
 }
 
-#app, #rules, #log {
-  display: inline-block;
-  padding: 3px;
+#app, #rules, #log, #slides, #repl {
+display: inline-block;
+  /*
   margin: 0 auto;
+   * */
+  white-space: pre-wrap;
+  padding: 3px;
   outline: none;
-}
 
-#app, #rules, #log {
   width: 40vw;
   font-family: "Roboto Mono", monospace;
   font-size: 14pt;
   background-color: transparent;
   outline: none;
-  overflow: auto;
+  overflow-y: auto;
   vertical-align: top;
-  height: 650px;
+  /*height: 650px;*/
+}
+
+#slides {
+  width: 65%;
+  height: 100%;
+
+  border: solid;
+  border-width: 2px;
+  border-color: #999;
+  border-radius: 7px;
+  top: 0px;
+  bottom: 0px;
+}
+
+.color-box {
+  min-width: 30px;
+  min-height: 30px;
+  background-color: #d48;
+  position: fixed;
+  top: 80px;
+  right: 200px;
+  text-align: center;
+  vertical-align: middle;
+  display: table;
+  font-size: 18pt;
+}
+
+#repl {
+  width: 30%;
+  height: 99%;
+  font-size: 10pt;
+  display: inline-block;
+  overflow: hidden;
+  /*overflow: auto;*/
+}
+
+#repl-log {
+  overflow-y: auto;
+  height: 80%;
+  display: inline-block;
+  width: 100%;
+  padding-top: 20px;
 }
 
 #app {
@@ -61,11 +116,16 @@ body {
   width: 40vw;
 }
 
-#rules {
-  /*width: 20%;*/
+.pane {
+  padding:22px;
 }
 
 #log {
+  display: inline-block;
+  overflow-x: visible;
+  overflow-y: auto;
+  height: 100%;
+  width: 99%;
 }
 
 ::-webkit-scrollbar {
@@ -102,7 +162,7 @@ body {
 }
 
 .prov, .block {
-  font-size: 9pt;
+  font-size: 12pt;
   display: block;
 }
 
