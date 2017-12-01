@@ -4,6 +4,9 @@ scott kovach
 cutfree.net
 "ANANSI"
 
+To build a slideshow from scratch,
+first you must invent the universe.
+
 OBJECT ORIENTED GRAPHICAL DATALOG
 follow object oriented philosophy
 but write rule programs
@@ -36,7 +39,7 @@ more symmetric treatment of interactions between objects
 Differences from typical datalog:
 programs elapse over time
 focus on reacting to external input
-bottom-up
+bottom-up, incremental
 
 Why? "user respect"
 help domain knowledge translate into programming knowledge
@@ -55,6 +58,7 @@ Hilariously flexible combination
 delete any subset of lines from a program, get a valid program
 (will probably get stuck)
 has well-defined input/output relations
+every subset of rules is a "layer"
 
 Games
 interactive fiction
@@ -83,15 +87,15 @@ FUTURE WORK
 networked instances
 dynamic epistemic logic
 self hosted compiler
-natural language parsing
+natural language semantics
 bidirectionality 
 subtype inference
 Self-style optimization
 gui inference
 
 ## => ~>
-- => "I saw that"
-- ~> "I see that"
+=> "I saw that"
+~> "I see that"
 
 Some internal operational details
 actor model

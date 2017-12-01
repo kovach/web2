@@ -62,7 +62,6 @@ data Processor
   | ViewProc RankedRule Graph WatchedSet
 
   -- A reducer binds "raw" tuples, outputs "reduced" tuples by applying some fold
-  -- currently only logical ("or") reduction is supported
   | Reducer ReduceOp Label ReducedCache ReducedValue
 
 emptyProcessor r = ObsProc r (toGraph [])

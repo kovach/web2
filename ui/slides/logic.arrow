@@ -34,7 +34,7 @@ slide _ _ ~> 1:slide-count
 => current-slide 1
 slide-app par, current-slide sc, slide s sc ~> js/element i "div", icon i s, child i par 1
 title s slide, icon p slide ~> js/text i s, child i p 1
-entry s n slide, icon p slide ~> js/text i ("- " ++ s), child i p n, js/style "display" "block" i
+entry s n slide, icon p slide ~> js/text i ("- " ++ s), child i p n, js/style "display" "block" i, js/style "margin" "4px" i
 # current-slide slide, icon i slide => css-animation
 
 # change slide
@@ -56,5 +56,4 @@ raw-click button 'no-shift id _, slide-app id => click button
 
 # insert bad slides once we click
 => ready
-..ready, click 'left => make-bad-slides 9 200
-#=> make-bad-slides 8 51
+..ready, click 'left => make-bad-slides 10 191

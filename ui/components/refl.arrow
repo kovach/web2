@@ -45,4 +45,4 @@ js/edit i _, child i p _ ~> refresh-code-mirror i p
 highlight-val v, icon i v => highlight i
 highlight i, ..current-focus e =>
 ..highlight i => current-focus i
-current-focus i ~> :background-color i "#333"
+current-focus i ~> :background-color i "#ddd"

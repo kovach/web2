@@ -7,8 +7,8 @@ html {
 body {
   font-family: 'Noto Sans';
 	font-size: 14pt;
-  color: #eee;
-  background-color: #222;
+  color: #000;
+  background-color: #fff;
   outline: none;
 
   user-select: none;
@@ -23,8 +23,8 @@ body {
 .CodeMirror {
   font-family: "Roboto Mono", monospace;
 	font-size: 11pt;
-  color: #eee;
-  background-color: #333;
+  color: #000;
+  background-color: #ccc;
   outline: none;
   height: auto;
   margin: 10px;
@@ -69,6 +69,7 @@ display: inline-block;
 #slides {
   width: 65%;
   height: 100%;
+  font-size: 18pt;
 
   border: solid;
   border-width: 2px;
@@ -171,7 +172,7 @@ display: inline-block;
 }
 
 .rule_node {
-  color: #8d3;
+  color: #c22;
 }
 
 .query, .assert, .sep {
