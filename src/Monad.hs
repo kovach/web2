@@ -62,16 +62,15 @@ data Processor
   | ViewProc RankedRule Graph WatchedSet
 
   -- A reducer binds "raw" tuples, outputs "reduced" tuples by applying some fold
-  -- currently only logical ("or") reduction is supported
-  | Reducer RedOp Label ReducedCache ReducedValue
+  | Reducer ReduceOp Label ReducedCache ReducedValue
 
 emptyProcessor r = ObsProc r (toGraph [])
-emptyReducer l = Reducer Or l mempty mempty
+emptyReducer op l = Reducer op l mempty mempty
 
 -- These actors handle interaction between subprograms
 data MetaProcessor
   = CreatorProc Actor
-  | WorkerProc
+  | WorkerProc Actor
   | SubProgram Actor ProgramName PS
   | REPL Rule Graph
   | BaseProc Processor
@@ -96,7 +95,6 @@ data ReflContext = RC
 
 emptyReflContext = RC { rcf = M.empty , rcp = M.empty , rcr = M.empty , rct = M.empty }
 
--- remove new/out_unprocessed, processor
 data InterpreterState = IS
   { db :: DB
   , unprocessed :: [Msg]
@@ -114,7 +112,7 @@ type ProgramName = String
 --   values stored here
 data SystemState = SS
   -- map id to parsed Rule
-  { rule_map :: Map RuleId (Rule, String)
+  { rule_map :: Map RuleId Rule
   -- environment holds dynamically created actors
   -- managed by external PS with two actors:
   --   creator <-> worker
@@ -132,6 +130,7 @@ emptySS :: SystemState
 emptySS = SS M.empty emptyPS M.empty emptyReflContext mempty mempty undefined
 
 type SM = StateT SystemState M2
+--type SM = StateT SystemState (StateT InterpreterState IO)
 
 defaultGas = 1000
 makeS2 db gas = IS db [] [] gas
@@ -178,7 +177,7 @@ freshNode :: M2 Node
 freshNode = do
   c <- gets (node_counter . db)
   moddb $ \s -> s { node_counter = c + 1 }
-  return (NNode c)
+  return (NNode (Id c))
 
 flushEvents :: M2 [Msg]
 flushEvents = do
@@ -213,9 +212,9 @@ scheduleAdd t = modify $ \s -> s { unprocessed = MT Positive t : unprocessed s }
 
 -- NOTE: gives each rule a fresh integer label;
 -- They are ordered according to the list.
-tagRules :: [Rule] -> M2 [RankedRule]
-tagRules rs = mapM fix rs
-  where
-    fix r = do
-      NNode i <- freshNode
-      return $ RankedRule i r
+--tagRules :: [Rule] -> M2 [RankedRule]
+--tagRules rs = mapM fix rs
+--  where
+--    fix r = do
+--      NNode (Id i) <- freshNode
+--      return $ RankedRule i r

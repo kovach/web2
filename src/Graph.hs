@@ -33,6 +33,10 @@ applyLookup NHole c = do
 applyLookup (NVal v) c = return (v, c)
 
 -- process all unification instances for a given tuple
+tupleMatch :: Label -> Context -> [NodeVar] -> Tuple -> Maybe Context
+tupleMatch l c vs t@T { tval = TVNode n } = edgeMatch l c vs (n:nodes t)
+tupleMatch l c vs t = edgeMatch l c vs (nodes t)
+
 edgeMatch :: Label -> Context -> [NodeVar] -> [Node] -> Maybe Context
 -- TODO check this statically
 edgeMatch l c vs nodes | length nodes /= length vs = error $ "relation/pattern arity mismatch! tuple involved: " ++ unwords (show l : (map show nodes))
@@ -49,11 +53,11 @@ edgeMatch _ c vs nodes =
     matchStep c (node, NHole) = Just c
 
 -- Label passed only for arity error reporting
-solvePattern :: Label -> [Event] -> Bindings -> Linear -> [NodeVar] -> [Bindings]
+solvePattern :: Label -> [Tuple] -> Bindings -> Linear -> [NodeVar] -> [Bindings]
 solvePattern l es (ctxt, bound, deps, forced) linear nvs =
     let pairs =
-          mapMaybe (\t -> fmap (t,) $ edgeMatch l ctxt nvs (nodes t))
-          . filter (not . (`elem` (map toEvent bound)))
+          mapMaybe (\t -> fmap (t,) $ tupleMatch l ctxt nvs t)
+          . filter (not . (`elem` bound))
           $ es
     in do
       (e, newC) <- pairs
@@ -63,9 +67,9 @@ solvePattern l es (ctxt, bound, deps, forced) linear nvs =
 solveStep :: Graph -> Bindings -> Query -> [Bindings]
 solveStep g b@(c, _, _, _) (Query _ (EP linear e vs@(NVar v : _)))
   | Just l <- lookup v c =
-    solvePattern e (map toEvent $ constrainRelation1 (TP1 e 0 l) g) b linear vs
+    solvePattern e (constrainRelation1 (TP1 e 0 l) g) b linear vs
 solveStep g b@(c, _, _, _) (Query _ (EP linear e vs)) =
-    solvePattern e (map toEvent $ constrainRelation e g) b linear vs
+    solvePattern e (constrainRelation e g) b linear vs
 
 solveStep g b@(c, _, _, _) q@(Query _ (LP Positive e ns@(NVar v : _)))
   | Just l <- lookup v c =
@@ -91,10 +95,36 @@ solveStep g b@(c, bound, deps, forced) q@(Query _ (LP polarity e ns)) =
             [isTrue] | tval isTrue == Truth True -> []
             [isFalse] -> return (c, bound, isFalse : deps, forced)
             _ -> return (c, bound, deps, (fact, Truth False) : forced)
-            ts -> error $ "solveStep. INTERNAL ERROR. duplicate proofs of reduced tuple:\n" ++ unlines (map ppTuple ts)
+            -- TODO remove?
+            -- ts -> error $ "solveStep. INTERNAL ERROR. duplicate proofs of reduced tuple:\n" ++ unlines (map ppTuple ts)
   where
     es = constrainRelation e g
     trueEs = filter isPositive es
+
+-- TODO check this, and allow n:pred matches to succeed when "n = 0"
+solveStep g b@(c, bound, deps, forced) q@(Query _ (VP (NVal (NInt 0)) e ns)) =
+      let vs = mapM (\n -> matchLookup n c) ns in
+      case vs of
+        -- TODO reorder queries; remove this constraint
+        Nothing -> error $ "negated queries must refer to bound values, or else be the sole clause of a query. offending clause:\n  " ++ show q
+        Just vs' ->
+          let fact = (e, vs') in
+          case filter ((== fact) . tfact) es of
+            -- TODO generalize default value based on type
+            -- should be able to use syntax (new field in LP)
+            [isTrue] | tval isTrue /= zero -> []
+            [isFalse] -> return (c, bound, isFalse : deps, forced)
+            _ -> return (c, bound, deps, (fact, zero) : forced)
+            -- TODO remove?
+            -- ts -> error $ "solveStep. INTERNAL ERROR. duplicate proofs of reduced tuple:\n" ++ unlines (map ppTuple ts)
+  where
+    zero = TVNode (NInt 0)
+    es = constrainRelation e g
+    trueEs = filter isPositive es
+
+solveStep g b@(c, _, _, _) q@(Query _ (VP val e vs)) =
+  solvePattern e (constrainRelation e g) b NonLinear (val:vs)
+
 
 solveStep _ b@(c, _, _, _) (QBinOp op v1 v2) =
     case (matchLookup (reduce c v1) c, matchLookup (reduce c v2) c) of
@@ -126,7 +156,7 @@ getMatches ev rule g = takeValid [] . map toMatch . go $ triggers
     pow (x:xs) = p ++ map (x:) p
       where p = pow xs
 
-    -- tail drops the [] case
+    -- tail drops the [] case; [] denotes a partial match that doesn't use the new tuple
     go = concatMap stepn . tail . pow
 
     pat (_,_,p,_) = p
@@ -147,6 +177,7 @@ getMatches ev rule g = takeValid [] . map toMatch . go $ triggers
         b0 = emptyMatchBindings
         bindings = do
           b1 <- foldM (\b (Query _ p) ->
+                        -- TODO!: don't special case this; use solveStep
                         solvePattern (label ev) [ev] b (epLinear p) (epNodes p)) b0 p1
           solveSteps g b1 (S.toAscList p2)
 
@@ -181,8 +212,8 @@ applyMatch (prov, ctxt, forced) =
       -- but the negative tuples might enable a match.
       -- We create and emit them alone.
       _ -> do
-        (ms2, c2) <- foldM force ([], ctxt) forced
-        return (reverse ms2, c2)
+        ms <- mapM force forced
+        return (reverse ms, ctxt)
   where
     removed = map (MT Negative) $ consumed prov
 
@@ -190,16 +221,28 @@ applyMatch (prov, ctxt, forced) =
     implication = rhs $ ranked_rule $ rule_src prov
 
     applyStep :: ([Msg], Context) -> Assert -> M2 ([Msg], Context)
+    -- Ordinary tuple
     applyStep (ms, c0) (Assert label exprs) = do
       (c1, nodes) <- applyLookups c0 exprs
       t <- packTuple (label, nodes) prov
       return (MT Positive t : ms, c1)
+    -- Logical tuple
+    applyStep (ms, c0) (VAssert e label exprs) = do
+      (c1, nodes) <- applyLookups c0 exprs
+      (c2, e1) <- case e of
+        TValNull -> return (c1, Truth True)
+        TValExpr e' -> do
+          (c2, [e1]) <- applyLookups c1 [e']
+          return (c2, TVNode e1)
+      t <- packTuple (toRaw label, nodes) prov
+      let t1 = t { tval = e1 }
+      return (MT Positive t1 : ms, c2)
 
     validForced = const True
 
     -- TODO could generate fresh ids here if we didn't force it to be fully bound at the query stage
-    force (ms, c) (fact, val) = do
+    force (fact, val) = do
       t <- packTuple fact prov
       -- TODO dumb negation (-) trick: interacts with use of Set.toAscList later.
       -- We want to process forced negatives before other tuples; not sure if strictly necessary.
-      return (MT Positive t { tid = - (tid t), tval = val } : ms, c)
+      return $ MT Positive t { tid = - (tid t), tval = val }

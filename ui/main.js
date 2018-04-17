@@ -17,16 +17,16 @@ var initSock = function() {
     var msgs = JSON.parse(event.data);
 
     //_.each(msgs, function(obj) {
-    //  console.log("hey: ", obj);
+    //  console.log("msg: ", obj);
     //});
 
     console.log("msgs received: ", msgs.length);
 
-    if (msgs.length < 30) {
-      _.each(msgs, function(obj) {
-        console.log(JSON.stringify(obj));
-      });
-    }
+    //if (msgs.length < 30) {
+    //  _.each(msgs, function(obj) {
+    //    console.log(JSON.stringify(obj));
+    //  });
+    //}
 
     _.each(msgs, parseTuple(sock));
 
@@ -82,6 +82,10 @@ var buttonVal = function(code) {
   }
 }
 
+var shiftVal = function(code) {
+  return code ? symNode("shift") : symNode("no-shift");
+}
+
 var mkTuple = function(label, nodes) {
   return JSON.stringify({
     "tag": "RawTuple",
@@ -90,8 +94,8 @@ var mkTuple = function(label, nodes) {
   });
 }
 
-var clickCommand = function(id, tid, button) {
-  sock.send(mkTuple("raw-click", [ buttonVal(button), id, tid, ]));
+var clickCommand = function(id, tid, button, shiftDown) {
+  sock.send(mkTuple("raw-click", [ buttonVal(button), shiftVal(shiftDown), id, tid, ]));
 }
 
 // TODO remove
@@ -137,8 +141,9 @@ var hasKeys = function(ks, obj) {
 
 var objTypes = {
   "token":["elem", "x-rank", "y-rank", "color", "size"],
-  "text-editor":["elem", "parent"],
-  "text-node":["elem"],
+  "js/edit":["elem", "parent"],
+  "js/text":["elem"],
+  "thing":["elem"]
 }
 
 var defined = function(obj) {
@@ -179,7 +184,7 @@ var setObjAttributes = function(obj) {
         e.className = obj["class"];
       }
       break;
-    case "text-node":
+    case "js/text":
       var e = obj.elem;
       if ("background-color" in obj) {
         obj.elem.style.backgroundColor = obj["background-color"];
@@ -195,6 +200,9 @@ var setObjAttributes = function(obj) {
 
       break;
     default:
+      _.each(obj.queue, function(f) {
+        checkFrame(f);
+      });
       break;
   }
 }
@@ -317,8 +325,9 @@ var textEditHandler = function(el, id, sock) {
 
 var removeObject = function(id) {
   var elem = objects[JSON.stringify(id)].elem;
-  console.log(id, elem);
-  elem.parentNode.removeChild(elem);
+  if (elem.parentNode) {
+    elem.parentNode.removeChild(elem);
+  }
 }
 
 // TODO abstract the repeated structure of this switch
@@ -340,42 +349,85 @@ var parseTuple = function(sock) {
           setObjAttr(id, "elem", elem);
           setObjAttr(id, "type", "token");
         } else {
-          removeObject(id);
+          mkDelete(id);
+          //removeObject(id);
         }
         break;
-      case "text-editor":
+      case "js/rect":
         var id = nodes[0];
-        var ruleid = nodes[1];
-        var str = nodes[2].contents;
         if (sign) {
-          //var body = nodes[1].contents; // string
-          //var parent = nodes[2];
-          //var el = mkEditor(body, id, sock, textEditHandler, getObjAttr(parent, "elem"));
-          //setObjAttr(id, "type", "edit");
-          //setObjAttr(id, "elem", el);
-          var el = makeLineCM(id, ruleid, str, sock);
-          console.log(el);
-          el.focus();
-          //setSelection(el);
-        } else if (tval) {
-          removeObject(id);
+          var elem = mkRect(id, tid, sock);
+          setObjAttr(id, "elem", elem);
+          setObjAttr(id, "type", "thing");
+        } else {
+          mkDelete(id);
+          //removeObject(id);
         }
         break;
-      case "text-node":
+      case "js/element":
+        var id = nodes[0];
+        if (sign && tval) {
+          var type = nodes[1].contents;
+          var elem = mkElement(type, id, tid, sock);
+          setObjAttr(id, "elem", elem);
+        } else {
+          mkDelete(id);
+          //removeObject(id);
+        }
+        break;
+      case "js/svg":
+        var id = nodes[0];
+        if (sign) {
+          var elem = mkSVG(id, tid, sock);
+          setObjAttr(id, "elem", elem);
+        } else {
+          mkDelete(id);
+          //removeObject(id);
+        }
+        break;
+      case "js/attr":
+        var attr = nodes[0].contents;
+        var val = nodes[1].contents;
+        var id = nodes[2];
+        if (sign && tval) {
+          mkAttr(id, attr, val);
+        }
+        break;
+      case "js/edit":
+        var id = nodes[0];
+        //var ruleid = nodes[1];
+        var str = nodes[1].contents;
+        if (sign && tval) {
+          var cm = makeLineCM(id, str, sock);
+          console.log(cm);
+          cm.focus();
+        } else if (tval) {
+          mkDelete(id);
+          //removeObject(id);
+        }
+        break;
+      case "js/text":
         var id = nodes[0];
         if (sign && tval) {
           var body = toString(nodes[1]); // string
-          var parent = nodes[2];
-          var el = mkNode(body, id, tid, sock, textNodeHandler);
-          setObjAttr(id, "type", "text-node");
+          var el = mkNode(body, id, tid, sock);
+          setObjAttr(id, "type", "js/text");
           setObjAttr(id, "elem", el);
           setObjAttr(id, "tid", tid);
         } else if (tval) {
-          removeObject(id);
+          mkDelete(id);
+          //removeObject(id);
         }
         break;
-      case "area":
-        break;
+      case "refresh-code-mirror":
+        var id = nodes[0];
+        var par = nodes[1];
+        var handler = function() {
+          var cm = getObjAttr(id, "code-mirror");
+          cm.refresh();
+          cm.focus();
+        }
+        mkFrame([id, par], handler);
       case "x-rank":
         var id = nodes[0];
         var n = nodes[1].contents;
@@ -409,11 +461,11 @@ var parseTuple = function(sock) {
         var r = nodes[1].contents;
         setObjAttr(id, "size", r);
         break;
-      case "parent":
+      case "child":
         // child, parent
         var id1 = nodes[0];
         var id2 = nodes[1];
-        if (sign) {
+        if (sign && tval) {
           if (arity == 2) {
             mkParent(id1, id2);
           } else if (arity == 3) {
@@ -432,9 +484,14 @@ var parseTuple = function(sock) {
           mkStyle(id, "backgroundColor", "transparent");
         }
         break;
-      case "contents":
-        var id = nodes[0];
-        var r = nodes[1].contents;
+      // TODO: check this
+      case "js/style":
+        var attr = nodes[0].contents;
+        var value = nodes[1].contents;
+        var id = nodes[2];
+        if (sign && tval) {
+          mkStyle(id, attr, value);
+        }
         break;
       case "class":
         var id = nodes[0];
@@ -446,102 +503,49 @@ var parseTuple = function(sock) {
         console.log(c);
         break;
     }
+    // TODO: ??
     var lg = get("log");
-    lg.scrollTop = lg.scrollHeight;
+    if (lg) {
+      lg.scrollTop = lg.scrollHeight;
+    }
+    var rp = get("repl-log");
+    if (rp) {
+      console.log('ok');
+      rp.scrollTop = rp.scrollHeight;
+    }
   }
 }
 
 var makeMainCM = function() {
   var mainCM = CodeMirror(get("edit"), {
     //keyMap: "vim",
-    value: "hi\nlol\nthere\n",
+    value: "hi\nthere\n",
     readOnly: true,
     cursorBlinkRate: 0,
     gutters: ["gutter"],
   });
 }
 
-var makeLineCM = function(id, ruleid, str, sock) {
-  // TODO don't just attach to log
-  var lineCM = CodeMirror(get("log"), {
-    smartIndent: false,
-    keyMap: "emacs",
-    cursorBlinkRate: 0,
-    lineWrapping: true,
-  });
-
-  lineCM.setOption("extraKeys", {
-    Enter: function() {
-      var v = lineCM.getValue();
-      sock.send(mkTuple("raw-update-rule", [ruleid, strNode(v)]));
-      lineCM.setValue("");
-      //lineCM.setOption({readOnly: true });
-      return;
-      if (v.length == 0) {
-        return;
-      }
-      if (v[v.length-1] == ".") {
-        console.log('SEND');
-        var value = v.slice(0,v.length-1);
-        sock.send(mkTuple("update-rule", [ruleid, strNode(value)]));
-        lineCM.setValue("");
-      } else if (v[v.length-1] == "!") {
-        console.log('cancel');
-        lineCM.setValue("");
-        // update id
-      } else {
-        console.log(v);
-      }
-    }
-  });
-
-  lineCM.on("change", function() {
-    console.log('change');
-  });
-
-  lineCM.setValue(str);
-
-  return lineCM;
-}
-
 window.onload = function() {
-  var rulesId = strNode("rules");
-  setObjAttr(rulesId, "elem", get("rules"));
-  var rulesId = strNode("log");
-  setObjAttr(rulesId, "elem", get("log"));
+  // TODO bad
+  //var rootElems = ["rules", "app", "log"];
+  var rootElems = [];
+  setObjAttr(strNode("body"), "elem", document.body);
+  rootElems.forEach(function(str) {
+    var rulesId = strNode(str);
+    setObjAttr(rulesId, "elem", get(str));
+  });
+
   // Some components will use right-click inputs; best to disable it everywhere?
   //document.addEventListener('contextmenu', event => event.preventDefault());
 
   sock = initSock();
-
-  //makeLineCM(sock);
-
-
-  //document.addEventListener('keydown', bodyHandler(sock));
-
 }
 
-// TODO delete
-  //var nextLine = function() {
-  //  console.log('nextLine');
-  //  var l = mainCM.getCursor().line;
-  //  mainCM.setCursor({line: l+1, ch: 0});
-  //}
-//  mainCM.setOption("extraKeys", {
-//    'j': nextLine,
-//    Escape: function() {
-//      console.log('escape');
-//    },
-//    LeftClick: function(cm, ev) {
-//      var line = ev.line;
-//      console.log('well', ev);
-//      cm.replaceRange("", {line:line}, {line:line+1});
-//      mainCM.setValue("");
-//    }
-//  });
-//  mainCM.on("gutterClick", function(cm, ev) {
-//    console.log('gutter', ev);
-//    cm.setSelection({line:ev});
-//    cm.replaceSelection("");
-//    //cm.replaceRange("", {line:ev-1}, {line:ev});
-//  });
+
+var parseURL = function(sock) {
+  var u = new URL(window.location.href)
+  var dir = u.searchParams.get("file")
+
+  sock.send(mkTuple("request-app", [strNode(dir)]));
+}

@@ -14,7 +14,7 @@ dotClauses = mapMaybe isdot . lhs
     isdot _ = Nothing
 
 isLinear :: Rule -> Bool
-isLinear (Rule {rtype = Event, lhs = lhs}) = not . null . linearClauses $ lhs
+isLinear (Rule {rule_type = Event, lhs = lhs}) = not . null . linearClauses $ lhs
 isLinear _ = False
 
 linearClauses :: LHS -> LHS
@@ -24,7 +24,7 @@ linearClauses = mapMaybe islinear
     islinear _ = Nothing
 
 insertRule :: Rule -> Index -> Index
-insertRule rule@(Rule _ Event lhs0 _) ind =
+insertRule rule@(Rule {rule_type = Event, lhs = lhs0} ) ind =
   case dotClauses rule of
     [] -> foldr step ind lhs
     cs -> foldr step ind cs
@@ -39,7 +39,7 @@ insertRule rule@(Rule _ Event lhs0 _) ind =
     -- TODO remove?
     linear = if not . null . linearClauses $ lhs then Linear else NonLinear
 
-insertRule rule@(Rule _ View lhs _) ind =
+insertRule rule@(Rule {rule_type = View, lhs = lhs} ) ind =
     foldr step ind (nub lhs)
   where
     pattern = S.fromList lhs

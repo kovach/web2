@@ -26,16 +26,16 @@ fromRaw l = error "fromRaw: expect only tuples tagged with arity"
 
 toRaw :: Label -> Label
 toRaw (LA s i) = LRaw s i
-toRaw l = error "toRaw: expect only tuples tagged with arity"
+toRaw l = error $ "toRaw: expect only tuples tagged with arity\n" ++ show l
 
 notRaw m | LRaw{} <- mlabel m = False
 notRaw _ = True
 
 instance IsString Label where
   fromString = L
+
 instance Show Label where
   show (L s) = s
-  -- TODO don't show arity
   show (LA s a) = s++"/"++show a
   show (LRaw l i) = l ++ "/RAW-"++show i
 
@@ -46,8 +46,20 @@ lstring (LRaw s _) = ":"++s
 
 nullLabel = L ""
 
-data Node = NInt !Int | NNode !Int | NSymbol String | NString String
+newtype Id = Id Int
   deriving (Eq, Ord)
+
+instance Show Id where
+  show (Id i) = "#"++show i
+
+data Node = NInt !Int | NNode Id | NSymbol String | NString String
+  deriving (Eq, Ord)
+
+instance Show Node where
+  show (NInt i) = show i
+  show (NNode i) = show i
+  show (NSymbol s) = "'"++s
+  show (NString s) = show s
 
 data Polarity = Positive | Negative
   deriving (Eq, Show, Ord)
@@ -56,12 +68,7 @@ neg :: Polarity -> Polarity
 neg Positive = Negative
 neg Negative = Positive
 
-toEvent t = t
-
--- TODO remove
-type Event = Tuple
-
-type Dependency = [Event]
+type Dependency = [Tuple]
 type Consumed = [Tuple]
 
 type RuleRank = Int
@@ -79,7 +86,7 @@ unsafeRanked = RankedRule
 
 -- TODO
 -- sum, argmax (or "most recent"), rand?
-data RedOp = Or
+data ReduceOp = ReduceOr | ReduceSum
   deriving (Eq, Show, Ord)
 
 -- An instance of a match
@@ -94,9 +101,9 @@ data Provenance = Provenance
   -- Tuples removed from the world by this match instance
   , consumed :: Consumed }
   -- The output of a fold operation
-  | Reduction { reduction_op :: RedOp, reduced :: [Tuple] }
+  | Reduction { reduction_op :: ReduceOp, reduced :: [Tuple] }
   -- An external input
-  | Extern [Int]
+  | Extern [Id]
   deriving (Eq, Show, Ord)
 
 type CProof = (Provenance, [Tuple])
@@ -110,18 +117,18 @@ externProv = Extern []
 type RawTuple = (Label, [Node])
 type Fact = RawTuple
 
-data TVal = NoVal | Truth Bool
+data TVal = NoVal | Truth Bool | TVNode Node
   deriving (Eq, Ord)
 
 instance Show TVal where
   show NoVal = ""
   show (Truth b) = show b
+  show (TVNode n) = show n
 
 isPositive = ok . tval
   where
-    ok (Truth True) = True
-    ok NoVal = True
-    ok _ = False
+    ok (Truth False) = False
+    ok _ = True
 
 -- TODO add id back; also to Provenance
 data Tuple
@@ -152,18 +159,10 @@ instance Ord Tuple where
   {-# INLINE compare #-}
   t1 `compare` t2 = tid t1 `compare` tid t2
 
-instance IsString Node where
-  fromString = NSymbol
-
-instance Show Node where
-  show (NInt i) = show i
-  show (NNode i) = "#"++show i
-  show (NSymbol s) = "'"++s
-  show (NString s) = show s
-
 type Count = Int
 
 -- Tuple Index ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~--
+-- TODO move out of this file?
 data Graph = G
   { relations :: HashMap Label (Set Tuple)
   , index :: HashMap TPattern (Set Tuple)
@@ -177,6 +176,9 @@ instance Hashable Label where
   hashWithSalt s (L str) = s `hashWithSalt` (0::Int) `hashWithSalt` str
   hashWithSalt s (LA str arity) = s `hashWithSalt` (1::Int) `hashWithSalt` str `hashWithSalt` arity
   hashWithSalt s (LRaw str arity) = s `hashWithSalt` (2::Int) `hashWithSalt` str `hashWithSalt` arity
+
+instance Hashable Id where
+  hashWithSalt s (Id v) = s `hashWithSalt` (0::Int) `hashWithSalt` v
 
 instance Hashable Node where
   hashWithSalt s (NInt v) = s `hashWithSalt` (0::Int) `hashWithSalt` v
@@ -236,9 +238,6 @@ type Name = String
 data NodeVar = NVal Node | NVar Name | NHole
   deriving (Eq, Show, Ord)
 
-instance IsString NodeVar where
-  fromString = NVar
-
 data Op = QEq | QDisEq | QLess | QMore | QLessEq | QMoreEq
   deriving (Eq, Show, Ord)
 
@@ -250,6 +249,7 @@ data Linear = Linear | NonLinear
 data EP
   = EP Linear Label [NodeVar]
   | LP Polarity Label [NodeVar]
+  | VP NodeVar Label [NodeVar]
   deriving (Eq, Show, Ord)
 
 data NumOp = Sum | Mul | Sub
@@ -285,11 +285,15 @@ data Query =
   deriving (Eq, Show, Ord)
 
 -- Right-hand side of rule
-data Assert =
-  Assert Label [E]
+data TValExpr = TValExpr E | TValNull
+  deriving (Eq, Show, Ord)
+data Assert
+  = Assert Label [E]
+  | VAssert TValExpr Label [E]
   deriving (Eq, Show, Ord)
 
 assertRel (Assert rel _) = rel
+assertRel (VAssert _ rel _) = rel
 
 type LHS = [Query]
 type RHS = [Assert]
@@ -298,14 +302,14 @@ data RType = Event | View
   deriving (Eq, Show, Ord)
 
 data Rule = Rule
-  { rule_id :: Maybe Node
-  , rtype :: RType
-  , lhs :: LHS
-  , rhs :: RHS
-  }
+  { rule_id   :: Maybe Node
+  , rule_str  :: Maybe String
+  , rule_type :: RType
+  , lhs       :: LHS
+  , rhs       :: RHS }
   deriving (Eq, Show, Ord)
 
-emptyRule = Rule Nothing Event [] []
+emptyRule = Rule Nothing Nothing Event [] []
 
 type Signature = (Label, Maybe TVal)
 type Pattern = Set Query
@@ -315,8 +319,8 @@ emptyIndex = M.empty
 
 type Context = [(Name, Node)]
 type Matched = [Tuple]
+-- TODO just [Fact]?
 type Falsified = [(Fact, TVal)]
---type Matched = [Event]
 type Bindings = (Context, Consumed, Matched, Falsified)
 emptyMatchBindings = ([], [], [], [])
 
@@ -387,12 +391,15 @@ pattern MNeg t = MT Negative t
 epLabel :: EP -> Label
 epLabel (EP _ l _) = l
 epLabel (LP _ l _) = l
+epLabel (VP _ l _) = l
 epSign EP{} = Nothing
+epSign VP{} = Nothing
 epSign (LP Positive _ _) = Just (Truth True)
 epSign (LP Negative _ _) = Just (Truth False)
 epNodes :: EP -> [NodeVar]
 epNodes (EP _ _ ns) = ns
 epNodes (LP _ _ ns) = ns
+epNodes (VP n _ ns) = n:ns
 epLinear (EP l _ _) = l
 epLinear _ = NonLinear
 
@@ -407,7 +414,9 @@ ppEvent = ppTupleProv
 ppMatch :: Provenance -> String
 --ppMatch (Provenance{..}) = "["++maybe "" ppTuple tuple_src ++"] "++intercalate "," (map ppTuple matched)
 ppMatch (Provenance{..}) = intercalate ", " (map ppTuple matched)
-ppMatch (Reduction Or r) = "\\/"++"["++(unwords $ map ppTuple r)++"]"
+ppMatch (Reduction ReduceOr r) = "\\/"++"["++(unwords $ map ppTuple r)++"]"
+ppMatch (Reduction ReduceSum r) = "+/"++"["++(unwords $ map ppTuple r)++"]"
+--ppMatch (Reduction ReducePush r) = "top"++"["++(unwords $ map ppTuple r)++"]"
 ppMatch (Extern ids) = "[EXTERN: "++show ids++"]"
 ppActor a = show a
 ppMsg :: Msg -> String

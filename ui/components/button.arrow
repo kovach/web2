@@ -1,11 +1,14 @@
-=> text-node i "maker", parent i "rules", maker i, class i "button"
-click i, maker i => make-button
+=> create-button-app
+create-button-app => js/element i "div", button-app i, child i "body" 0, js/attr "id" "app" i
 
-make-button => text-node i "click", parent i "rules", button i
+button-app app => js/text i "maker", child i app, maker i app, class i "button"
+click i, maker i app => make-button app
+
+button-app app, make-button app => js/text i "click", child i app, button i
 button i => class i "button", off i
 
 click i, button i => toggle i
 ..toggle i, ..off i => on i
 ..toggle i, ..on  i => off i
 
-on i ~> background-color i "#555"
+on i ~> :background-color i "#555"

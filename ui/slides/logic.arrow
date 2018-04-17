@@ -1,0 +1,59 @@
+top-pane p ~> js/element i "div", slide-app i, child i p 0, js/attr "id" "slides" i
+slide-app i => mk-repl-link i
+
+# kick off the  slide parsing
+io/file f => frame 0 f 1 1 first-slide-id
+
+# next slide
+..frame lc f sc _ _, io/line f lc "" => frame (lc + 1) f (sc + 1) 1 id, slide id sc
+# slide title
+..frame lc f sc 1 id, io/line f lc s => frame (lc + 1) f sc 2 id, title s id
+# slide entry
+..frame lc f sc n id, n > 1, io/line f lc s => frame (lc + 1) f sc (n + 1) id, entry s n id
+# eof
+#..frame lc f sc _ id, io/eof f lc => last-slide (sc - 1)
+
+# insert a slide, shifting the remainder
+insert-slide id n => shift-slides id n
+#..incr-slide-count, last-slide n => last-slide (n + 1)
+..shift-slides id n, ..slide other n  => slide id n, shift-slides other (n + 1)
+..shift-slides id n => slide id n
+
+# add bad slides
+=> title "THIS SLIDE INTENTIONALLY LEFT BLANK" s, entry ":)" 1 s, evil-slide s
+make-bad-slides k n => bad-slide-range k n
+make-bad-slides k n, ..slide other m, m >= k => shift-slide other (m + (n - k))
+..make-bad-slides _ _ =>
+shift-slide id k => slide id k
+evil-slide s, bad-slide-range k n, k < n => slide s k, bad-slide-range (k + 1) n
+
+# count slides
+slide _ _ ~> 1:slide-count
+
+# render slide
+=> current-slide 1
+slide-app par, current-slide sc, slide s sc ~> js/element i "div", icon i s, child i par 1
+title s slide, icon p slide ~> js/text i s, child i p 1
+entry s n slide, icon p slide ~> js/text i ("- " ++ s), child i p n, js/style "display" "block" i, js/style "margin" "4px" i
+# current-slide slide, icon i slide => css-animation
+
+# change slide
+current-slide n, slide _ k, k > n ~> :more-slides
+@click 'left, current-slide n, :more-slides => next-slide (n + 1)
+#@click 'left, ..current-slide n, k:slide-count, n < k => current-slide (n + 1) # next-slide n
+..next-slide n, slide _ n, ..current-slide _ => current-slide n
+..next-slide n => next-slide (n + 1)
+@click 'right, current-slide n, n > 1 => prev-slide (n - 1)
+..prev-slide n, slide _ n, ..current-slide _ => current-slide n
+..prev-slide n => prev-slide (n - 1)
+
+# display slide count
+slide-app par ~> js/div i, slide-counter i, child i par 0, js/style "color" "#888" i
+slide-counter p, n:slide-count, current-slide c ~> js/text v0 "slide: ", js/text v1 c, js/text v2 " / ", js/text v3 n, child v0 p 0, child v1 p 0, child v2 p 0, child v3 p 0
+
+raw-click button 'no-shift id _, slide-app id => click button
+#raw-click 'right 'shift id _ => bad-slide-range 8 50
+
+# insert bad slides once we click
+=> ready
+..ready, click 'left => make-bad-slides 10 191

@@ -10,4 +10,4 @@ composite-by _ m, number m => not-prime m
 ..consider n, not-prime n => consider (n + 1)
 ..consider n, number n => prime n, consider (n + 1)
 
-prime _ ~> prime-count
+prime _ ~> :prime-count

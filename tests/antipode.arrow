@@ -1,4 +1,4 @@
-prop x ~> P x
-p x, p y, P x, !P y ~> Q x y
+prop x ~> :P x
+p x, p y, :P x, !:P y ~> :Q x y
 
-Q _ _ => count
+:Q _ _ => count

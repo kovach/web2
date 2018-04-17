@@ -1,8 +1,8 @@
 module Parser
-  (rquery_, isComment
+  (assert_, isComment
   , LineRule, parseRuleFile
   , parseTupleFile
-  , Error, runParser, lhs_, lexLine, line_
+  , Error, runParser, lhs_, lexLine, line_, lexFile
   ) where
 
 import Data.Char (isSpace)
@@ -18,7 +18,7 @@ type L = Lex String
 
 type LParser = ParseEither [L] Error
 
-type LineRule = (Int, Rule, String)
+type LineRule = (Int, Rule)
 
 ppLex :: [L] -> String
 ppLex = unwords . map fix
@@ -31,7 +31,7 @@ isComment (Comment _) = True
 isComment _ = False
 
 forbidden_characters :: String
-forbidden_characters = " \t\n,.;@()[]{}!"
+forbidden_characters = " \t\n,.;:@()[]{}!"
 -- ... and \" implicitly
 
 forbidden_identifier = ["~>", "=>", ",", "!"]
@@ -139,18 +139,32 @@ ineq_ =
   (string "<" *> return QLess) <|>
   (string ">" *> return QMore)
 qbin_ = flip QBinOp <$> expr_ <*> ineq_ <*> expr_
-ep_ lin = EP lin <$> rel_ <*> many q_
-lp_ p = LP p <$> rel_ <*> many q_
+--ep_ lin = EP lin <$> rel_ <*> many q_
+--lp_ p = LP p <$> rel_ <*> many q_
 
-query_ = Query Low <$> ep_ NonLinear
-dotquery_ = string "." *> (Query High <$> ep_ NonLinear)
-linearquery_ = string "." *> string "." *> (Query Low <$> ep_ Linear)
-dotlinearquery_ = string "." *> string "." *> string "." *> (Query High <$> ep_ Linear)
-lnlogicquery  = string "!" *> (Query Low <$> lp_ Negative)
-hnlogicquery  = string ".!" *> (Query High <$> lp_ Negative)
+query_ = Query <$> ((string "@" *> pure High) <|> pure Low) <*> pattern_
+--query_ = Query Low <$> ep_ NonLinear
+--dotquery_       = string "." *> (Query High <$> ep_ NonLinear)
+--linearquery_    = string ".." *> (Query Low <$> ep_ Linear)
+--dotlinearquery_ = string "..." *> (Query High <$> ep_ Linear)
+--lnlogicquery_   = string "!" *> (Query Low <$> lp_ Negative)
+--hnlogicquery_   = string ".!" *> (Query High <$> lp_ Negative)
 
-clause_ = qbin_ <|> dotquery_ <|> linearquery_ <|> dotlinearquery_ <|> query_
-        <|> lnlogicquery <|> hnlogicquery
+polarity_  = (string "!" *> string ":" *> pure Negative) <|> (string ":" *> pure Positive)
+linearity_ = (string "." *> string "." *> pure Linear) <|> (pure NonLinear)
+
+rp_ = VP <$> (q_ <* string ":" ) <*> rel_ <*> many q_
+lp_ = LP <$> polarity_ <*> rel_ <*> many q_
+ep_ = EP <$> linearity_ <*> rel_ <*> many q_
+pattern_ = rp_ <|> lp_ <|> ep_
+
+
+
+clause_ = qbin_ <|> query_
+
+--clause_ = qbin_ <|> dotquery_ <|> linearquery_ <|> dotlinearquery_ <|> query_
+--        <|> lnlogicquery_ <|> hnlogicquery_
+
 lhs_ = sepBy comma_ clause_
 
 wrap_ p = (string "(") *> p <* (string ")")
@@ -170,29 +184,33 @@ expr_ =
   <|> (wrap_ $ EConcat <$> expr_ <*> (string "++" *> expr_))
 
 -- allow trailing whitespace?
-rquery_ = Assert <$> rel_ <*> many expr_
-rclause_ = rquery_
+assert_ = Assert <$> rel_ <*> many expr_
+vassert_ = do
+  val <- (TValExpr <$> expr_) <|> (pure TValNull)
+  string ":"
+  VAssert val <$> rel_ <*> many expr_
+rclause_ = vassert_ <|> assert_
 rhs_ = sepBy comma_ rclause_
 
 arrow_ = string "=>"
 larrow_ = string "~>"
 
-rule_ = (Rule Nothing Event <$> lhs_ <*> (arrow_ *> rhs_))
-lrule_ = (Rule Nothing View <$> lhs_ <*> (larrow_ *> rhs_))
+rule_ = (Rule Nothing Nothing Event <$> lhs_ <*> (arrow_ *> rhs_))
+lrule_ = (Rule Nothing Nothing View <$> lhs_ <*> (larrow_ *> rhs_))
 
 line_ = rule_ <|> lrule_
 
 parseLine line s =
   let str = ppLex s in
   case runParser line_ s of
-    Right (r, []) -> (line, r , str)
+    Right (r, []) -> (line, r { rule_str = Just str })
     p -> error $ "line " ++ show line ++ ": incomplete parse.\n  " ++ show p
 
 removeComments = filter (not . isComment)
 
 parseTuple :: [L] -> Either Error Assert
 parseTuple ls =
-  case runParser rquery_ ls of
+  case runParser rclause_ ls of
     Left (err, _) -> Left err
     Right (v, []) -> Right v
     Right v -> Left $ "incomplete parse: " ++ show v

@@ -27,9 +27,10 @@ readDBFile file = do
 -- Program parsing
 readRules :: FilePath -> IO [Rule]
 readRules f = do
-  rs <- readFile f
-  case parseRuleFile rs of
-    Right rs -> return $ convertRules $ map (\(l,a,_) -> (l,a)) rs
+  f <- readFile f
+  let result = convertRules =<< parseRuleFile f
+  case result of
+    Right rules -> return $ rules
     Left err -> error $ err
 
 -- 1. treats the input RHS as a set of tuples to add
@@ -39,7 +40,7 @@ readRules f = do
 processInputTuples :: PS -> Context -> RHS -> SM (Tuple, [Msg], Context, PS)
 processInputTuples ps c es = do
   let initMatch t edges c =
-        (Provenance (unsafeRanked (-1) $ Rule Nothing Event [] edges) (Just $ toEvent t) [] [], c, [])
+        (Provenance (unsafeRanked (-1) $ Rule Nothing Nothing Event [] edges) (Just t) [] [], c, [])
   root <- lift $ makeTuple ("_root", []) externProv
   (msgs, c') <- lift $ applyMatch $ initMatch root es c
   (out, ps') <- solve (map CMsg msgs) ps

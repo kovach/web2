@@ -1,6 +1,8 @@
 op 'black 'white
 op 'white 'black
 
+start_game
+
 width 2
 height 2
 

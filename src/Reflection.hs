@@ -183,6 +183,11 @@ flattenEP q c (LP pol l ns) = do
   unless (pol == Positive) (makeT "negated" [q] >> return ())
   foldM (\a -> uncurry $ flattenNV q a) c (zip [1..] ns)
 
+flattenEP q c (VP nv l ns) = do
+  makeT "label" [labelString l, q]
+  c1 <- flattenNV q c 0 nv
+  foldM (\a -> uncurry $ flattenNV q a) c1 (zip [1..] ns)
+
 flattenQ r c (Query dot ep) = do
   q <- fresh
   makeT "pattern" [q, r]
@@ -239,6 +244,18 @@ flattenA r c (Assert l es) = do
   makeT "label" [labelString l, q]
   foldM (\c -> uncurry $ flattenE q c) c (zip [1..] es)
 
+flattenA r c (VAssert tve l es) = do
+  q <- fresh
+  makeT "assert" [q, r]
+  makeT "label" [labelString l, q]
+  c1 <- case tve of
+    TValNull -> makeT "boolean" [q] >> return c
+    TValExpr e -> do
+      c1 <- flattenE q c 0 e
+      makeT "integral" [q]
+      return c1
+  foldM (\c -> uncurry $ flattenE q c) c1 (zip [1..] es)
+
 flattenRule :: Maybe Node -> RankedRule -> M3 Node
 flattenRule rs rr@(RankedRule i rule) = withR rr $ do
     r <- fresh
@@ -246,10 +263,13 @@ flattenRule rs rr@(RankedRule i rule) = withR rr $ do
     case rule_id rule of
       Just id -> makeT "rule-id" [id, r]
       Nothing -> makeT "extern" [r]
+    case rule_str rule of
+      Just str -> makeT "rule-str" [NString str, r]
+      Nothing -> return ()
     makeT "rank" [NInt i, r]
     c <- foldM (flattenQ r) [] qs
     _ <- foldM (flattenA r) c as
-    case rtype rule of
+    case rule_type rule of
       Event -> makeT "imperative" [r]
       View -> makeT "logical" [r]
     return r
@@ -277,6 +297,7 @@ flattenTuple t = withT t $ do
   makeT "cause" [p, i]
   makeT "tid" [NInt (tid t), i]
   case tval t of
+    TVNode n -> makeT "count" [n, i]
     Truth b -> if b then makeT "true" [i] else makeT "false" [i]
     NoVal -> return ()
   return i
@@ -291,7 +312,7 @@ flattenFact f@(l,ns) = withF f $ do
 flattenProv p@(Extern ids) = withP p $ do
   i <- fresh
   makeT "extern" [i]
-  let fix (n,num) = makeT "id" [NInt num, i, NInt n]
+  let fix (n,num) = makeT "id" [NNode num, i, NInt n]
   mapM_ fix $ zip [1..] ids
   return i
 flattenProv p@(Provenance{}) = withP p $ do
@@ -319,7 +340,8 @@ flattenProv p@(Reduction{}) = withP p $ do
   makeT "cause" [i]
   makeT "reduced" [i]
   let ops = case reduction_op p of
-        Or -> "or"
+        ReduceOr -> "or"
+        ReduceSum -> "+"
   makeT "op" [NString ops, i]
   let doT t = do
         ti <- flattenTuple t
@@ -327,17 +349,18 @@ flattenProv p@(Reduction{}) = withP p $ do
   mapM doT (reduced p)
   return i
 
-flattenContext :: Context -> M3 Node
-flattenContext ctxt = do
-  c <- fresh
-  mapM_ (fix c) ctxt
-  return c
+flattenContext :: Node -> Context -> M3 Node
+flattenContext out ctxt = do
+    c <- fresh
+    makeT "io/context" [c, out]
+    mapM_ (fix c) ctxt
+    return c
   where
     fix c (name, node) = do
       i <- fresh
-      makeT "var-name" [NString name, i]
-      makeT "value" [node, i]
-      makeT "binding" [i, c]
+      makeT "io/var"     [NString name, i]
+      makeT "io/val"     [        node, i]
+      makeT "io/binding" [i, c]
 
 runReflection :: M3 a -> ReflContext -> M2 (a, ReflContext)
 runReflection = runStateT

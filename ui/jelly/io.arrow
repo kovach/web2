@@ -1,0 +1,31 @@
+# make root svg element
+~> svg e, js/svg e, child e "body"
+# svg style
+svg e ~> js/style "background-color" "#444" e, js/style "width" "700px" e, js/style "height" "700px" e
+svg e ~> js/style "border-width" "2px" e, js/style "border" "solid" e
+
+#x 8 p, y 1 p => jelly j, pos p j, color "red" j
+#x 2 p, y 1 p => jelly j, pos p j, color "blue" j
+#x 4 p, y 1 p => jelly j, pos p j, color "blue" j
+#x 2 p, y 2 p => jelly j, pos p j, wall j
+#x 10 p, y 2 p => jelly j, pos p j, wall j
+## floor
+#height n, col c, x c p, y n p => jelly j, pos p j, wall j
+
+# side length of a jelly
+=> jelly-unit 40
+
+# jelly gets a rectangle
+jelly j, svg canvas ~> js/rect i, icon i j, child i canvas
+# transcribe coordinates to rectangle
+jelly j, icon i j, jelly-unit w ~> js/attr "width" w i, js/attr "height" w i
+pos p j, icon i j, x x p, y y p, jelly-unit w ~> js/attr "x" (x * w) i, js/attr "y" (y * w) i
+
+color c j, icon i j ~> js/style "fill" c i
+wall j,    icon i j ~> js/style "fill" "666" i
+
+# Input
+# just to be explicit...
+raw-click 'left _ id _  => click 'left id
+raw-click 'right _ id _ => click 'right id
+click dir i, icon i j => ask-move-jelly dir j

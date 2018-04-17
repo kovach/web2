@@ -1,0 +1,120 @@
+# jellies form a block
+# `edge/3` relates a block to the jellies along its edges
+# edges determine supportedness and movability for the block
+
+# the cardinal directions
+=> dir 'down 0 1, dir 'up 0 -1, dir 'left -1 0, dir 'right 1 0
+# a position p1 whose coordinate is different than the coordinate of p2 by (dx dy in dir d dx dy) then :adjacent d p1 p2
+dir d dx dy, pos p1, pos p2, x x1 p1, y y1 p1, x x2 p2, y y2 p2, x1 = dx + x2, y1 = dy + y2 ~> :adjacent dir p1 p2
+# a jelly occupies its position
+jelly j, pos p j ~> :occupied p
+# the position of a jelly is in the jelly's block
+block b j, pos p j ~> :in-block p b
+# a jelly adjacent to a cell that isn't in the jelly's block is on the block's edge
+block b j, pos p j, :adjacent dir p' p, !:in-block p' b ~> :edge dir j b
+
+:edge dir j b, pos p j, :adjacent dir p' p, :occupied p' ~> :blocked dir b
+
+# gravity
+# when a block isn't blocked down, it moves down
+!:blocked 'down b => move 'down b
+# input
+@click dir j, !:blocked dir b, block b j => move dir b
+
+# to move a block, move each of its jellies
+move dir b, block b j => move dir j
+# walls don't move
+..move dir j, wall j =>
+# to move a jelly, change its position
+move dir j, ..pos p j, :adjacent dir p' p => pos p' j
+
+# ^ above works (I think) but you can't move a group of jellies simultaneously (e.g. to move all left, have to start by moving leftmost)
+# no mergers yet
+
+# "directed adjacency"
+:adjacent 'left p1 p2 ~> :semi-adj p1 p2
+:adjacent 'up p1 p2 ~> :semi-adj p1 p2
+
+# if two blocks are adjacent, observe (once!) that they should be merged
+:semi-adj dir p1 p2, pos p1 j1, pos p2 j2, block b1 j1, block b2 j2, b1 /= b2, color c j1, color c j2 => :merge b1 b2 new-block
+
+color 'black j, block b j => :cannot-merge b
+
+!:cannot-merge b, :merge b _ new, ..block b j => block new j
+!:cannot-merge b, :merge _ b new, ..block b j => block new j
+
+# notice the function of `cannot-merge`
+# normal jellies can merge; ideally the rule's query is just two clauses
+# we want to interpose to add black jellies
+# we can do this by rewriting the queries (extra guard) and setting the guard for black jellies
+# we could rewrite the `~> :merge` rule; instead generate persistent tuples, add an extra de-dup rule, and in between the two, add a rule that deletes merge commands for black
+# two ways:
+#   prevent the merging command from getting the message
+#   add an extra wire that inhibits it from matching
+#   ^ are these the two types of wires from the AI lab's floor robots?
+
+
+# todo: add growers, attached jellies
+
+# change: attached jellies are logically part of the block at their attachment point
+#   want this to work uniformly for walls and black jellies (see level 27)
+#   change walls so that instead of eating their move commands, they register as :blocked
+#
+# --# walls don't move
+# --..move dir j, wall j =>
+# ++ with :blocked def
+# ++# walls block their block in all directions
+# ++block b j, wall j, dir d _ _ ~> :blocked dir b
+
+# idea: allow users to give commands that express assumptions
+# like, insert a new rule `with` an old one (or old block) versus `after`
+# with assumes that order is irrelevant
+# (1)upon `with`, system must be able to check if it is, present error if not
+# (2)upon `after`, if order is irrelevant, system could mention that
+
+# todo: graphics
+
+# ! above doesn't handle support correctly
+#   e.g. c-shape block with other block inside won't fall
+#
+# ! idea: make `blocked dir b` into a binary `blocked-by dir b blocker`
+#   detect cycles in blocked by
+#     blocked by is a graph though
+#     need to see if all paths are unfounded
+#
+# ! idea from jelly.coffee source:
+#   https://github.com/heated/jelly/blob/9f9b6a4258a6332cb58d2e722071bf0534b75abe/jelly.coffee#L937
+#   checkFilled: (jellies, dx, dy) ->
+#     done = false
+#     while not done
+#       done = true
+#       for jelly in jellies
+#         return true if jelly.immovable
+#         for [x, y, cell] in jelly.cellCoords()
+#           next = @cells[y + dy][x + dx]
+#           continue unless next           # empty space
+#           return true unless next.jelly  # wall
+#           continue if next.jelly in jellies
+#           jellies.push next.jelly
+#           done = false
+#           break
+#     return false
+
+#   when we try to move block b, we check to see if each of its elements is free
+#     but first, we add it to a set S, "jellies being checked for freedom to move"
+#     if another element of the set S is in the way, we don't count it as a blocker
+#     if another jelly is in the way, we should add it to the set S, and check it for freedom
+#
+#   jelly + direction denotes a set of blocks (including jelly's block)
+#     if these blocks are all only blocked by other blocks in the set, the set is free to move in the direction
+
+
+# every jelly blocks its block
+block b j, dir d _ _ ~> :blocking dir j b
+# if jelly blocks, and jelly' is (adjacent dir), jelly' blocks
+:blocking dir j b, pos p j, adjacent dir p' p, pos p' j' ~> :blocking dir j' b
+# when a jelly blocks, each of the jellies in its block blocks
+# (inequality not strictly necessary)
+:blocking dir j b, block b' j, b /= b', block b' j' ~> :blocking dir j' b
+# when a wall blocks, the block cannot move
+:blocking dir w b, wall w ~> :blocked dir b

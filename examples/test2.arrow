@@ -1,1 +1,3 @@
-=> text-node i "hi", parent i "log"
+bar ~> 1:bars
+
+..foo, ..bar =>

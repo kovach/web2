@@ -1,17 +1,30 @@
 /* TODO remove css dependence */
+html {
+  width:99%;
+  height:99%;
+}
+
 body {
   font-family: 'Noto Sans';
 	font-size: 14pt;
-  color: #eee;
-  background-color: #222;
+  color: #000;
+  background-color: #fff;
+  outline: none;
+
+  user-select: none;
+  width:99%;
+  height:99%;
+}
+
+.div {
   outline: none;
 }
 
 .CodeMirror {
   font-family: "Roboto Mono", monospace;
-	font-size: 9pt;
-  color: #eee;
-  background-color: #333;
+	font-size: 11pt;
+  color: #000;
+  background-color: #ccc;
   outline: none;
   height: auto;
   margin: 10px;
@@ -34,29 +47,86 @@ body {
   display: inline-block;
 }
 
-#rules, #program, #log {
-  display: inline-block;
-  padding: 3px;
+#app, #rules, #log, #slides, #repl {
+display: inline-block;
+  /*
   margin: 0 auto;
+   * */
+  white-space: pre-wrap;
+  padding: 3px;
   outline: none;
-}
 
-#rules, #log {
-  width: 40%;
+  width: 40vw;
   font-family: "Roboto Mono", monospace;
   font-size: 14pt;
   background-color: transparent;
   outline: none;
-  overflow: auto;
+  overflow-y: auto;
   vertical-align: top;
-  height: 700px;
+  /*height: 650px;*/
+}
+
+#slides {
+  width: 65%;
+  height: 100%;
+  font-size: 18pt;
+
+  border: solid;
+  border-width: 2px;
+  border-color: #999;
+  border-radius: 7px;
+  top: 0px;
+  bottom: 0px;
+}
+
+.color-box {
+  min-width: 30px;
+  min-height: 30px;
+  background-color: #d48;
+  position: fixed;
+  top: 80px;
+  right: 200px;
+  text-align: center;
+  vertical-align: middle;
+  display: table;
+  font-size: 18pt;
+}
+
+#repl {
+  width: 30%;
+  height: 99%;
+  font-size: 10pt;
+  display: inline-block;
+  overflow: hidden;
+  /*overflow: auto;*/
+}
+
+#repl-log {
+  overflow-y: auto;
+  height: 80%;
+  display: inline-block;
+  width: 100%;
+  padding-top: 20px;
+}
+
+#app {
+  width: 20vw;
 }
 
 #rules {
-  /*width: 20%;*/
+  width: 40vw;
+}
+
+.pane {
+  padding:22px;
 }
 
 #log {
+  display: inline-block;
+  overflow-x: visible;
+  overflow-y: auto;
+  height: 100%;
+  width: 99%;
 }
 
 ::-webkit-scrollbar {
@@ -93,7 +163,7 @@ body {
 }
 
 .prov, .block {
-  font-size: 9pt;
+  font-size: 12pt;
   display: block;
 }
 
@@ -102,7 +172,7 @@ body {
 }
 
 .rule_node {
-  color: #8d3;
+  color: #c22;
 }
 
 .query, .assert, .sep {
@@ -143,8 +213,12 @@ svg {
   width: 600px;
   height: 600px;
   display: block;
-  margin: 0 auto;
-  background-color: #eB6;
+  /*margin: 0 auto;*/
+  outline: none;
+}
+
+rect {
+  outline: none;
 }
 
 .editor {
